@@ -6,6 +6,11 @@ class Dealer_DB {
 	// ─── Activation ──────────────────────────────────────────────────────────
 
 	public static function install(): void {
+		self::create_log_table();
+		self::create_pages();
+	}
+
+	private static function create_log_table(): void {
 		global $wpdb;
 
 		$table           = $wpdb->prefix . 'dealer_download_log';
@@ -28,6 +33,56 @@ class Dealer_DB {
 		dbDelta( $sql );
 
 		update_option( 'dealer_portal_version', DEALER_PORTAL_VERSION );
+	}
+
+	/**
+	 * Crea automaticamente le due pagine WordPress necessarie al plugin,
+	 * se non esistono già. Sicuro da richiamare più volte (idempotente).
+	 */
+	private static function create_pages(): void {
+		$pages = [
+			[
+				'title'     => 'Dashboard Dealer',
+				'slug'      => 'dashboard-dealer',
+				'shortcode' => '[dealer_dashboard]',
+				'option'    => 'dealer_portal_dashboard_page_id',
+			],
+			[
+				'title'     => 'Cerca Documenti',
+				'slug'      => 'dealer-search',
+				'shortcode' => '[dealer_search]',
+				'option'    => 'dealer_portal_search_page_id',
+			],
+		];
+
+		foreach ( $pages as $page ) {
+			// Controlla se la pagina esiste già (per slug).
+			$existing = get_page_by_path( $page['slug'], OBJECT, 'page' );
+			if ( $existing ) {
+				update_option( $page['option'], $existing->ID );
+				continue;
+			}
+
+			// Controlla se l'ID salvato in precedenza è ancora valido.
+			$saved_id = (int) get_option( $page['option'] );
+			if ( $saved_id && get_post_status( $saved_id ) ) {
+				continue;
+			}
+
+			// Crea la pagina.
+			$page_id = wp_insert_post( [
+				'post_title'   => $page['title'],
+				'post_name'    => $page['slug'],
+				'post_content' => $page['shortcode'],
+				'post_status'  => 'publish',
+				'post_type'    => 'page',
+				'post_author'  => get_current_user_id() ?: 1,
+			] );
+
+			if ( ! is_wp_error( $page_id ) ) {
+				update_option( $page['option'], $page_id );
+			}
+		}
 	}
 
 	// ─── Write ───────────────────────────────────────────────────────────────
