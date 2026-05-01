@@ -94,6 +94,13 @@ class Dealer_Search {
 				[ 'key' => '_doc_status', 'value' => 'obsoleto', 'compare' => '!=' ],
 				[ 'key' => '_doc_status', 'compare' => 'NOT EXISTS' ],
 			],
+			// Escludi documenti con data di scadenza superata.
+			[
+				'relation' => 'OR',
+				[ 'key' => '_doc_expiry', 'compare' => 'NOT EXISTS' ],
+				[ 'key' => '_doc_expiry', 'value' => '', 'compare' => '=' ],
+				[ 'key' => '_doc_expiry', 'value' => gmdate( 'Y-m-d' ), 'compare' => '>=' ],
+			],
 		];
 
 		if ( $filter_brand ) {
@@ -227,6 +234,16 @@ class Dealer_Search {
 			wp_die( esc_html__( 'Non hai i permessi per scaricare questo documento.', 'dealer-portal' ), '', [ 'response' => 403 ] );
 		}
 
+		// Verifica che il documento non sia scaduto.
+		$expiry = get_post_meta( $post_id, '_doc_expiry', true );
+		if ( $expiry && strtotime( $expiry ) < time() ) {
+			wp_die(
+				esc_html__( 'Questo documento è scaduto e non è più disponibile per il download.', 'dealer-portal' ),
+				'',
+				[ 'response' => 403 ]
+			);
+		}
+
 		// Recupera il file.
 		$attachment_id = (int) get_post_meta( $post_id, '_doc_file_id', true );
 		if ( ! $attachment_id ) {
@@ -283,17 +300,8 @@ class Dealer_Search {
 			wp_send_json_error( [ 'message' => 'Authentication required.' ], 403 );
 		}
 
-		$post_id = absint( $_POST['post_id'] ?? 0 );
-		if ( $post_id && get_post_type( $post_id ) === 'documento_dealer' ) {
-			// Verifica accesso prima di loggare.
-			$user       = wp_get_current_user();
-			$user_lines = get_user_meta( $user->ID, '_dealer_lines', true );
-			if ( ! is_array( $user_lines ) ) { $user_lines = []; }
-			if ( self::user_can_access_post( $user, $user_lines, $post_id ) ) {
-				Dealer_DB::log_download( $post_id );
-			}
-		}
-
+		// Il log è già scritto in modo affidabile da handle_download() server-side.
+		// Questo endpoint AJAX è mantenuto per compatibilità con dealer-search.js.
 		wp_send_json_success();
 	}
 
@@ -333,5 +341,11 @@ class Dealer_Search {
 		if ( ! $expiry ) { return false; }
 		$diff = strtotime( $expiry ) - time();
 		return $diff > 0 && $diff < ( 30 * DAY_IN_SECONDS );
+	}
+
+	public static function is_expired_doc( int $post_id ): bool {
+		$expiry = get_post_meta( $post_id, '_doc_expiry', true );
+		if ( ! $expiry ) { return false; }
+		return strtotime( $expiry ) < time();
 	}
 }
