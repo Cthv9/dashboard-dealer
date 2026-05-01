@@ -109,7 +109,7 @@ class Dealer_DB {
 			$ip = '';
 		}
 
-		$wpdb->insert(
+		$result = $wpdb->insert(
 			$wpdb->prefix . 'dealer_download_log',
 			[
 				'user_id'       => $user_id,
@@ -119,6 +119,15 @@ class Dealer_DB {
 			],
 			[ '%d', '%d', '%s', '%s' ]
 		);
+
+		if ( false === $result ) {
+			error_log( sprintf(
+				'[Dealer Portal] log_download() failed for user_id=%d post_id=%d — DB error: %s',
+				$user_id,
+				$post_id,
+				$wpdb->last_error
+			) );
+		}
 	}
 
 	// ─── Read ────────────────────────────────────────────────────────────────
