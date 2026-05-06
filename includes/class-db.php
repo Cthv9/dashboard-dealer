@@ -8,6 +8,8 @@ class Dealer_DB {
 	public static function install(): void {
 		self::create_log_table();
 		self::create_pages();
+		self::create_protected_upload_dir();
+		self::setup_capability();
 	}
 
 	private static function create_log_table(): void {
@@ -82,6 +84,39 @@ class Dealer_DB {
 			if ( ! is_wp_error( $page_id ) ) {
 				update_option( $page['option'], $page_id );
 			}
+		}
+	}
+
+	private static function create_protected_upload_dir(): void {
+		$uploads  = wp_upload_dir();
+		$dir      = $uploads['basedir'] . '/dealer-docs';
+
+		if ( ! is_dir( $dir ) ) {
+			wp_mkdir_p( $dir );
+		}
+
+		$htaccess = $dir . '/.htaccess';
+		if ( ! file_exists( $htaccess ) ) {
+			// Blocca l'accesso HTTP diretto. I file vengono serviti via PHP (readfile).
+			$rules = "# Apache 2.4\n"
+				   . "Require all denied\n"
+				   . "# Apache 2.2 fallback\n"
+				   . "<IfModule !mod_authz_core.c>\n"
+				   . "    Deny from all\n"
+				   . "</IfModule>\n";
+			file_put_contents( $htaccess, $rules );
+		}
+
+		$index = $dir . '/index.php';
+		if ( ! file_exists( $index ) ) {
+			file_put_contents( $index, '<?php // Silence is golden.' );
+		}
+	}
+
+	private static function setup_capability(): void {
+		$admin = get_role( 'administrator' );
+		if ( $admin && ! $admin->has_cap( DEALER_PORTAL_CAP ) ) {
+			$admin->add_cap( DEALER_PORTAL_CAP );
 		}
 	}
 

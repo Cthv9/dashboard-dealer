@@ -226,6 +226,16 @@ class Dealer_Search {
 			wp_die( esc_html__( 'Documento non trovato.', 'dealer-portal' ), '', [ 'response' => 404 ] );
 		}
 
+		// Blocca documenti non pubblicati (draft, pending, ecc.).
+		if ( get_post_status( $post_id ) !== 'publish' ) {
+			wp_die( esc_html__( 'Documento non trovato.', 'dealer-portal' ), '', [ 'response' => 404 ] );
+		}
+
+		// Blocca documenti segnati come obsoleti.
+		if ( get_post_meta( $post_id, '_doc_status', true ) === 'obsoleto' ) {
+			wp_die( esc_html__( 'Questo documento è obsoleto e non è più disponibile per il download.', 'dealer-portal' ), '', [ 'response' => 403 ] );
+		}
+
 		// Controllo accesso doppio.
 		$user_lines = get_user_meta( $user->ID, '_dealer_lines', true );
 		if ( ! is_array( $user_lines ) ) { $user_lines = []; }

@@ -167,14 +167,14 @@
 		$sel3.empty();
 
 		$.each( lines, function ( i, line ) {
-			// Step 2: valore = nome linea semplice
+			// Step 2: valore = nome linea semplice (.val() imposta la proprietà DOM, non l'HTML)
 			$sel2.append(
-				$( '<option>' ).val( escapeHtml( line ) ).text( line )
+				$( '<option>' ).val( line ).text( line )
 			);
 			// Step 3: valore = "Brand|Linea" per matching con _dealer_lines
 			var key = brand + '|' + line;
 			$sel3.append(
-				$( '<option>' ).val( escapeHtml( key ) ).text( brand + ' › ' + line )
+				$( '<option>' ).val( key ).text( brand + ' › ' + line )
 			);
 		} );
 	}
