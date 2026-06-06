@@ -12,6 +12,19 @@ class Dealer_DB {
 		self::setup_capability();
 	}
 
+	/**
+	 * Runs on plugins_loaded every time the stored version is behind the
+	 * current one, ensuring upgrade paths don't rely on reactivation.
+	 */
+	public static function maybe_upgrade(): void {
+		if ( get_option( 'dealer_portal_version' ) === DEALER_PORTAL_VERSION ) {
+			return;
+		}
+		self::create_protected_upload_dir();
+		self::setup_capability();
+		update_option( 'dealer_portal_version', DEALER_PORTAL_VERSION );
+	}
+
 	private static function create_log_table(): void {
 		global $wpdb;
 
