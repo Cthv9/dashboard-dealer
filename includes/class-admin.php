@@ -66,15 +66,15 @@ class Dealer_Admin {
 		add_menu_page(
 			'Dealer Portal',
 			'Dealer Portal',
-			'manage_options',
+			DEALER_PORTAL_CAP,
 			'dealer-portal',
 			[ $this, 'render_upload' ],
 			'dashicons-portfolio',
 			30
 		);
-		add_submenu_page( 'dealer-portal', 'Carica Documento',   'Carica Documento',   'manage_options', 'dealer-portal',          [ $this, 'render_upload' ] );
-		add_submenu_page( 'dealer-portal', 'Archivio Documenti', 'Archivio Documenti', 'manage_options', 'dealer-portal-archive',  [ $this, 'render_archive' ] );
-		add_submenu_page( 'dealer-portal', 'Log Download',       'Log Download',       'manage_options', 'dealer-portal-logs',     [ $this, 'render_logs' ] );
+		add_submenu_page( 'dealer-portal', 'Carica Documento',   'Carica Documento',   DEALER_PORTAL_CAP, 'dealer-portal',          [ $this, 'render_upload' ] );
+		add_submenu_page( 'dealer-portal', 'Archivio Documenti', 'Archivio Documenti', DEALER_PORTAL_CAP, 'dealer-portal-archive',  [ $this, 'render_archive' ] );
+		add_submenu_page( 'dealer-portal', 'Log Download',       'Log Download',       DEALER_PORTAL_CAP, 'dealer-portal-logs',     [ $this, 'render_logs' ] );
 	}
 
 	// ─── Assets ──────────────────────────────────────────────────────────────
@@ -125,14 +125,14 @@ class Dealer_Admin {
 	// ─── Page renderers ──────────────────────────────────────────────────────
 
 	public function render_upload(): void {
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( DEALER_PORTAL_CAP ) ) {
 			wp_die( esc_html__( 'Accesso non consentito.', 'dealer-portal' ) );
 		}
 		require DEALER_PORTAL_PATH . 'templates/admin-upload.php';
 	}
 
 	public function render_archive(): void {
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( DEALER_PORTAL_CAP ) ) {
 			wp_die( esc_html__( 'Accesso non consentito.', 'dealer-portal' ) );
 		}
 
@@ -194,7 +194,7 @@ class Dealer_Admin {
 	}
 
 	public function render_logs(): void {
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( DEALER_PORTAL_CAP ) ) {
 			wp_die( esc_html__( 'Accesso non consentito.', 'dealer-portal' ) );
 		}
 		$logs = Dealer_DB::get_all_logs();
@@ -206,7 +206,7 @@ class Dealer_Admin {
 	public function ajax_get_lines(): void {
 		check_ajax_referer( 'dealer_upload_nonce', 'nonce' );
 
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( DEALER_PORTAL_CAP ) ) {
 			wp_send_json_error( [ 'message' => 'Unauthorized' ], 403 );
 		}
 
@@ -221,13 +221,23 @@ class Dealer_Admin {
 	public function ajax_save_document(): void {
 		check_ajax_referer( 'dealer_upload_nonce', 'nonce' );
 
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( DEALER_PORTAL_CAP ) ) {
 			wp_send_json_error( [ 'message' => 'Unauthorized' ], 403 );
 		}
 
 		// Verifica file caricato.
 		if ( empty( $_FILES['doc_file'] ) || (int) $_FILES['doc_file']['error'] !== UPLOAD_ERR_OK ) {
 			wp_send_json_error( [ 'message' => 'Nessun file valido caricato. Verifica che il file sia stato selezionato.' ] );
+		}
+
+		// Verifica che sia un upload HTTP genuino (non un path locale arbitrario).
+		if ( ! is_uploaded_file( $_FILES['doc_file']['tmp_name'] ) ) {
+			wp_send_json_error( [ 'message' => 'File non valido.' ] );
+		}
+
+		// Limite dimensione server-side (50 MB).
+		if ( $_FILES['doc_file']['size'] > 50 * MB_IN_BYTES ) {
+			wp_send_json_error( [ 'message' => 'File troppo grande (max 50 MB).' ] );
 		}
 
 		// Whitelist MIME esplicita: solo PDF, XLSX, DOCX.
@@ -240,6 +250,16 @@ class Dealer_Admin {
 		require_once ABSPATH . 'wp-admin/includes/file.php';
 		require_once ABSPATH . 'wp-admin/includes/image.php';
 		require_once ABSPATH . 'wp-admin/includes/media.php';
+
+		// Valida estensione e contenuto reale prima dell'upload.
+		$check = wp_check_filetype_and_ext(
+			$_FILES['doc_file']['tmp_name'],
+			$_FILES['doc_file']['name'],
+			$allowed_mimes
+		);
+		if ( empty( $check['type'] ) || ! array_search( $check['type'], $allowed_mimes, true ) ) {
+			wp_send_json_error( [ 'message' => 'Tipo di file non consentito. Sono accettati solo PDF, XLSX e DOCX.' ] );
+		}
 
 		$keep_original = ! empty( $_POST['keep_original_name'] );
 
@@ -255,10 +275,21 @@ class Dealer_Admin {
 			}
 		}
 
+		// Redirige l'upload nella sottocartella protetta dealer-docs/.
+		$upload_dir_filter = static function ( array $dirs ): array {
+			$dirs['subdir'] = '/dealer-docs';
+			$dirs['path']   = $dirs['basedir'] . '/dealer-docs';
+			$dirs['url']    = $dirs['baseurl'] . '/dealer-docs';
+			return $dirs;
+		};
+		add_filter( 'upload_dir', $upload_dir_filter );
+
 		$uploaded = wp_handle_upload( $_FILES['doc_file'], [
 			'test_form' => false,
 			'mimes'     => $allowed_mimes,
 		] );
+
+		remove_filter( 'upload_dir', $upload_dir_filter );
 
 		if ( isset( $uploaded['error'] ) ) {
 			wp_send_json_error( [ 'message' => $uploaded['error'] ] );
@@ -290,13 +321,23 @@ class Dealer_Admin {
 		$allowed_roles = [ 'dealer', 'top_dealer', 'part_center' ];
 		$roles         = array_values( array_intersect( array_map( 'sanitize_key', $raw_roles ), $allowed_roles ) );
 
-		// Valida linee (formato "Brand|Linea").
+		// Valida linee contro la whitelist delle combinazioni Brand|Linea ammesse.
 		$raw_lines = isset( $_POST['doc_lines'] ) ? (array) wp_unslash( $_POST['doc_lines'] ) : [];
-		$lines     = array_values( array_map( 'sanitize_text_field', $raw_lines ) );
+		$lines     = array_values( array_intersect(
+			array_map( 'sanitize_text_field', $raw_lines ),
+			self::get_valid_lines()
+		) );
 
-		// Valida formato data scadenza.
-		if ( $expiry && ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $expiry ) ) {
-			$expiry = '';
+		// Valida formato e valore della data di scadenza.
+		if ( $expiry ) {
+			if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $expiry ) ) {
+				$expiry = '';
+			} else {
+				$dt = DateTime::createFromFormat( 'Y-m-d', $expiry );
+				if ( ! $dt || $dt->format( 'Y-m-d' ) !== $expiry ) {
+					$expiry = '';
+				}
+			}
 		}
 
 		// Crea il post documento_dealer.
@@ -369,7 +410,7 @@ class Dealer_Admin {
 	public function ajax_mark_obsolete(): void {
 		check_ajax_referer( 'dealer_archive_nonce', 'nonce' );
 
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( DEALER_PORTAL_CAP ) ) {
 			wp_send_json_error( [ 'message' => 'Unauthorized' ], 403 );
 		}
 
@@ -389,7 +430,7 @@ class Dealer_Admin {
 	public function ajax_delete_document(): void {
 		check_ajax_referer( 'dealer_archive_nonce', 'nonce' );
 
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( DEALER_PORTAL_CAP ) ) {
 			wp_send_json_error( [ 'message' => 'Unauthorized' ], 403 );
 		}
 
@@ -478,7 +519,10 @@ class Dealer_Admin {
 		}
 
 		$lines = isset( $_POST['dealer_lines'] )
-			? array_map( 'sanitize_text_field', (array) wp_unslash( $_POST['dealer_lines'] ) )
+			? array_values( array_intersect(
+				array_map( 'sanitize_text_field', (array) wp_unslash( $_POST['dealer_lines'] ) ),
+				self::get_valid_lines()
+			) )
 			: [];
 
 		update_user_meta( $user_id, '_dealer_lines',      $lines );
@@ -499,5 +543,15 @@ class Dealer_Admin {
 
 	public static function get_doc_types(): array {
 		return self::DOC_TYPES;
+	}
+
+	public static function get_valid_lines(): array {
+		$valid = [];
+		foreach ( self::PRODUCT_LINES as $brand => $brand_lines ) {
+			foreach ( $brand_lines as $line ) {
+				$valid[] = $brand . '|' . $line;
+			}
+		}
+		return $valid;
 	}
 }
