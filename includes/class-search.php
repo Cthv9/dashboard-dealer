@@ -807,17 +807,46 @@ class Dealer_Search {
 			return false; // Nessun ruolo impostato = nessuno può vederlo.
 		}
 
-		$user_roles = (array) $user->roles;
-		if ( empty( array_intersect( $user_roles, $doc_roles ) ) ) {
-			return false; // Ruolo non autorizzato.
-		}
-
 		$doc_lines = get_post_meta( $post_id, '_doc_lines', true );
-		if ( ! is_array( $doc_lines ) || empty( $doc_lines ) ) {
-			return true; // Nessuna restrizione per linea: accesso garantito dal solo ruolo.
+		$doc_lines = is_array( $doc_lines ) ? $doc_lines : [];
+
+		// ── Area manager ──────────────────────────────────────────────────────
+		// Legge in sovrapposizione (basta una linea nel perimetro), ma scrive
+		// solo in contenimento (vedi Dealer_Identity::can_edit_document()):
+		// per seguire un documento condiviso con un'altra area basta esserne
+		// competenti in parte, per modificarlo no.
+		if ( Dealer_Identity::is_area_manager( $user ) ) {
+			if ( empty( $doc_lines ) ) {
+				return false; // Documento non ristretto: resta dell'amministratore.
+			}
+			return ! empty( array_intersect( Dealer_Identity::get_scope_lines( $user ), $doc_lines ) );
 		}
 
-		return ! empty( array_intersect( $user_lines, $doc_lines ) );
+		// ── Dealer ────────────────────────────────────────────────────────────
+		// Organizzazione sospesa: nessun accesso, nemmeno ai documenti aperti.
+		if ( ! Dealer_Identity::is_active( $user ) ) {
+			return false;
+		}
+
+		// Il livello commerciale viene dall'organizzazione quando esiste, dal
+		// ruolo WordPress altrimenti.
+		$tier = Dealer_Identity::get_effective_tier( $user );
+		if ( ! $tier || ! in_array( $tier, $doc_roles, true ) ) {
+			return false; // Livello non autorizzato.
+		}
+
+		if ( empty( $doc_lines ) ) {
+			return true; // Nessuna restrizione per linea: basta il livello.
+		}
+
+		// NOTA: $user_lines e' deliberatamente IGNORATO. Le linee vengono sempre
+		// risolte qui, dal risolutore di identita', cosi' un chiamante che passi
+		// per distrazione un elenco piu' ampio o non aggiornato non puo'
+		// allargare l'accesso. Il parametro resta solo per compatibilita' con i
+		// numerosi call site esistenti.
+		$effective = Dealer_Identity::get_effective_lines( $user );
+
+		return ! empty( array_intersect( $effective, $doc_lines ) );
 	}
 
 	/**

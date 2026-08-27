@@ -18,5 +18,12 @@ class Dealer_Roles {
 		if ( ! get_role( 'part_center' ) ) {
 			add_role( 'part_center', 'Part Center', [ 'read' => true ] );
 		}
+
+		// Area manager: segue un perimetro di organizzazioni e pubblica sulle
+		// proprie linee. Non e' un dealer e non ha accesso a wp-admin oltre
+		// alle pagine del plugin per cui ha capability esplicite.
+		if ( ! get_role( 'area_manager' ) ) {
+			add_role( 'area_manager', 'Area Manager', [ 'read' => true ] );
+		}
 	}
 }

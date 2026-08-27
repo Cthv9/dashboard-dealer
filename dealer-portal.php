@@ -20,6 +20,8 @@ require_once DEALER_PORTAL_PATH . 'includes/class-cpt.php';
 require_once DEALER_PORTAL_PATH . 'includes/class-roles.php';
 require_once DEALER_PORTAL_PATH . 'includes/class-db.php';
 require_once DEALER_PORTAL_PATH . 'includes/class-versioning.php';
+require_once DEALER_PORTAL_PATH . 'includes/class-organization.php';
+require_once DEALER_PORTAL_PATH . 'includes/class-identity.php';
 require_once DEALER_PORTAL_PATH . 'includes/class-admin.php';
 require_once DEALER_PORTAL_PATH . 'includes/class-search.php';
 require_once DEALER_PORTAL_PATH . 'includes/class-dashboard.php';
@@ -57,6 +59,7 @@ add_filter( 'login_redirect', function ( string $redirect_to, string $request, $
 add_action( 'plugins_loaded', static function (): void {
 	new Dealer_CPT();
 	new Dealer_SearchWP();
+	new Dealer_Organization();
 } );
 
 add_action( 'init', static function (): void {
