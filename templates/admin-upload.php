@@ -5,6 +5,9 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 $brands    = Dealer_Admin::get_brands();
 $doc_types = Dealer_Admin::get_doc_types();
 $cur_year  = (int) gmdate( 'Y' );
+
+// Documenti candidabili come "versione precedente": solo le versioni correnti.
+$versionable = Dealer_Versioning::get_versionable_documents();
 ?>
 <div class="wrap dealer-admin-wrap">
 	<h1 class="wp-heading-inline">
@@ -112,6 +115,58 @@ $cur_year  = (int) gmdate( 'Y' );
 					<th><label for="doc_version">Versione</label></th>
 					<td>
 						<input type="text" name="doc_version" id="doc_version" class="small-text" placeholder="es. v1, rev2">
+					</td>
+				</tr>
+				<tr>
+					<th><label for="doc_previous_version">Questo documento sostituisce…</label></th>
+					<td>
+						<?php if ( empty( $versionable ) ) : ?>
+							<p class="description">
+								<span class="dashicons dashicons-info" style="vertical-align:middle;"></span>
+								Nessun documento esistente da sostituire: questo sarà il primo della sua catena di versioni.
+							</p>
+							<input type="hidden" name="doc_previous_version" id="doc_previous_version" value="0">
+						<?php else : ?>
+							<div class="dealer-version-picker">
+								<label for="doc_previous_version_search" class="screen-reader-text">Filtra i documenti esistenti</label>
+								<input type="search"
+									id="doc_previous_version_search"
+									class="regular-text dealer-version-search"
+									placeholder="Filtra per titolo, brand, file…"
+									autocomplete="off">
+
+								<select name="doc_previous_version" id="doc_previous_version" size="8" class="dealer-version-select">
+									<option value="0" data-search="">— Nessuno: è un documento nuovo —</option>
+									<?php foreach ( $versionable as $vdoc ) :
+										$v_label    = get_post_meta( $vdoc->ID, '_doc_version',  true );
+										$v_filename = get_post_meta( $vdoc->ID, '_doc_filename', true );
+										$v_seq      = Dealer_Versioning::get_sequence( (int) $vdoc->ID );
+
+										$option_text = $vdoc->post_title;
+										if ( $v_label ) {
+											$option_text .= ' — ' . $v_label;
+										}
+										$option_text .= ' (v' . $v_seq . ' · ' . get_the_date( 'd/m/Y', $vdoc ) . ')';
+
+										$search_blob = strtolower( trim( $vdoc->post_title . ' ' . $v_label . ' ' . $v_filename . ' #' . $vdoc->ID ) );
+										?>
+										<option value="<?php echo esc_attr( $vdoc->ID ); ?>" data-search="<?php echo esc_attr( $search_blob ); ?>">
+											<?php echo esc_html( $option_text ); ?>
+										</option>
+									<?php endforeach; ?>
+								</select>
+
+								<p class="dealer-version-count" id="doc-previous-version-count" aria-live="polite">
+									<?php echo esc_html( count( $versionable ) ); ?> documenti disponibili
+								</p>
+								<p class="dealer-version-hint" id="doc-previous-version-hint" aria-live="polite"></p>
+							</div>
+							<p class="description">
+								Lascia su <strong>Nessuno</strong> se è un documento nuovo. Selezionando un documento
+								esistente, quello caricato diventa la <strong>nuova versione corrente</strong>: il
+								precedente resta scaricabile come storico ma esce dalla ricerca dei dealer.
+							</p>
+						<?php endif; ?>
 					</td>
 				</tr>
 			</table>

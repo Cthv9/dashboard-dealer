@@ -202,7 +202,56 @@ class Dealer_DB {
 		global $wpdb;
 		$table = $wpdb->prefix . 'dealer_download_log';
 
-		// Costruiamo la WHERE con prepare() per ogni filtro opzionale.
+		[ $where, $params ] = self::build_log_where( $args );
+
+		// Limite e offset sono sempre presenti: la query resta preparata anche
+		// quando non è stato passato alcun filtro.
+		$limit  = isset( $args['limit'] ) ? max( 1, absint( $args['limit'] ) ) : 500;
+		$offset = isset( $args['offset'] ) ? max( 0, absint( $args['offset'] ) ) : 0;
+
+		$params[] = $limit;
+		$params[] = $offset;
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$sql = "SELECT l.*, u.display_name, u.user_email, p.post_title
+				FROM {$table} l
+				LEFT JOIN {$wpdb->users} u ON u.ID = l.user_id
+				LEFT JOIN {$wpdb->posts} p ON p.ID = l.post_id
+				WHERE {$where}
+				ORDER BY l.download_date DESC
+				LIMIT %d OFFSET %d";
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		return $wpdb->get_results( $wpdb->prepare( $sql, ...$params ) );
+	}
+
+	/**
+	 * Conta le righe di log che corrispondono ai filtri (per la paginazione).
+	 */
+	public static function count_logs( array $args = [] ): int {
+		global $wpdb;
+		$table = $wpdb->prefix . 'dealer_download_log';
+
+		[ $where, $params ] = self::build_log_where( $args );
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$sql = "SELECT COUNT(*) FROM {$table} l WHERE {$where}";
+
+		if ( empty( $params ) ) {
+			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+			return (int) $wpdb->get_var( $sql );
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		return (int) $wpdb->get_var( $wpdb->prepare( $sql, ...$params ) );
+	}
+
+	/**
+	 * Costruisce WHERE + parametri condivisi da get_all_logs() e count_logs().
+	 *
+	 * @return array{0:string,1:array}
+	 */
+	private static function build_log_where( array $args ): array {
 		$where  = '1=1';
 		$params = [];
 
@@ -222,22 +271,184 @@ class Dealer_DB {
 			$where   .= ' AND l.download_date <= %s';
 			$params[] = sanitize_text_field( $args['date_to'] );
 		}
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$sql = "SELECT l.*, u.display_name, p.post_title
-				FROM {$table} l
-				LEFT JOIN {$wpdb->users} u ON u.ID = l.user_id
-				LEFT JOIN {$wpdb->posts} p ON p.ID = l.post_id
-				WHERE {$where}
-				ORDER BY l.download_date DESC
-				LIMIT 500";
-
-		if ( ! empty( $params ) ) {
-			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-			return $wpdb->get_results( $wpdb->prepare( $sql, ...$params ) );
+		// Tetto sull'id: congela il set di righe su cui si sta paginando, così un
+		// export a blocchi non slitta se arrivano nuovi download mentre gira.
+		if ( ! empty( $args['max_id'] ) ) {
+			$where   .= ' AND l.id <= %d';
+			$params[] = absint( $args['max_id'] );
 		}
 
+		return [ $where, $params ];
+	}
+
+	/**
+	 * Id più alto presente nel log, da usare come tetto per una paginazione
+	 * stabile su più richieste.
+	 */
+	public static function get_max_log_id(): int {
+		global $wpdb;
+		$table = $wpdb->prefix . 'dealer_download_log';
+
+		return (int) $wpdb->get_var( "SELECT MAX(id) FROM {$table}" );
+	}
+
+	// ─── Read: cronologia personale del dealer ───────────────────────────────
+
+	/**
+	 * Ultimi download effettuati da un singolo utente, un record per documento
+	 * (il più recente), così la cronologia non ripete lo stesso file.
+	 */
+	public static function get_user_downloads( int $user_id, int $limit = 20 ): array {
+		global $wpdb;
+		$table = $wpdb->prefix . 'dealer_download_log';
+
+		return $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT l.post_id,
+						MAX(l.download_date) AS last_download,
+						COUNT(*)             AS download_count
+				 FROM {$table} l
+				 WHERE l.user_id = %d
+				 GROUP BY l.post_id
+				 ORDER BY last_download DESC
+				 LIMIT %d",
+				$user_id,
+				max( 1, $limit )
+			)
+		);
+	}
+
+	// ─── Read: statistiche admin ─────────────────────────────────────────────
+
+	/**
+	 * Documenti più scaricati. $since accetta una data MySQL ('Y-m-d H:i:s').
+	 */
+	public static function get_top_documents( int $limit = 10, string $since = '' ): array {
+		global $wpdb;
+		$table = $wpdb->prefix . 'dealer_download_log';
+
+		$where  = '1=1';
+		$params = [];
+
+		if ( $since ) {
+			$where   .= ' AND l.download_date >= %s';
+			$params[] = sanitize_text_field( $since );
+		}
+
+		$params[] = max( 1, $limit );
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$sql = "SELECT l.post_id, p.post_title, COUNT(*) AS downloads
+				FROM {$table} l
+				LEFT JOIN {$wpdb->posts} p ON p.ID = l.post_id
+				WHERE {$where}
+				GROUP BY l.post_id, p.post_title
+				ORDER BY downloads DESC
+				LIMIT %d";
+
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		return $wpdb->get_results( $sql );
+		return $wpdb->get_results( $wpdb->prepare( $sql, ...$params ) );
+	}
+
+	/**
+	 * Dealer più attivi per numero di download.
+	 */
+	public static function get_top_users( int $limit = 10, string $since = '' ): array {
+		global $wpdb;
+		$table = $wpdb->prefix . 'dealer_download_log';
+
+		$where  = '1=1';
+		$params = [];
+
+		if ( $since ) {
+			$where   .= ' AND l.download_date >= %s';
+			$params[] = sanitize_text_field( $since );
+		}
+
+		$params[] = max( 1, $limit );
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$sql = "SELECT l.user_id, u.display_name, COUNT(*) AS downloads, MAX(l.download_date) AS last_download
+				FROM {$table} l
+				LEFT JOIN {$wpdb->users} u ON u.ID = l.user_id
+				WHERE {$where}
+				GROUP BY l.user_id, u.display_name
+				ORDER BY downloads DESC
+				LIMIT %d";
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		return $wpdb->get_results( $wpdb->prepare( $sql, ...$params ) );
+	}
+
+	/**
+	 * Mappa user_id => datetime dell'ultimo download, per individuare i dealer
+	 * inattivi incrociandola con l'elenco utenti.
+	 *
+	 * @return array<int,string>
+	 */
+	public static function get_last_download_per_user(): array {
+		global $wpdb;
+		$table = $wpdb->prefix . 'dealer_download_log';
+
+		$rows = $wpdb->get_results(
+			"SELECT user_id, MAX(download_date) AS last_download
+			 FROM {$table}
+			 GROUP BY user_id"
+		);
+
+		$map = [];
+		foreach ( (array) $rows as $row ) {
+			$map[ (int) $row->user_id ] = (string) $row->last_download;
+		}
+		return $map;
+	}
+
+	/**
+	 * Numero totale di download registrati (opzionalmente da una data in poi).
+	 */
+	public static function get_total_downloads( string $since = '' ): int {
+		global $wpdb;
+		$table = $wpdb->prefix . 'dealer_download_log';
+
+		if ( $since ) {
+			return (int) $wpdb->get_var(
+				$wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE download_date >= %s", sanitize_text_field( $since ) )
+			);
+		}
+
+		return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table}" );
+	}
+
+	/**
+	 * Conteggio download per un insieme di documenti.
+	 *
+	 * @param int[] $post_ids
+	 * @return array<int,int> post_id => downloads
+	 */
+	public static function get_download_counts_for_posts( array $post_ids ): array {
+		global $wpdb;
+
+		$post_ids = array_values( array_filter( array_map( 'absint', $post_ids ) ) );
+		if ( empty( $post_ids ) ) {
+			return [];
+		}
+
+		$table        = $wpdb->prefix . 'dealer_download_log';
+		$placeholders = implode( ',', array_fill( 0, count( $post_ids ), '%d' ) );
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$sql = "SELECT post_id, COUNT(*) AS downloads
+				FROM {$table}
+				WHERE post_id IN ({$placeholders})
+				GROUP BY post_id";
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$rows = $wpdb->get_results( $wpdb->prepare( $sql, ...$post_ids ) );
+
+		$counts = [];
+		foreach ( (array) $rows as $row ) {
+			$counts[ (int) $row->post_id ] = (int) $row->downloads;
+		}
+		return $counts;
 	}
 }

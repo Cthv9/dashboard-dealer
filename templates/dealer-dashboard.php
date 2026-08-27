@@ -4,7 +4,12 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  * Variabili da Dealer_Dashboard::render():
  * $user, $display_role, $role_labels, $last_login,
  * $recent_docs, $expiring_docs,
+ * $favorite_docs    WP_Post[]  preferiti ancora accessibili
+ * $downloaded_docs  array[]    voci con post, last_download, download_count
  * $ref_nome, $ref_email, $ref_telefono
+ *
+ * Entrambe le liste "I miei documenti" arrivano già filtrate dal controllo
+ * accessi: qui non si stampa nulla di un documento non più disponibile.
  */
 
 $role_colors = [
@@ -66,6 +71,26 @@ $last_login_fmt = $last_login ? gmdate( 'd/m/Y \a\l\l\e H:i', strtotime( $last_l
 			<span class="dealer-card-text">Documenti che scadono nei prossimi 30 giorni.</span>
 			<?php if ( ! empty( $expiring_docs ) ) : ?>
 				<span class="dealer-card-badge dealer-card-badge-warn"><?php echo count( $expiring_docs ); ?></span>
+			<?php endif; ?>
+		</a>
+
+		<a class="dealer-card<?php echo empty( $favorite_docs ) ? ' dealer-card-disabled' : ''; ?>"
+			href="<?php echo empty( $favorite_docs ) ? $search_url : '#dealer-preferiti'; ?>">
+			<span class="dealer-card-icon dashicons dashicons-star-filled"></span>
+			<span class="dealer-card-title">I tuoi preferiti</span>
+			<span class="dealer-card-text">I documenti che hai segnato con la stella nella ricerca.</span>
+			<?php if ( ! empty( $favorite_docs ) ) : ?>
+				<span class="dealer-card-badge"><?php echo count( $favorite_docs ); ?></span>
+			<?php endif; ?>
+		</a>
+
+		<a class="dealer-card<?php echo empty( $downloaded_docs ) ? ' dealer-card-disabled' : ''; ?>"
+			href="<?php echo empty( $downloaded_docs ) ? $search_url : '#dealer-scaricati'; ?>">
+			<span class="dealer-card-icon dashicons dashicons-backup"></span>
+			<span class="dealer-card-title">Scaricati di recente</span>
+			<span class="dealer-card-text">La cronologia dei documenti che hai scaricato.</span>
+			<?php if ( ! empty( $downloaded_docs ) ) : ?>
+				<span class="dealer-card-badge"><?php echo count( $downloaded_docs ); ?></span>
 			<?php endif; ?>
 		</a>
 
@@ -131,6 +156,102 @@ $last_login_fmt = $last_login ? gmdate( 'd/m/Y \a\l\l\e H:i', strtotime( $last_l
 				</div>
 				<div class="dealer-feed-actions">
 					<span class="dealer-badge dealer-badge-expiring">IN SCADENZA</span>
+					<a href="<?php echo esc_url( $dl_url ); ?>" class="dealer-btn dealer-btn-sm">
+						<span class="dashicons dashicons-download"></span>
+					</a>
+				</div>
+			</div>
+		<?php endforeach; ?>
+	</div>
+	<?php endif; ?>
+
+	<!-- ── I TUOI PREFERITI ──────────────────────────────────────────────── -->
+	<?php if ( ! empty( $favorite_docs ) ) : ?>
+	<h2 class="dealer-section-title" id="dealer-preferiti">
+		<span class="dashicons dashicons-star-filled"></span> I Tuoi Preferiti
+	</h2>
+	<?php if ( count( $favorite_docs ) > 1 ) : ?>
+		<div class="dealer-bulk-bar">
+			<span class="dealer-bulk-text">
+				Scarica in un unico archivio i preferiti ancora disponibili.
+			</span>
+			<?php if ( count( $favorite_docs ) <= Dealer_Search::ZIP_MAX_FILES ) : ?>
+				<a class="dealer-btn dealer-btn-zip" href="<?php echo esc_url( Dealer_Search::get_zip_url( 'favorites' ) ); ?>">
+					<span class="dashicons dashicons-media-archive" aria-hidden="true"></span>
+					Scarica i preferiti in ZIP
+				</a>
+			<?php else : ?>
+				<span class="dealer-bulk-note"><?php echo esc_html( Dealer_Search::zip_limit_notice() ); ?></span>
+			<?php endif; ?>
+		</div>
+	<?php endif; ?>
+	<div class="dealer-doc-feed">
+		<?php foreach ( $favorite_docs as $doc ) :
+			$brand    = get_post_meta( $doc->ID, '_doc_brand',        true );
+			$line     = get_post_meta( $doc->ID, '_doc_product_line', true );
+			$type_key = get_post_meta( $doc->ID, '_doc_type',         true );
+			$filename = get_post_meta( $doc->ID, '_doc_filename',     true );
+			$type_lbl = Dealer_Admin::get_doc_types()[ $type_key ] ?? $type_key;
+			$dl_url   = Dealer_Search::get_download_url( $doc->ID );
+			$rm_url   = Dealer_Search::get_favorite_url( $doc->ID, false );
+			$icon     = Dealer_Search::get_file_icon_svg( $filename ?: '' );
+			?>
+			<div class="dealer-feed-item">
+				<div class="dealer-feed-icon" aria-hidden="true"><?php echo $icon; ?></div>
+				<div class="dealer-feed-body">
+					<span class="dealer-feed-title"><?php echo esc_html( $doc->post_title ); ?></span>
+					<span class="dealer-feed-meta">
+						<?php echo esc_html( implode( ' — ', array_filter( [ $brand, $line, $type_lbl ] ) ) ); ?>
+					</span>
+				</div>
+				<div class="dealer-feed-actions">
+					<a href="<?php echo esc_url( $rm_url ); ?>" class="dealer-btn dealer-btn-sm dealer-fav-remove"
+						title="Rimuovi dai preferiti">
+						<span class="dashicons dashicons-star-filled" aria-hidden="true"></span>
+						<span class="screen-reader-text">Rimuovi <?php echo esc_html( $doc->post_title ); ?> dai preferiti</span>
+					</a>
+					<a href="<?php echo esc_url( $dl_url ); ?>" class="dealer-btn dealer-btn-sm">
+						<span class="dashicons dashicons-download"></span>
+					</a>
+				</div>
+			</div>
+		<?php endforeach; ?>
+	</div>
+	<?php endif; ?>
+
+	<!-- ── SCARICATI DI RECENTE ──────────────────────────────────────────── -->
+	<?php if ( ! empty( $downloaded_docs ) ) : ?>
+	<h2 class="dealer-section-title" id="dealer-scaricati">
+		<span class="dashicons dashicons-backup"></span> Scaricati di Recente
+	</h2>
+	<div class="dealer-doc-feed">
+		<?php foreach ( $downloaded_docs as $entry ) :
+			$doc      = $entry['post'];
+			$brand    = get_post_meta( $doc->ID, '_doc_brand',        true );
+			$line     = get_post_meta( $doc->ID, '_doc_product_line', true );
+			$filename = get_post_meta( $doc->ID, '_doc_filename',     true );
+			$dl_url   = Dealer_Search::get_download_url( $doc->ID );
+			$icon     = Dealer_Search::get_file_icon_svg( $filename ?: '' );
+			$last     = $entry['last_download'] ? gmdate( 'd/m/Y \a\l\l\e H:i', strtotime( $entry['last_download'] ) ) : '';
+			$times    = (int) $entry['download_count'];
+			?>
+			<div class="dealer-feed-item">
+				<div class="dealer-feed-icon" aria-hidden="true"><?php echo $icon; ?></div>
+				<div class="dealer-feed-body">
+					<span class="dealer-feed-title"><?php echo esc_html( $doc->post_title ); ?></span>
+					<span class="dealer-feed-meta">
+						<?php echo esc_html( implode( ' — ', array_filter( [ $brand, $line ] ) ) ); ?>
+					</span>
+					<span class="dealer-feed-date">
+						<?php if ( '' !== $last ) : ?>
+							Ultimo download: <?php echo esc_html( $last ); ?>
+						<?php endif; ?>
+						<?php if ( $times > 1 ) : ?>
+							&middot; <?php echo esc_html( sprintf( '%d volte', $times ) ); ?>
+						<?php endif; ?>
+					</span>
+				</div>
+				<div class="dealer-feed-actions">
 					<a href="<?php echo esc_url( $dl_url ); ?>" class="dealer-btn dealer-btn-sm">
 						<span class="dashicons dashicons-download"></span>
 					</a>

@@ -3,6 +3,9 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class Dealer_Dashboard {
 
+	/** Numero di voci mostrate nelle sezioni "I miei documenti". */
+	const MY_DOCS_LIMIT = 8;
+
 	public function __construct() {
 		add_shortcode( 'dealer_dashboard', [ $this, 'render' ] );
 		add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_assets' ] );
@@ -16,6 +19,7 @@ class Dealer_Dashboard {
 		if ( ! is_a( $post, 'WP_Post' ) || ! has_shortcode( $post->post_content, 'dealer_dashboard' ) ) {
 			return;
 		}
+		wp_enqueue_style( 'dashicons' );
 		wp_enqueue_style( 'dealer-portal-dealer', DEALER_PORTAL_URL . 'assets/css/dealer.css', [], DEALER_PORTAL_VERSION );
 	}
 
@@ -56,6 +60,12 @@ class Dealer_Dashboard {
 
 		$recent_docs   = $this->get_recent_docs( $user, $user_lines, 5 );
 		$expiring_docs = $this->get_expiring_docs( $user, $user_lines, 5 );
+
+		// "I miei documenti": preferiti e cronologia di download. Entrambe le
+		// liste ripassano dal controllo accessi — un documento può essere stato
+		// revocato o scaduto dopo essere stato salvato o scaricato.
+		$favorite_docs   = $this->get_favorite_docs( $user, $user_lines, self::MY_DOCS_LIMIT );
+		$downloaded_docs = $this->get_downloaded_docs( $user, $user_lines, self::MY_DOCS_LIMIT );
 
 		// Ruolo da mostrare nel badge (il primo trovato nella lista ordinata).
 		$display_role = '';
@@ -131,5 +141,103 @@ class Dealer_Dashboard {
 		} ) );
 
 		return array_slice( $filtered, 0, $limit );
+	}
+
+	// ─── Query helper: preferiti ─────────────────────────────────────────────
+
+	/**
+	 * Documenti preferiti ancora visibili al dealer.
+	 *
+	 * Ogni ID ripassa dal controllo accessi: un preferito su cui l'accesso è
+	 * stato revocato (o il cui documento è stato eliminato) non viene mostrato
+	 * in nessuna forma — nemmeno con un avviso che ne riveli il titolo — e viene
+	 * rimosso silenziosamente dal user meta.
+	 *
+	 * I documenti solo scaduti o marcati obsoleti restano memorizzati (la
+	 * situazione può cambiare) ma non compaiono nell'elenco.
+	 *
+	 * @return \WP_Post[]
+	 */
+	private function get_favorite_docs( \WP_User $user, array $user_lines, int $limit ): array {
+		$ids = Dealer_Search::get_favorites( $user->ID );
+		if ( empty( $ids ) ) {
+			return [];
+		}
+
+		$docs  = [];
+		$keep  = [];
+		$dirty = false;
+
+		foreach ( $ids as $post_id ) {
+			$post = get_post( $post_id );
+
+			// Documento sparito, non pubblicato o non più accessibile: si toglie
+			// dai preferiti senza dirlo all'utente e senza mostrarne nulla.
+			if ( ! $post
+				|| 'documento_dealer' !== $post->post_type
+				|| 'publish' !== $post->post_status
+				|| ! Dealer_Search::user_can_access_post( $user, $user_lines, $post_id ) ) {
+				$dirty = true;
+				continue;
+			}
+
+			$keep[] = $post_id;
+
+			// Scaduti e obsoleti restano salvati ma fuori dall'elenco.
+			if ( ! Dealer_Search::user_can_download_post( $user, $user_lines, $post_id ) ) {
+				continue;
+			}
+
+			$docs[] = $post;
+		}
+
+		if ( $dirty ) {
+			Dealer_Search::set_favorites( $user->ID, $keep );
+		}
+
+		return array_slice( $docs, 0, $limit );
+	}
+
+	// ─── Query helper: cronologia download ───────────────────────────────────
+
+	/**
+	 * Ultimi documenti scaricati dal dealer, filtrati sul controllo accessi
+	 * corrente: il log è storico, i permessi no.
+	 *
+	 * @return array[] voci con post, last_download, download_count.
+	 */
+	private function get_downloaded_docs( \WP_User $user, array $user_lines, int $limit ): array {
+		if ( ! class_exists( 'Dealer_DB' ) || ! method_exists( 'Dealer_DB', 'get_user_downloads' ) ) {
+			return [];
+		}
+
+		// Si chiede più del necessario: parte delle righe verrà scartata dal
+		// controllo accessi e dai documenti nel frattempo scaduti o obsoleti.
+		$rows = Dealer_DB::get_user_downloads( $user->ID, $limit * 4 );
+
+		$out = [];
+		foreach ( (array) $rows as $row ) {
+			$post_id = absint( $row->post_id ?? 0 );
+			if ( ! $post_id || ! Dealer_Search::user_can_download_post( $user, $user_lines, $post_id ) ) {
+				continue;
+			}
+
+			$post = get_post( $post_id );
+			if ( ! $post ) {
+				continue;
+			}
+
+			$out[] = [
+				'post'           => $post,
+				'last_download'  => (string) ( $row->last_download ?? '' ),
+				'download_count' => (int) ( $row->download_count ?? 0 ),
+			];
+
+			if ( count( $out ) >= $limit ) {
+				break;
+			}
+		}
+
+		return $out;
 	}
 }
