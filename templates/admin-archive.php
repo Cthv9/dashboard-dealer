@@ -4,7 +4,9 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 // $documents (array WP_Post), $total_pages (int), $paged (int),
 // $filter_brand, $filter_type, $filter_role, $filter_line, $filter_status,
 // $filter_versions ('' = solo versioni correnti, 'all' = incluse le superate),
-// $bulk_summary (array|null: riepilogo dell'ultima operazione di gruppo)
+// $bulk_summary (array|null: riepilogo dell'ultima operazione di gruppo),
+// $restrict_scope (bool: elenco limitato al perimetro dell'utente),
+// $scan_truncated (bool: la scansione ha raggiunto il tetto SCOPE_SCAN_LIMIT)
 
 $brands    = Dealer_Admin::get_brands();
 $doc_types = Dealer_Admin::get_doc_types();
@@ -25,6 +27,27 @@ $colspan      = $can_manage ? 9 : 8;
 		Archivio Documenti
 	</h1>
 	<a href="<?php echo esc_url( admin_url( 'admin.php?page=dealer-portal' ) ); ?>" class="page-title-action">+ Carica nuovo</a>
+
+	<?php if ( ! empty( $restrict_scope ) ) : ?>
+		<p class="description" style="margin-top:8px;">
+			<span class="dashicons dashicons-visibility" style="vertical-align:middle;"></span>
+			Stai vedendo solo i documenti che ricadono sulle linee del tuo perimetro.
+			I documenti senza restrizione di linea sono di competenza dell'amministratore.
+		</p>
+	<?php endif; ?>
+
+	<?php if ( ! empty( $scan_truncated ) ) : ?>
+		<div class="notice notice-warning" style="margin-top:16px;">
+			<p>
+				<?php
+				printf(
+					'Elenco limitato ai primi %s documenti più recenti fra quelli che corrispondono ai filtri. Restringi i filtri per vedere il resto.',
+					esc_html( number_format_i18n( Dealer_Admin::SCOPE_SCAN_LIMIT ) )
+				);
+				?>
+			</p>
+		</div>
+	<?php endif; ?>
 
 	<?php
 	// ─── Riepilogo dell'ultima operazione di gruppo ──────────────────────────
@@ -223,12 +246,16 @@ $colspan      = $can_manage ? 9 : 8;
 					<?php echo $expiry ? esc_html( gmdate( 'd/m/Y', strtotime( $expiry ) ) ) : '—'; ?>
 				</td>
 				<?php
+				// Obsoleto/nuova versione: consentiti dentro il perimetro.
+				// Un documento può essere visibile (una sua linea è nel
+				// perimetro) senza essere modificabile (ne ha altre fuori):
+				// in quel caso resta in sola lettura, e le azioni di modifica
+				// spariscono invece di comparire e farsi rifiutare dal server.
+				$can_touch = Dealer_Identity::can_edit_document( $current_user, (int) $doc->ID );
 				// Modifica nell'editor WP: solo se l'utente ha davvero i
 				// permessi sul post, altrimenti get_edit_post_link() è vuoto e
 				// il link porterebbe su un href="".
-				$edit_link = get_edit_post_link( $doc->ID );
-				// Obsoleto/nuova versione: consentiti dentro il perimetro.
-				$can_touch = Dealer_Identity::can_edit_document( $current_user, (int) $doc->ID );
+				$edit_link = $can_touch ? get_edit_post_link( $doc->ID ) : '';
 				?>
 				<td class="dealer-actions-cell">
 					<?php if ( $edit_link ) : ?>
@@ -281,7 +308,11 @@ $colspan      = $can_manage ? 9 : 8;
 								$c_seq     = Dealer_Versioning::get_sequence( $c_id );
 								$c_current = Dealer_Versioning::is_current( $c_id );
 								$c_label   = get_post_meta( $c_id, '_doc_version', true );
-								$c_edit    = get_edit_post_link( $c_id );
+								// Stessa regola della riga principale: si
+								// modifica solo dentro il proprio perimetro.
+								$c_edit    = Dealer_Identity::can_edit_document( $current_user, $c_id )
+									? get_edit_post_link( $c_id )
+									: '';
 								?>
 								<tr<?php echo $c_id === (int) $doc->ID ? ' class="dealer-chain-self"' : ''; ?>>
 									<td>v<?php echo esc_html( $c_seq ); ?></td>
@@ -319,10 +350,11 @@ $colspan      = $can_manage ? 9 : 8;
 						if ( empty( $logs ) ) {
 							echo '<em>Nessun download registrato.</em>';
 						} else {
-							echo '<table class="dealer-log-table"><tr><th>Utente</th><th>Data</th><th>IP</th></tr>';
+							echo '<table class="dealer-log-table"><tr><th>Utente</th><th>Titolo</th><th>Data</th><th>IP</th></tr>';
 							foreach ( $logs as $log ) {
 								echo '<tr>';
 								echo '<td>' . esc_html( $log->display_name ) . '</td>';
+								echo '<td>' . esc_html( Dealer_DB::access_context_label( (string) ( $log->access_context ?? '' ) ) ) . '</td>';
 								echo '<td>' . esc_html( gmdate( 'd/m/Y H:i', strtotime( $log->download_date ) ) ) . '</td>';
 								echo '<td>' . esc_html( $log->ip_address ) . '</td>';
 								echo '</tr>';

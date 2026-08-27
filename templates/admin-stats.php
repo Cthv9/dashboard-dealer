@@ -5,7 +5,8 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 // $total_downloads, $downloads_30, $downloads_period, $active_docs, $docs_truncated,
 // $active_dealers, $registered_dealers, $top_documents, $top_users,
 // $never_downloaded (int[] ID), $never_downloaded_total,
-// $inactive_dealers (array), $inactive_total
+// $inactive_dealers (array), $inactive_total,
+// $restricted (bool: numeri calcolati sul solo perimetro dell'utente)
 
 $period_label = $periods[ $period ];
 
@@ -37,6 +38,14 @@ $fmt_date = static function ( string $mysql_date ): string {
 		<span class="dashicons dashicons-chart-bar" style="vertical-align:middle;margin-right:6px;"></span>
 		Statistiche
 	</h1>
+
+	<?php if ( ! empty( $restricted ) ) : ?>
+		<p class="description" style="margin-top:8px;">
+			<span class="dashicons dashicons-visibility" style="vertical-align:middle;"></span>
+			Tutti i numeri di questa pagina sono calcolati sui soli documenti del tuo perimetro di linee
+			e sui dealer delle organizzazioni che segui.
+		</p>
+	<?php endif; ?>
 
 	<!-- Selettore di periodo -->
 	<form method="GET" class="dealer-stats-periodbar">

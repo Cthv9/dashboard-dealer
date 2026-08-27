@@ -30,6 +30,14 @@ $last_row  = min( $paged * $per_page, $total_logs );
 		Registro dei download effettuati dai dealer. L'export CSV rispetta i filtri attivi ed esporta
 		<strong>tutte</strong> le righe corrispondenti, non solo quelle visualizzate in pagina.
 	</p>
+	<?php // isset() è falso anche quando la chiave c'è ma vale null: null = nessuna restrizione. ?>
+	<?php if ( isset( $filters['args']['post_ids'] ) ) : ?>
+		<p class="description">
+			<span class="dashicons dashicons-visibility" style="vertical-align:middle;"></span>
+			Sono elencati i download dei soli documenti che ricadono nel tuo perimetro di linee.
+			L'export CSV esporta esattamente lo stesso sottoinsieme.
+		</p>
+	<?php endif; ?>
 
 	<!-- Filtri -->
 	<form method="GET" id="dealer-logs-filter">
@@ -96,11 +104,12 @@ $last_row  = min( $paged * $per_page, $total_logs );
 	<table class="wp-list-table widefat fixed striped">
 		<thead>
 			<tr>
-				<th scope="col" style="width:28%">Documento</th>
-				<th scope="col" style="width:20%">Dealer</th>
-				<th scope="col" style="width:22%">Email</th>
-				<th scope="col" style="width:16%">Data e Ora</th>
-				<th scope="col" style="width:14%">Indirizzo IP</th>
+				<th scope="col" style="width:26%">Documento</th>
+				<th scope="col" style="width:17%">Dealer</th>
+				<th scope="col" style="width:19%">Email</th>
+				<th scope="col" style="width:12%">Titolo di accesso</th>
+				<th scope="col" style="width:14%">Data e Ora</th>
+				<th scope="col" style="width:12%">Indirizzo IP</th>
 			</tr>
 		</thead>
 		<tbody>
@@ -117,6 +126,18 @@ $last_row  = min( $paged * $per_page, $total_logs );
 				</td>
 				<td><?php echo esc_html( $log->display_name ?: 'Utente #' . $log->user_id ); ?></td>
 				<td><?php echo esc_html( $log->user_email ?: '—' ); ?></td>
+				<?php
+				// Titolo con cui è avvenuto il download. Le righe anteriori
+				// alla colonna hanno il valore vuoto: allora scaricava solo la
+				// rete dealer, quindi vengono mostrate come "Dealer" — nessun
+				// dato è stato riscritto nel registro.
+				$log_context = (string) ( $log->access_context ?? '' );
+				?>
+				<td>
+					<span class="dealer-context-pill dealer-context-<?php echo esc_attr( $log_context ?: 'dealer' ); ?>">
+						<?php echo esc_html( Dealer_DB::access_context_label( $log_context ) ); ?>
+					</span>
+				</td>
 				<td><?php echo esc_html( gmdate( 'd/m/Y H:i', strtotime( (string) $log->download_date ) ) ); ?></td>
 				<td><code><?php echo esc_html( $log->ip_address ?: '—' ); ?></code></td>
 			</tr>

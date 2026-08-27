@@ -850,6 +850,54 @@ class Dealer_Search {
 	}
 
 	/**
+	 * Chi vede l'intero archivio senza restrizioni di perimetro.
+	 *
+	 * È l'amministratore del portale: tutte le viste admin (archivio, log,
+	 * statistiche, export) partono da qui per decidere se applicare o no il
+	 * filtro per linee.
+	 */
+	public static function has_unrestricted_scope( \WP_User $user ): bool {
+		return user_can( $user, 'manage_options' ) || user_can( $user, DEALER_PORTAL_CAP );
+	}
+
+	/**
+	 * Perimetro di visibilità *amministrativa* su un documento: può questo
+	 * utente vederlo nell'archivio, nei log e nelle statistiche?
+	 *
+	 * Stesso criterio di lettura di user_can_access_post() per l'area manager —
+	 * sovrapposizione: basta che una linea del documento sia nel perimetro —
+	 * ma senza la regola sui ruoli dealer, che qui non c'entra: non stiamo
+	 * decidendo se un dealer può scaricare, ma se un gestore è competente sul
+	 * documento.
+	 *
+	 * Un documento senza restrizione di linea è visibile a tutta la rete e
+	 * resta quindi di competenza del solo amministratore.
+	 *
+	 * @param string[]|null $scope Perimetro già risolto, per evitare di
+	 *                             ricalcolarlo dentro un ciclo. Facoltativo.
+	 */
+	public static function user_can_view_document( \WP_User $user, int $post_id, ?array $scope = null ): bool {
+		if ( self::has_unrestricted_scope( $user ) ) {
+			return true;
+		}
+
+		if ( ! Dealer_Identity::is_area_manager( $user ) ) {
+			return false;
+		}
+
+		$doc_lines = get_post_meta( $post_id, '_doc_lines', true );
+		if ( ! is_array( $doc_lines ) || empty( $doc_lines ) ) {
+			return false;
+		}
+
+		if ( null === $scope ) {
+			$scope = Dealer_Identity::get_scope_lines( $user );
+		}
+
+		return ! empty( array_intersect( $scope, $doc_lines ) );
+	}
+
+	/**
 	 * Verifica completa "questo dealer può scaricare questo documento?", con le
 	 * stesse regole di handle_download(): tipo di post, stato pubblicato,
 	 * documento non obsoleto, accesso per ruolo/linea, scadenza non superata.
