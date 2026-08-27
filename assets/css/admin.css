@@ -227,6 +227,35 @@
 	font-size: 13px;
 }
 
+/* ── Selettore versione precedente (Step 2) ──────────────────────────────── */
+.dealer-version-picker {
+	max-width: 560px;
+}
+
+.dealer-version-search {
+	margin-bottom: 6px;
+	width: 100%;
+}
+
+.dealer-version-select {
+	width: 100%;
+	min-height: 150px;
+	font-size: 13px;
+}
+
+.dealer-version-count {
+	margin: 6px 0 0;
+	font-size: 12px;
+	color: #666;
+}
+
+.dealer-version-hint {
+	margin: 2px 0 0;
+	font-size: 12px;
+	font-weight: 600;
+	color: #1e6fa8;
+}
+
 /* ── Archive table ───────────────────────────────────────────────────────── */
 .dealer-filter-bar {
 	display: flex;
@@ -286,6 +315,41 @@
 	margin-left: 6px;
 }
 
+/* ── Versionamento (archivio) ────────────────────────────────────────────── */
+.dealer-badge-version,
+.dealer-badge-superseded,
+.dealer-badge-chain,
+.dealer-badge-current {
+	display: inline-block;
+	padding: 1px 7px;
+	border-radius: 10px;
+	font-size: 11px;
+	font-weight: 700;
+	margin-left: 6px;
+	white-space: nowrap;
+}
+
+.dealer-badge-version    { background: #eceff1; color: #37474f; }
+.dealer-badge-superseded { background: #fbe9e7; color: #bf360c; }
+.dealer-badge-chain      { background: #e3f2fd; color: #1565c0; }
+.dealer-badge-current    { background: #e8f5e9; color: #2e7d32; margin-left: 0; }
+
+.dealer-row-superseded > td,
+.dealer-row-superseded > th {
+	background: #fdfaf7;
+}
+
+/* L'accento a sinistra sta sulla prima cella della riga: da quando c'è la
+   colonna delle checkbox bulk è il <th class="check-column">. */
+.dealer-row-superseded > th.check-column,
+.dealer-row-superseded > td:first-child {
+	box-shadow: inset 3px 0 0 #e0a080;
+}
+
+.dealer-chain-row .dealer-chain-self > td {
+	font-weight: 700;
+}
+
 .dealer-expired      { color: #c0392b; font-weight: 700; }
 .dealer-expiring-soon { color: #e67e22; font-weight: 700; }
 
@@ -333,5 +397,140 @@
 	}
 	.dealer-filter-bar {
 		flex-direction: column;
+	}
+}
+
+/* ── Filtri log: campi data affiancati ───────────────────────────────────── */
+.dealer-filter-date {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 13px;
+	color: #50575e;
+}
+
+/* ── Azioni di gruppo (archivio) ─────────────────────────────────────────── */
+.dealer-bulk-count {
+	display: inline-block;
+	margin-left: 10px;
+	font-size: 12px;
+	color: #646970;
+	vertical-align: middle;
+}
+
+.dealer-bulk-count.has-selection {
+	color: #1e6fa8;
+	font-weight: 700;
+}
+
+.dealer-archive-table tbody tr.dealer-row-selected > td,
+.dealer-archive-table tbody tr.dealer-row-selected > th {
+	background: #f0f6fc;
+}
+
+/* ── Statistiche ─────────────────────────────────────────────────────────── */
+.dealer-stats-periodbar {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 20px 0 16px;
+	flex-wrap: wrap;
+}
+
+.dealer-stat-cards {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+	gap: 14px;
+	margin: 16px 0 8px;
+}
+
+.dealer-stat-card {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: 16px 18px;
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-left: 4px solid #1e6fa8;
+	border-radius: 3px;
+	box-shadow: 0 1px 1px rgba(0,0,0,.04);
+}
+
+.dealer-stat-card .dashicons {
+	color: #1e6fa8;
+	font-size: 20px;
+	width: 20px;
+	height: 20px;
+	margin-bottom: 4px;
+}
+
+.dealer-stat-value {
+	font-size: 26px;
+	font-weight: 700;
+	line-height: 1.2;
+	color: #0a1628;
+}
+
+.dealer-stat-label {
+	font-size: 12px;
+	color: #646970;
+	text-transform: uppercase;
+	letter-spacing: .3px;
+}
+
+.dealer-stats-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+	gap: 16px;
+	margin-top: 16px;
+}
+
+.dealer-stats-wrap .postbox {
+	margin-bottom: 16px;
+}
+
+.dealer-stats-wrap .postbox .hndle {
+	padding: 10px 14px;
+	font-size: 14px;
+}
+
+.dealer-stats-table th,
+.dealer-stats-table td {
+	vertical-align: middle;
+}
+
+/* Barre proporzionali in CSS puro — nessuna libreria di grafici esterna. */
+.dealer-bar-wrap {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 120px;
+}
+
+.dealer-bar {
+	display: block;
+	height: 14px;
+	min-width: 2px;
+	border-radius: 2px;
+	background: #1e6fa8;
+	flex: 0 0 auto;
+	max-width: 70%;
+}
+
+.dealer-bar-alt {
+	background: #2e7d32;
+}
+
+.dealer-bar-value {
+	font-size: 12px;
+	font-weight: 700;
+	color: #0a1628;
+	white-space: nowrap;
+}
+
+@media (max-width: 782px) {
+	.dealer-stats-grid {
+		grid-template-columns: 1fr;
 	}
 }

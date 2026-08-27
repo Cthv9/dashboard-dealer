@@ -179,6 +179,108 @@
 		} );
 	}
 
+	// ── Step 2: selettore "Questo documento sostituisce…" ────────────────
+	// Elenco potenzialmente lungo: filtro testuale lato client, senza librerie.
+
+	var prevVersionOptions = [];
+
+	function initPreviousVersionPicker() {
+		var $sel = $( '#doc_previous_version' );
+		if ( ! $sel.length || ! $sel.is( 'select' ) ) { return; }
+
+		// Cache delle opzioni renderizzate dal server (già escapate lato PHP).
+		$sel.find( 'option' ).each( function () {
+			var $opt = $( this );
+			prevVersionOptions.push( {
+				value:  $opt.val(),
+				text:   $.trim( $opt.text() ),
+				search: String( $opt.attr( 'data-search' ) || '' ).toLowerCase()
+			} );
+		} );
+
+		$( '#doc_previous_version_search' ).on( 'input search', function () {
+			filterPreviousVersions( $( this ).val() );
+		} );
+
+		$sel.on( 'change', updatePreviousVersionHint );
+		updatePreviousVersionHint();
+	}
+
+	function filterPreviousVersions( term ) {
+		var $sel = $( '#doc_previous_version' );
+		if ( ! $sel.length || ! prevVersionOptions.length ) { return; }
+
+		var selected = $sel.val();
+		var terms    = $.trim( String( term || '' ) ).toLowerCase().split( /\s+/ );
+		var matches  = 0;
+
+		$sel.empty();
+
+		$.each( prevVersionOptions, function ( i, opt ) {
+			var keep = true;
+
+			// La voce "Nessuno" e l'eventuale selezione corrente restano sempre visibili.
+			if ( opt.value !== '0' && opt.value !== selected ) {
+				$.each( terms, function ( j, t ) {
+					if ( t && opt.search.indexOf( t ) === -1 ) {
+						keep = false;
+						return false;
+					}
+				} );
+			}
+
+			if ( ! keep ) { return; }
+			if ( opt.value !== '0' ) { matches++; }
+
+			$sel.append(
+				$( '<option>' ).val( opt.value ).attr( 'data-search', opt.search ).text( opt.text )
+			);
+		} );
+
+		$sel.val( selected );
+		if ( ! $sel.val() ) { $sel.val( '0' ); }
+
+		var $count = $( '#doc-previous-version-count' );
+		if ( $count.length ) {
+			$count.text( matches
+				? ( matches + ' ' + dealerAdmin.i18n.docsAvailable )
+				: dealerAdmin.i18n.noMatch );
+		}
+
+		updatePreviousVersionHint();
+	}
+
+	function updatePreviousVersionHint() {
+		var $hint = $( '#doc-previous-version-hint' );
+		if ( ! $hint.length ) { return; }
+		var label = getPreviousVersionLabel();
+		$hint.text( label === dealerAdmin.i18n.noPrevious
+			? label
+			: dealerAdmin.i18n.selectedPrefix + ' ' + label );
+	}
+
+	/** Etichetta leggibile della scelta corrente (usata anche nel riepilogo). */
+	function getPreviousVersionLabel() {
+		var $sel = $( '#doc_previous_version' );
+		if ( ! $sel.length || ! $sel.is( 'select' ) ) {
+			return dealerAdmin.i18n.noPrevious;
+		}
+		var val = $sel.val();
+		if ( ! val || val === '0' ) {
+			return dealerAdmin.i18n.noPrevious;
+		}
+		return $.trim( $sel.find( 'option:selected' ).text() );
+	}
+
+	function resetPreviousVersionPicker() {
+		var $sel = $( '#doc_previous_version' );
+		if ( ! $sel.length || ! $sel.is( 'select' ) ) { return; }
+		$( '#doc_previous_version_search' ).val( '' );
+		filterPreviousVersions( '' );
+		$sel.val( '0' );
+		updatePreviousVersionHint();
+	}
+
 	// ── Costruisce il riepilogo Step 5 ───────────────────────────────────
 
 	function buildSummary() {
@@ -217,6 +319,7 @@
 			[ 'Tipo',           escapeHtml( typeTxt ) ],
 			[ 'Anno',           escapeHtml( String( year ) ) ],
 			[ 'Versione',       escapeHtml( version ) ],
+			[ 'Sostituisce',    escapeHtml( getPreviousVersionLabel() ) ],
 			[ 'Ruoli',          escapeHtml( roles.join( ', ' ) || '—' ) ],
 			[ 'Linee accesso',  escapeHtml( lines.join( ', ' ) || 'Tutte' ) ],
 			[ 'Scadenza',       escapeHtml( expiry ) ],
@@ -257,7 +360,7 @@
 				if ( res.success ) {
 					$note
 						.addClass( 'notice-success' )
-						.html( '<p><strong>' + escapeHtml( dealerAdmin.i18n.saveSuccess ) + '</strong> ID: ' + parseInt( res.data.post_id, 10 ) + '</p>' )
+						.html( '<p><strong>' + escapeHtml( res.data.message || dealerAdmin.i18n.saveSuccess ) + '</strong> ID: ' + parseInt( res.data.post_id, 10 ) + ' — v' + parseInt( res.data.version_seq, 10 ) + '</p>' )
 						.show();
 					// Reset form
 					$( '#dealer-upload-form' ).get( 0 ).reset();
@@ -266,6 +369,7 @@
 					$( '#rename-section' ).hide();
 					$( '#filename-preview' ).text( '' );
 					updateFilenamePreview();
+					resetPreviousVersionPicker();
 				} else {
 					$note
 						.addClass( 'notice-error' )
@@ -286,25 +390,42 @@
 	// ── Archive: AJAX mark obsolete / delete ─────────────────────────────
 
 	function handleArchiveActions() {
-		// Obsoleto
-		$( document ).on( 'click', '.dealer-obsolete-btn', function () {
-			var $btn    = $( this );
-			var postId  = parseInt( $btn.data( 'post' ), 10 );
-			if ( ! confirm( dealerAdmin.i18n.confirmObsolete ) ) { return; }
-
+		// Obsoleto — può richiedere una seconda conferma se rompe una catena di versioni.
+		function markObsolete( postId, $btn, confirmChain ) {
 			$.post( dealerAdmin.ajaxUrl, {
-				action:  'dealer_mark_obsolete',
-				nonce:   dealerAdmin.archiveNonce,
-				post_id: postId
+				action:        'dealer_mark_obsolete',
+				nonce:         dealerAdmin.archiveNonce,
+				post_id:       postId,
+				confirm_chain: confirmChain ? 1 : 0
 			}, function ( res ) {
-				if ( res.success ) {
-					$( '#doc-row-' + postId ).find( 'td:first-child strong' )
-						.after( ' <span class="dealer-badge-obsoleto">Obsoleto</span>' );
-					$btn.remove();
-				} else {
+				if ( ! res.success ) {
 					alert( res.data.message );
+					return;
 				}
+				if ( res.data.needs_confirm ) {
+					if ( confirm( res.data.message ) ) {
+						markObsolete( postId, $btn, true );
+					}
+					return;
+				}
+				if ( res.data.reload ) {
+					// La catena è cambiata: ricarica per mostrare la nuova versione corrente.
+					window.location.reload();
+					return;
+				}
+				// La cella del titolo è individuata per classe: la colonna delle
+				// checkbox bulk non è più la prima cella <td> della riga.
+				$( '#doc-row-' + postId ).find( 'td.dealer-doc-title strong' )
+					.after( ' <span class="dealer-badge-obsoleto">Obsoleto</span>' );
+				$btn.remove();
 			} );
+		}
+
+		$( document ).on( 'click', '.dealer-obsolete-btn', function () {
+			var $btn   = $( this );
+			var postId = parseInt( $btn.data( 'post' ), 10 );
+			if ( ! confirm( dealerAdmin.i18n.confirmObsolete ) ) { return; }
+			markObsolete( postId, $btn, false );
 		} );
 
 		// Elimina
@@ -319,10 +440,17 @@
 				post_id: postId
 			}, function ( res ) {
 				if ( res.success ) {
+					if ( res.data.reload ) {
+						// La versione precedente è tornata corrente: ricarica l'archivio.
+						window.location.reload();
+						return;
+					}
 					$( '#doc-row-' + postId ).fadeOut( 300, function () {
 						$( this ).remove();
+						updateBulkCount();
 					} );
 					$( '#log-row-' + postId ).remove();
+					$( '#chain-row-' + postId ).remove();
 				} else {
 					alert( res.data.message );
 				}
@@ -337,6 +465,151 @@
 			$logRow.toggle( ! expanded );
 			$( this ).attr( 'aria-expanded', String( ! expanded ) );
 		} );
+
+		// Toggle storico versioni (stesso pattern della riga log)
+		$( document ).on( 'click', '.dealer-toggle-chain-btn', function () {
+			var postId    = parseInt( $( this ).data( 'post' ), 10 );
+			var $chainRow = $( '#chain-row-' + postId );
+			var expanded  = $( this ).attr( 'aria-expanded' ) === 'true';
+			$chainRow.toggle( ! expanded );
+			$( this ).attr( 'aria-expanded', String( ! expanded ) );
+		} );
+	}
+
+	// ── Archive: operazioni di gruppo ────────────────────────────────────
+	// La conferma è una sola, a monte, per l'intera selezione: il flusso a due
+	// fasi di "segna obsoleto" singolo non ha senso documento per documento.
+
+	function intOr0( value ) {
+		var n = parseInt( value, 10 );
+		return isNaN( n ) ? 0 : n;
+	}
+
+	function getSelectedIds() {
+		var ids = [];
+		$( '.dealer-bulk-cb:checked' ).each( function () {
+			var id = intOr0( $( this ).val() );
+			if ( id > 0 ) { ids.push( id ); }
+		} );
+		return ids;
+	}
+
+	function updateBulkCount() {
+		var $count = $( '#dealer-bulk-count' );
+		if ( ! $count.length ) { return; }
+
+		var selected = getSelectedIds().length;
+		var total    = $( '.dealer-bulk-cb' ).length;
+
+		if ( selected === 0 ) {
+			$count.removeClass( 'has-selection' ).text( 'Nessun documento selezionato' );
+		} else if ( selected === 1 ) {
+			$count.addClass( 'has-selection' ).text( '1 documento selezionato' );
+		} else {
+			$count.addClass( 'has-selection' ).text( selected + ' documenti selezionati' );
+		}
+
+		$( '#dealer-cb-select-all' ).prop( 'checked', total > 0 && selected === total );
+	}
+
+	function bulkConfirmText( bulkAction, count ) {
+		var tpl = ( bulkAction === 'delete' )
+			? dealerAdmin.i18n.bulkConfirmDel
+			: dealerAdmin.i18n.bulkConfirmObs;
+		return String( tpl ).replace( '%d', count );
+	}
+
+	/**
+	 * Ricarica l'archivio conservando i filtri attivi e passando il riepilogo
+	 * come parametri numerici: la notice viene renderizzata lato server con il
+	 * markup WordPress nativo.
+	 */
+	function bulkRedirect( data ) {
+		var base  = window.location.href.split( '#' )[ 0 ].split( '?' );
+		var path  = base[ 0 ];
+		var query = base[ 1 ] || '';
+		var kept  = [];
+
+		if ( query ) {
+			$.each( query.split( '&' ), function ( i, pair ) {
+				if ( ! pair ) { return; }
+				var key = pair.split( '=' )[ 0 ];
+				// I riepiloghi precedenti e la pagina corrente non vanno conservati.
+				if ( key.indexOf( 'bulk_' ) === 0 || key === 'paged' ) { return; }
+				kept.push( pair );
+			} );
+		}
+
+		kept.push( 'bulk_done=1' );
+		kept.push( 'bulk_op=' + encodeURIComponent( String( data.op || '' ) ) );
+		kept.push( 'bulk_ok=' + intOr0( data.processed ) );
+		kept.push( 'bulk_invalid=' + intOr0( data.invalid ) );
+		kept.push( 'bulk_already=' + intOr0( data.already ) );
+		kept.push( 'bulk_nosucc=' + intOr0( data.no_succ ) );
+		kept.push( 'bulk_failed=' + intOr0( data.failed ) );
+		kept.push( 'bulk_promo=' + intOr0( data.promoted ) );
+
+		window.location.href = path + '?' + kept.join( '&' );
+	}
+
+	function handleBulkActions() {
+		if ( ! $( '#dealer-bulk-apply' ).length ) { return; }
+
+		// Seleziona / deseleziona tutto.
+		$( document ).on( 'change', '#dealer-cb-select-all', function () {
+			var checked = $( this ).is( ':checked' );
+			$( '.dealer-bulk-cb' ).prop( 'checked', checked )
+				.each( function () {
+					$( this ).closest( 'tr' ).toggleClass( 'dealer-row-selected', checked );
+				} );
+			updateBulkCount();
+		} );
+
+		// Singola riga.
+		$( document ).on( 'change', '.dealer-bulk-cb', function () {
+			$( this ).closest( 'tr' ).toggleClass( 'dealer-row-selected', $( this ).is( ':checked' ) );
+			updateBulkCount();
+		} );
+
+		// Applica.
+		$( document ).on( 'click', '#dealer-bulk-apply', function () {
+			var $btn       = $( this );
+			var bulkAction = $( '#dealer-bulk-action' ).val();
+
+			if ( ! bulkAction ) {
+				alert( dealerAdmin.i18n.bulkNoAction );
+				return;
+			}
+
+			var ids = getSelectedIds();
+			if ( ! ids.length ) {
+				alert( dealerAdmin.i18n.bulkNoSelection );
+				return;
+			}
+
+			if ( ! confirm( bulkConfirmText( bulkAction, ids.length ) ) ) { return; }
+
+			$btn.prop( 'disabled', true ).text( dealerAdmin.i18n.bulkWorking );
+
+			$.post( dealerAdmin.ajaxUrl, {
+				action:      'dealer_bulk_action',
+				nonce:       dealerAdmin.bulkNonce,
+				bulk_action: bulkAction,
+				post_ids:    ids
+			}, function ( res ) {
+				if ( ! res || ! res.success ) {
+					$btn.prop( 'disabled', false ).text( dealerAdmin.i18n.bulkApply );
+					alert( ( res && res.data && res.data.message ) || dealerAdmin.i18n.bulkError );
+					return;
+				}
+				bulkRedirect( res.data );
+			} ).fail( function () {
+				$btn.prop( 'disabled', false ).text( dealerAdmin.i18n.bulkApply );
+				alert( dealerAdmin.i18n.bulkError );
+			} );
+		} );
+
+		updateBulkCount();
 	}
 
 	// ── Drag & Drop ───────────────────────────────────────────────────────
@@ -417,8 +690,14 @@
 		// Submit
 		$( '#dealer-upload-form' ).on( 'submit', handleSubmit );
 
+		// Selettore versione precedente (Step 2)
+		initPreviousVersionPicker();
+
 		// Archive actions (pagina archivio)
 		handleArchiveActions();
+
+		// Archive: operazioni di gruppo (pagina archivio)
+		handleBulkActions();
 
 		// Drag & Drop
 		initDropArea();

@@ -2,7 +2,9 @@
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 // Variabili fornite da Dealer_Admin::render_archive():
 // $documents (array WP_Post), $total_pages (int), $paged (int),
-// $filter_brand, $filter_type, $filter_role, $filter_line, $filter_status
+// $filter_brand, $filter_type, $filter_role, $filter_line, $filter_status,
+// $filter_versions ('' = solo versioni correnti, 'all' = incluse le superate),
+// $bulk_summary (array|null: riepilogo dell'ultima operazione di gruppo)
 
 $brands    = Dealer_Admin::get_brands();
 $doc_types = Dealer_Admin::get_doc_types();
@@ -15,6 +17,48 @@ $in30      = gmdate( 'Y-m-d', strtotime( '+30 days' ) );
 		Archivio Documenti
 	</h1>
 	<a href="<?php echo esc_url( admin_url( 'admin.php?page=dealer-portal' ) ); ?>" class="page-title-action">+ Carica nuovo</a>
+
+	<?php
+	// ─── Riepilogo dell'ultima operazione di gruppo ──────────────────────────
+	if ( ! empty( $bulk_summary ) ) :
+		$b_skipped = $bulk_summary['invalid'] + $bulk_summary['already'] + $bulk_summary['failed'];
+		$b_class   = $b_skipped ? 'notice-warning' : 'notice-success';
+		$b_verb    = ( 'delete' === $bulk_summary['op'] ) ? 'eliminati' : 'segnati come obsoleti';
+		?>
+		<div class="notice <?php echo esc_attr( $b_class ); ?> is-dismissible" style="margin-top:16px;">
+			<p>
+				<strong>
+					<?php
+					printf(
+						'%d document%s %s.',
+						(int) $bulk_summary['processed'],
+						1 === (int) $bulk_summary['processed'] ? 'o' : 'i',
+						esc_html( $b_verb )
+					);
+					?>
+				</strong>
+			</p>
+			<?php if ( $b_skipped || $bulk_summary['promoted'] || $bulk_summary['no_succ'] ) : ?>
+			<ul style="margin:0 0 10px 20px;list-style:disc;">
+				<?php if ( $bulk_summary['invalid'] ) : ?>
+					<li><?php printf( '%d ID ignorat%s perché non corrispondono a un documento valido.', (int) $bulk_summary['invalid'], 1 === (int) $bulk_summary['invalid'] ? 'o' : 'i' ); ?></li>
+				<?php endif; ?>
+				<?php if ( $bulk_summary['already'] ) : ?>
+					<li><?php printf( '%d document%s salta%s perché già obsolet%s.', (int) $bulk_summary['already'], 1 === (int) $bulk_summary['already'] ? 'o' : 'i', 1 === (int) $bulk_summary['already'] ? 'to' : 'ti', 1 === (int) $bulk_summary['already'] ? 'o' : 'i' ); ?></li>
+				<?php endif; ?>
+				<?php if ( $bulk_summary['failed'] ) : ?>
+					<li><?php printf( '%d eliminazion%s non riuscit%s.', (int) $bulk_summary['failed'], 1 === (int) $bulk_summary['failed'] ? 'e' : 'i', 1 === (int) $bulk_summary['failed'] ? 'a' : 'e' ); ?></li>
+				<?php endif; ?>
+				<?php if ( $bulk_summary['promoted'] ) : ?>
+					<li><?php printf( '%d version%s precedent%s tornat%s corrent%s nella propria catena.', (int) $bulk_summary['promoted'], 1 === (int) $bulk_summary['promoted'] ? 'e' : 'i', 1 === (int) $bulk_summary['promoted'] ? 'e' : 'i', 1 === (int) $bulk_summary['promoted'] ? 'a' : 'e', 1 === (int) $bulk_summary['promoted'] ? 'e' : 'i' ); ?></li>
+				<?php endif; ?>
+				<?php if ( $bulk_summary['no_succ'] ) : ?>
+					<li><?php printf( '%d catena/e senza versione promuovibile: tutte le versioni erano nella selezione o già obsolete.', (int) $bulk_summary['no_succ'] ); ?></li>
+				<?php endif; ?>
+			</ul>
+			<?php endif; ?>
+		</div>
+	<?php endif; ?>
 
 	<!-- Filtri -->
 	<form method="GET" id="dealer-archive-filter">
@@ -46,6 +90,11 @@ $in30      = gmdate( 'Y-m-d', strtotime( '+30 days' ) );
 				<option value="obsoleto"<?php selected( $filter_status, 'obsoleto' ); ?>>Obsoleti</option>
 			</select>
 
+			<select name="filter_versions" title="Versioni superate">
+				<option value="">Solo versioni correnti</option>
+				<option value="all"<?php selected( $filter_versions, 'all' ); ?>>Includi versioni superate</option>
+			</select>
+
 			<button type="submit" class="button">Filtra</button>
 			<a href="<?php echo esc_url( admin_url( 'admin.php?page=dealer-portal-archive' ) ); ?>" class="button">Reset</a>
 		</div>
@@ -55,9 +104,27 @@ $in30      = gmdate( 'Y-m-d', strtotime( '+30 days' ) );
 		<div class="notice notice-info" style="margin-top:20px;"><p>Nessun documento trovato con i filtri selezionati.</p></div>
 	<?php else : ?>
 
+	<!-- Azioni di gruppo (pattern wp-list-table) -->
+	<div class="tablenav top">
+		<div class="alignleft actions bulkactions">
+			<label for="dealer-bulk-action" class="screen-reader-text">Seleziona un'azione di gruppo</label>
+			<select id="dealer-bulk-action">
+				<option value="">Azioni di gruppo</option>
+				<option value="obsolete">Segna come obsoleti</option>
+				<option value="delete">Elimina definitivamente</option>
+			</select>
+			<button type="button" class="button action" id="dealer-bulk-apply">Applica</button>
+			<span id="dealer-bulk-count" class="dealer-bulk-count" aria-live="polite">Nessun documento selezionato</span>
+		</div>
+	</div>
+
 	<table class="wp-list-table widefat fixed striped dealer-archive-table">
 		<thead>
 			<tr>
+				<td class="manage-column column-cb check-column">
+					<label class="screen-reader-text" for="dealer-cb-select-all">Seleziona tutti i documenti</label>
+					<input type="checkbox" id="dealer-cb-select-all">
+				</td>
 				<th scope="col" style="width:28%">Documento</th>
 				<th scope="col" style="width:12%">Brand</th>
 				<th scope="col" style="width:10%">Tipo</th>
@@ -80,6 +147,12 @@ $in30      = gmdate( 'Y-m-d', strtotime( '+30 days' ) );
 			$filename = get_post_meta( $doc->ID, '_doc_filename',     true );
 			$type_lbl = Dealer_Admin::get_doc_types()[ $type_key ] ?? $type_key;
 
+			// Catena di versioni (dimensione indipendente da _doc_status).
+			$v_seq        = Dealer_Versioning::get_sequence( (int) $doc->ID );
+			$v_is_current = Dealer_Versioning::is_current( (int) $doc->ID );
+			$v_chain      = Dealer_Versioning::get_chain( (int) $doc->ID );
+			$v_total      = count( $v_chain );
+
 			$expiry_class = '';
 			if ( $expiry ) {
 				if ( $expiry < $today ) {
@@ -89,9 +162,25 @@ $in30      = gmdate( 'Y-m-d', strtotime( '+30 days' ) );
 				}
 			}
 			?>
-			<tr id="doc-row-<?php echo esc_attr( $doc->ID ); ?>">
-				<td>
+			<tr id="doc-row-<?php echo esc_attr( $doc->ID ); ?>"<?php echo $v_is_current ? '' : ' class="dealer-row-superseded"'; ?>>
+				<th scope="row" class="check-column">
+					<label class="screen-reader-text" for="dealer-cb-<?php echo esc_attr( $doc->ID ); ?>">
+						Seleziona <?php echo esc_html( $doc->post_title ); ?>
+					</label>
+					<input type="checkbox"
+						class="dealer-bulk-cb"
+						id="dealer-cb-<?php echo esc_attr( $doc->ID ); ?>"
+						value="<?php echo esc_attr( $doc->ID ); ?>">
+				</th>
+				<td class="dealer-doc-title">
 					<strong><?php echo esc_html( $doc->post_title ); ?></strong>
+					<span class="dealer-badge-version" title="Versione <?php echo esc_attr( $v_seq ); ?> della catena">v<?php echo esc_html( $v_seq ); ?></span>
+					<?php if ( ! $v_is_current ) : ?>
+						<span class="dealer-badge-superseded">Versione superata</span>
+					<?php endif; ?>
+					<?php if ( $v_total > 1 ) : ?>
+						<span class="dealer-badge-chain" title="Documenti nella catena di versioni"><?php echo esc_html( $v_total ); ?> versioni</span>
+					<?php endif; ?>
 					<?php if ( $filename ) : ?>
 						<br><small style="color:#888;"><?php echo esc_html( $filename ); ?></small>
 					<?php endif; ?>
@@ -125,6 +214,17 @@ $in30      = gmdate( 'Y-m-d', strtotime( '+30 days' ) );
 						class="button button-small dealer-toggle-log-btn"
 						data-post="<?php echo esc_attr( $doc->ID ); ?>"
 						aria-expanded="false">Log</button>
+					<?php if ( $v_total > 1 ) : ?>
+					<button type="button"
+						class="button button-small dealer-toggle-chain-btn"
+						data-post="<?php echo esc_attr( $doc->ID ); ?>"
+						aria-expanded="false"
+						aria-controls="chain-row-<?php echo esc_attr( $doc->ID ); ?>"
+						title="Mostra lo storico delle versioni">
+						<span class="dashicons dashicons-backup" style="vertical-align:text-top;font-size:16px;height:16px;width:16px;"></span>
+						Versioni
+					</button>
+					<?php endif; ?>
 					<?php if ( $status !== 'obsoleto' ) : ?>
 					<button type="button"
 						class="button button-small dealer-obsolete-btn"
@@ -135,9 +235,57 @@ $in30      = gmdate( 'Y-m-d', strtotime( '+30 days' ) );
 						data-post="<?php echo esc_attr( $doc->ID ); ?>">Elimina</button>
 				</td>
 			</tr>
+			<?php if ( $v_total > 1 ) : ?>
+			<!-- Riga storico versioni (stesso pattern della riga log) -->
+			<tr class="dealer-log-row dealer-chain-row" id="chain-row-<?php echo esc_attr( $doc->ID ); ?>" style="display:none;">
+				<td colspan="9">
+					<div class="dealer-log-inner">
+						<strong>Storico versioni:</strong>
+						<table class="dealer-log-table">
+							<tr>
+								<th>Versione</th>
+								<th>Documento</th>
+								<th>Etichetta</th>
+								<th>Data</th>
+								<th>Stato</th>
+								<th></th>
+							</tr>
+							<?php foreach ( $v_chain as $cdoc ) :
+								$c_id      = (int) $cdoc->ID;
+								$c_seq     = Dealer_Versioning::get_sequence( $c_id );
+								$c_current = Dealer_Versioning::is_current( $c_id );
+								$c_label   = get_post_meta( $c_id, '_doc_version', true );
+								$c_edit    = get_edit_post_link( $c_id );
+								?>
+								<tr<?php echo $c_id === (int) $doc->ID ? ' class="dealer-chain-self"' : ''; ?>>
+									<td>v<?php echo esc_html( $c_seq ); ?></td>
+									<td><?php echo esc_html( $cdoc->post_title ); ?></td>
+									<td><?php echo $c_label ? esc_html( $c_label ) : '—'; ?></td>
+									<td><?php echo esc_html( get_the_date( 'd/m/Y H:i', $cdoc ) ); ?></td>
+									<td>
+										<?php if ( $c_current ) : ?>
+											<span class="dealer-badge-current">Corrente</span>
+										<?php else : ?>
+											<span class="dealer-badge-superseded">Superata</span>
+										<?php endif; ?>
+									</td>
+									<td>
+										<?php if ( $c_edit ) : ?>
+											<a href="<?php echo esc_url( $c_edit ); ?>">Modifica</a>
+										<?php else : ?>
+											—
+										<?php endif; ?>
+									</td>
+								</tr>
+							<?php endforeach; ?>
+						</table>
+					</div>
+				</td>
+			</tr>
+			<?php endif; ?>
 			<!-- Riga log download (nascosta, popolata da JS) -->
 			<tr class="dealer-log-row" id="log-row-<?php echo esc_attr( $doc->ID ); ?>" style="display:none;">
-				<td colspan="8">
+				<td colspan="9">
 					<div class="dealer-log-inner">
 						<strong>Log download:</strong>
 						<?php
@@ -168,7 +316,9 @@ $in30      = gmdate( 'Y-m-d', strtotime( '+30 days' ) );
 		if ( $filter_brand )  { $base_url = add_query_arg( 'filter_brand',  $filter_brand,  $base_url ); }
 		if ( $filter_type )   { $base_url = add_query_arg( 'filter_type',   $filter_type,   $base_url ); }
 		if ( $filter_role )   { $base_url = add_query_arg( 'filter_role',   $filter_role,   $base_url ); }
-		if ( $filter_status ) { $base_url = add_query_arg( 'filter_status', $filter_status, $base_url ); }
+		if ( $filter_status )   { $base_url = add_query_arg( 'filter_status',   $filter_status,   $base_url ); }
+		if ( $filter_line )     { $base_url = add_query_arg( 'filter_line',     $filter_line,     $base_url ); }
+		if ( $filter_versions ) { $base_url = add_query_arg( 'filter_versions', $filter_versions, $base_url ); }
 		?>
 		<div class="tablenav bottom" style="margin-top:12px;">
 			<?php
