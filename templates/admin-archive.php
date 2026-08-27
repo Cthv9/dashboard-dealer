@@ -10,6 +10,14 @@ $brands    = Dealer_Admin::get_brands();
 $doc_types = Dealer_Admin::get_doc_types();
 $today     = gmdate( 'Y-m-d' );
 $in30      = gmdate( 'Y-m-d', strtotime( '+30 days' ) );
+
+// L'archivio è visibile a chi può caricare documenti (area manager compreso),
+// ma le azioni distruttive restano dell'amministratore: eliminazione definitiva
+// e azioni di gruppo. Nasconderle qui evita pulsanti che il server rifiuta —
+// l'autorizzazione vera resta nei rispettivi handler AJAX.
+$can_manage   = current_user_can( DEALER_PORTAL_CAP );
+$current_user = wp_get_current_user();
+$colspan      = $can_manage ? 9 : 8;
 ?>
 <div class="wrap dealer-admin-wrap">
 	<h1 class="wp-heading-inline">
@@ -104,7 +112,8 @@ $in30      = gmdate( 'Y-m-d', strtotime( '+30 days' ) );
 		<div class="notice notice-info" style="margin-top:20px;"><p>Nessun documento trovato con i filtri selezionati.</p></div>
 	<?php else : ?>
 
-	<!-- Azioni di gruppo (pattern wp-list-table) -->
+	<!-- Azioni di gruppo (pattern wp-list-table) — solo amministratore -->
+	<?php if ( $can_manage ) : ?>
 	<div class="tablenav top">
 		<div class="alignleft actions bulkactions">
 			<label for="dealer-bulk-action" class="screen-reader-text">Seleziona un'azione di gruppo</label>
@@ -117,14 +126,17 @@ $in30      = gmdate( 'Y-m-d', strtotime( '+30 days' ) );
 			<span id="dealer-bulk-count" class="dealer-bulk-count" aria-live="polite">Nessun documento selezionato</span>
 		</div>
 	</div>
+	<?php endif; ?>
 
 	<table class="wp-list-table widefat fixed striped dealer-archive-table">
 		<thead>
 			<tr>
+				<?php if ( $can_manage ) : ?>
 				<td class="manage-column column-cb check-column">
 					<label class="screen-reader-text" for="dealer-cb-select-all">Seleziona tutti i documenti</label>
 					<input type="checkbox" id="dealer-cb-select-all">
 				</td>
+				<?php endif; ?>
 				<th scope="col" style="width:28%">Documento</th>
 				<th scope="col" style="width:12%">Brand</th>
 				<th scope="col" style="width:10%">Tipo</th>
@@ -163,6 +175,7 @@ $in30      = gmdate( 'Y-m-d', strtotime( '+30 days' ) );
 			}
 			?>
 			<tr id="doc-row-<?php echo esc_attr( $doc->ID ); ?>"<?php echo $v_is_current ? '' : ' class="dealer-row-superseded"'; ?>>
+				<?php if ( $can_manage ) : ?>
 				<th scope="row" class="check-column">
 					<label class="screen-reader-text" for="dealer-cb-<?php echo esc_attr( $doc->ID ); ?>">
 						Seleziona <?php echo esc_html( $doc->post_title ); ?>
@@ -172,6 +185,7 @@ $in30      = gmdate( 'Y-m-d', strtotime( '+30 days' ) );
 						id="dealer-cb-<?php echo esc_attr( $doc->ID ); ?>"
 						value="<?php echo esc_attr( $doc->ID ); ?>">
 				</th>
+				<?php endif; ?>
 				<td class="dealer-doc-title">
 					<strong><?php echo esc_html( $doc->post_title ); ?></strong>
 					<span class="dealer-badge-version" title="Versione <?php echo esc_attr( $v_seq ); ?> della catena">v<?php echo esc_html( $v_seq ); ?></span>
@@ -208,8 +222,18 @@ $in30      = gmdate( 'Y-m-d', strtotime( '+30 days' ) );
 				<td class="<?php echo esc_attr( $expiry_class ); ?>">
 					<?php echo $expiry ? esc_html( gmdate( 'd/m/Y', strtotime( $expiry ) ) ) : '—'; ?>
 				</td>
+				<?php
+				// Modifica nell'editor WP: solo se l'utente ha davvero i
+				// permessi sul post, altrimenti get_edit_post_link() è vuoto e
+				// il link porterebbe su un href="".
+				$edit_link = get_edit_post_link( $doc->ID );
+				// Obsoleto/nuova versione: consentiti dentro il perimetro.
+				$can_touch = Dealer_Identity::can_edit_document( $current_user, (int) $doc->ID );
+				?>
 				<td class="dealer-actions-cell">
-					<a href="<?php echo esc_url( get_edit_post_link( $doc->ID ) ); ?>" class="button button-small" title="Modifica post WP">Modifica</a>
+					<?php if ( $edit_link ) : ?>
+					<a href="<?php echo esc_url( $edit_link ); ?>" class="button button-small" title="Modifica post WP">Modifica</a>
+					<?php endif; ?>
 					<button type="button"
 						class="button button-small dealer-toggle-log-btn"
 						data-post="<?php echo esc_attr( $doc->ID ); ?>"
@@ -225,20 +249,22 @@ $in30      = gmdate( 'Y-m-d', strtotime( '+30 days' ) );
 						Versioni
 					</button>
 					<?php endif; ?>
-					<?php if ( $status !== 'obsoleto' ) : ?>
+					<?php if ( $status !== 'obsoleto' && $can_touch ) : ?>
 					<button type="button"
 						class="button button-small dealer-obsolete-btn"
 						data-post="<?php echo esc_attr( $doc->ID ); ?>">Obsoleto</button>
 					<?php endif; ?>
+					<?php if ( $can_manage ) : ?>
 					<button type="button"
 						class="button button-small button-link-delete dealer-delete-btn"
 						data-post="<?php echo esc_attr( $doc->ID ); ?>">Elimina</button>
+					<?php endif; ?>
 				</td>
 			</tr>
 			<?php if ( $v_total > 1 ) : ?>
 			<!-- Riga storico versioni (stesso pattern della riga log) -->
 			<tr class="dealer-log-row dealer-chain-row" id="chain-row-<?php echo esc_attr( $doc->ID ); ?>" style="display:none;">
-				<td colspan="9">
+				<td colspan="<?php echo esc_attr( $colspan ); ?>">
 					<div class="dealer-log-inner">
 						<strong>Storico versioni:</strong>
 						<table class="dealer-log-table">
@@ -285,7 +311,7 @@ $in30      = gmdate( 'Y-m-d', strtotime( '+30 days' ) );
 			<?php endif; ?>
 			<!-- Riga log download (nascosta, popolata da JS) -->
 			<tr class="dealer-log-row" id="log-row-<?php echo esc_attr( $doc->ID ); ?>" style="display:none;">
-				<td colspan="9">
+				<td colspan="<?php echo esc_attr( $colspan ); ?>">
 					<div class="dealer-log-inner">
 						<strong>Log download:</strong>
 						<?php

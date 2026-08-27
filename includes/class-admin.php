@@ -66,24 +66,84 @@ class Dealer_Admin {
 
 	// ─── Menu ────────────────────────────────────────────────────────────────
 
+	/**
+	 * Menu del portale.
+	 *
+	 * Dettaglio WordPress che va gestito a mano: la pagina di primo livello usa
+	 * la capability passata a add_menu_page(). Se restasse DEALER_PORTAL_CAP,
+	 * l'area manager non vedrebbe il menu — e quindi nemmeno i sottomenu per cui
+	 * ha capability. La capability del contenitore è perciò quella della prima
+	 * pagina che l'utente corrente può davvero aprire, e il callback di primo
+	 * livello instrada di conseguenza.
+	 *
+	 * I sottomenu registrati altrove a priorità 20 (Notifiche, Richieste
+	 * Accesso) restano su DEALER_PORTAL_CAP: WordPress li omette da sé per chi
+	 * non la possiede, quindi all'area manager non compaiono.
+	 */
 	public function register_menus(): void {
+		$can_upload = current_user_can( DEALER_PORTAL_CAP_UPLOAD );
+		$can_logs   = current_user_can( DEALER_PORTAL_CAP_LOGS );
+
+		// Nessuna capability del portale: nessun menu.
+		if ( ! $can_upload && ! $can_logs && ! current_user_can( DEALER_PORTAL_CAP ) ) {
+			return;
+		}
+
+		if ( $can_upload ) {
+			$top_cap = DEALER_PORTAL_CAP_UPLOAD;
+		} elseif ( $can_logs ) {
+			$top_cap = DEALER_PORTAL_CAP_LOGS;
+		} else {
+			$top_cap = DEALER_PORTAL_CAP;
+		}
+
 		add_menu_page(
 			'Dealer Portal',
 			'Dealer Portal',
-			DEALER_PORTAL_CAP,
+			$top_cap,
 			'dealer-portal',
-			[ $this, 'render_upload' ],
+			[ $this, 'render_landing' ],
 			'dashicons-portfolio',
 			30
 		);
-		add_submenu_page( 'dealer-portal', 'Carica Documento',   'Carica Documento',   DEALER_PORTAL_CAP, 'dealer-portal',          [ $this, 'render_upload' ] );
-		add_submenu_page( 'dealer-portal', 'Archivio Documenti', 'Archivio Documenti', DEALER_PORTAL_CAP, 'dealer-portal-archive',  [ $this, 'render_archive' ] );
-		add_submenu_page( 'dealer-portal', 'Log Download',       'Log Download',       DEALER_PORTAL_CAP, 'dealer-portal-logs',     [ $this, 'render_logs' ] );
-		add_submenu_page( 'dealer-portal', 'Statistiche',       'Statistiche',        DEALER_PORTAL_CAP, 'dealer-portal-stats',    [ $this, 'render_stats' ] );
+
+		// La voce omonima del primo livello ha senso solo se l'utente può
+		// caricare: altrimenti il contenitore resta con la sola etichetta
+		// "Dealer Portal" e render_landing() lo porta sulla prima pagina utile.
+		if ( $can_upload ) {
+			add_submenu_page( 'dealer-portal', 'Carica Documento',   'Carica Documento',   DEALER_PORTAL_CAP_UPLOAD, 'dealer-portal',         [ $this, 'render_landing' ] );
+		}
+		add_submenu_page( 'dealer-portal', 'Archivio Documenti', 'Archivio Documenti', DEALER_PORTAL_CAP_UPLOAD, 'dealer-portal-archive', [ $this, 'render_archive' ] );
+		add_submenu_page( 'dealer-portal', 'Log Download',       'Log Download',       DEALER_PORTAL_CAP_LOGS,   'dealer-portal-logs',    [ $this, 'render_logs' ] );
+		add_submenu_page( 'dealer-portal', 'Statistiche',        'Statistiche',        DEALER_PORTAL_CAP_LOGS,   'dealer-portal-stats',   [ $this, 'render_stats' ] );
+	}
+
+	/**
+	 * Pagina di primo livello: instrada verso la prima pagina che l'utente può
+	 * aprire. Serve perché lo slug 'dealer-portal' è condiviso fra chi carica
+	 * documenti e chi ha solo la lettura dei log.
+	 */
+	public function render_landing(): void {
+		if ( current_user_can( DEALER_PORTAL_CAP_UPLOAD ) ) {
+			$this->render_upload();
+			return;
+		}
+		if ( current_user_can( DEALER_PORTAL_CAP_LOGS ) ) {
+			$this->render_logs();
+			return;
+		}
+		wp_die( esc_html__( 'Accesso non consentito.', 'dealer-portal' ) );
 	}
 
 	// ─── Assets ──────────────────────────────────────────────────────────────
 
+	/**
+	 * Gli hook di pagina non dipendono dalla capability con cui la pagina è
+	 * stata registrata: restano questi anche quando ad aprirle è un area
+	 * manager, quindi CSS e JS vengono caricati per lui esattamente come per
+	 * l'amministratore. Nessun controllo di capability va aggiunto qui: chi
+	 * arriva su questi hook ha già superato il controllo del menu.
+	 */
 	public function enqueue_assets( string $hook ): void {
 		$plugin_hooks = [
 			'toplevel_page_dealer-portal',
@@ -117,8 +177,14 @@ class Dealer_Admin {
 			'archiveNonce' => wp_create_nonce( 'dealer_archive_nonce' ),
 			'bulkNonce'    => wp_create_nonce( 'dealer_bulk_nonce' ),
 			'currentYear'  => (int) gmdate( 'Y' ),
-			'productLines' => self::PRODUCT_LINES,
+			// Il wizard propone solo le linee che l'utente può davvero
+			// pubblicare. È comodità, non sicurezza: la verifica che conta è
+			// quella di ajax_save_document().
+			'productLines' => self::allowed_product_lines( wp_get_current_user() ),
 			'docTypes'     => self::DOC_TYPES,
+			// L'eliminazione definitiva resta dell'amministratore: senza questo
+			// flag l'area manager vedrebbe pulsanti che il server rifiuta.
+			'canDelete'    => current_user_can( DEALER_PORTAL_CAP ),
 			'i18n'         => [
 				'confirmDelete'   => 'Eliminare definitivamente questo documento? Il file verrà cancellato dal server.',
 				'confirmObsolete' => 'Segnare questo documento come obsoleto? Non sarà più visibile ai dealer.',
@@ -146,14 +212,14 @@ class Dealer_Admin {
 	// ─── Page renderers ──────────────────────────────────────────────────────
 
 	public function render_upload(): void {
-		if ( ! current_user_can( DEALER_PORTAL_CAP ) ) {
+		if ( ! current_user_can( DEALER_PORTAL_CAP_UPLOAD ) ) {
 			wp_die( esc_html__( 'Accesso non consentito.', 'dealer-portal' ) );
 		}
 		require DEALER_PORTAL_PATH . 'templates/admin-upload.php';
 	}
 
 	public function render_archive(): void {
-		if ( ! current_user_can( DEALER_PORTAL_CAP ) ) {
+		if ( ! current_user_can( DEALER_PORTAL_CAP_UPLOAD ) ) {
 			wp_die( esc_html__( 'Accesso non consentito.', 'dealer-portal' ) );
 		}
 
@@ -260,7 +326,7 @@ class Dealer_Admin {
 	}
 
 	public function render_logs(): void {
-		if ( ! current_user_can( DEALER_PORTAL_CAP ) ) {
+		if ( ! current_user_can( DEALER_PORTAL_CAP_LOGS ) ) {
 			wp_die( esc_html__( 'Accesso non consentito.', 'dealer-portal' ) );
 		}
 
@@ -291,7 +357,7 @@ class Dealer_Admin {
 	}
 
 	public function render_stats(): void {
-		if ( ! current_user_can( DEALER_PORTAL_CAP ) ) {
+		if ( ! current_user_can( DEALER_PORTAL_CAP_LOGS ) ) {
 			wp_die( esc_html__( 'Accesso non consentito.', 'dealer-portal' ) );
 		}
 
@@ -511,7 +577,7 @@ class Dealer_Admin {
 	 * memoria un archivio di log arbitrariamente grande.
 	 */
 	public function handle_export_logs(): void {
-		if ( ! current_user_can( DEALER_PORTAL_CAP ) ) {
+		if ( ! current_user_can( DEALER_PORTAL_CAP_LOGS ) ) {
 			wp_die( esc_html__( 'Accesso non consentito.', 'dealer-portal' ), '', [ 'response' => 403 ] );
 		}
 
@@ -625,6 +691,9 @@ class Dealer_Admin {
 	public function ajax_bulk_action(): void {
 		check_ajax_referer( 'dealer_bulk_nonce', 'nonce' );
 
+		// Azione di gruppo: opera su elenchi arbitrari di ID senza verifica di
+		// perimetro documento per documento, e una delle due azioni è
+		// l'eliminazione definitiva. Resta interamente all'amministratore.
 		if ( ! current_user_can( DEALER_PORTAL_CAP ) ) {
 			wp_send_json_error( [ 'message' => 'Unauthorized' ], 403 );
 		}
@@ -826,12 +895,17 @@ class Dealer_Admin {
 	public function ajax_get_lines(): void {
 		check_ajax_referer( 'dealer_upload_nonce', 'nonce' );
 
-		if ( ! current_user_can( DEALER_PORTAL_CAP ) ) {
+		if ( ! current_user_can( DEALER_PORTAL_CAP_UPLOAD ) ) {
 			wp_send_json_error( [ 'message' => 'Unauthorized' ], 403 );
 		}
 
 		$brand = sanitize_text_field( wp_unslash( $_POST['brand'] ?? '' ) );
-		$lines = self::PRODUCT_LINES[ $brand ] ?? [];
+
+		// Stesso elenco filtrato che riceve il wizard: l'endpoint non deve
+		// diventare la scorciatoia per scoprire (e proporre) linee fuori
+		// perimetro. Resta comunque comodità, non autorizzazione.
+		$allowed = self::allowed_product_lines( wp_get_current_user() );
+		$lines   = $allowed[ $brand ] ?? [];
 
 		wp_send_json_success( [ 'lines' => array_values( $lines ) ] );
 	}
@@ -841,8 +915,46 @@ class Dealer_Admin {
 	public function ajax_save_document(): void {
 		check_ajax_referer( 'dealer_upload_nonce', 'nonce' );
 
-		if ( ! current_user_can( DEALER_PORTAL_CAP ) ) {
+		if ( ! current_user_can( DEALER_PORTAL_CAP_UPLOAD ) ) {
 			wp_send_json_error( [ 'message' => 'Unauthorized' ], 403 );
+		}
+
+		$current_user = wp_get_current_user();
+
+		// ─── Perimetro ───────────────────────────────────────────────────────
+		// Validato PRIMA di toccare il filesystem: un rifiuto dopo l'upload
+		// lascerebbe un file orfano nella cartella protetta. Le linee arrivano
+		// dal client e vengono decise qui, lato server: che l'interfaccia le
+		// abbia mostrate o no non conta nulla.
+		$raw_lines = isset( $_POST['doc_lines'] ) ? (array) wp_unslash( $_POST['doc_lines'] ) : [];
+		$lines     = array_values( array_intersect(
+			array_map( 'sanitize_text_field', $raw_lines ),
+			self::get_valid_lines()
+		) );
+
+		// can_publish_to_lines() respinge anche il documento SENZA linee, che
+		// sarebbe visibile a tutta la rete: per un area manager è la via più
+		// diretta per pubblicare fuori dal proprio perimetro.
+		if ( ! Dealer_Identity::can_publish_to_lines( $current_user, $lines ) ) {
+			wp_send_json_error( [
+				'message' => 'Non hai i permessi per pubblicare su queste linee prodotto. '
+					. 'Seleziona almeno una linea del tuo perimetro.',
+			], 403 );
+		}
+
+		// Nuova versione di un documento esistente: l'operazione modifica anche
+		// il predecessore (esce dalla ricerca), quindi serve il diritto su di
+		// esso, non solo sulle linee del documento nuovo.
+		$previous_id = absint( $_POST['doc_previous_version'] ?? 0 );
+
+		// Non fidarsi del client: il predecessore deve essere un documento reale.
+		if ( $previous_id && get_post_type( $previous_id ) !== 'documento_dealer' ) {
+			$previous_id = 0;
+		}
+		if ( $previous_id && ! Dealer_Identity::can_edit_document( $current_user, $previous_id ) ) {
+			wp_send_json_error( [
+				'message' => 'Non hai i permessi per sostituire il documento indicato come versione precedente.',
+			], 403 );
 		}
 
 		// Verifica file caricato.
@@ -941,12 +1053,8 @@ class Dealer_Admin {
 		$allowed_roles = [ 'dealer', 'top_dealer', 'part_center' ];
 		$roles         = array_values( array_intersect( array_map( 'sanitize_key', $raw_roles ), $allowed_roles ) );
 
-		// Valida linee contro la whitelist delle combinazioni Brand|Linea ammesse.
-		$raw_lines = isset( $_POST['doc_lines'] ) ? (array) wp_unslash( $_POST['doc_lines'] ) : [];
-		$lines     = array_values( array_intersect(
-			array_map( 'sanitize_text_field', $raw_lines ),
-			self::get_valid_lines()
-		) );
+		// Le linee ($lines) sono già state validate e autorizzate in apertura
+		// di questo handler, prima dell'upload del file.
 
 		// Valida formato e valore della data di scadenza.
 		if ( $expiry ) {
@@ -1019,13 +1127,8 @@ class Dealer_Admin {
 		// ─── Versionamento ───────────────────────────────────────────────────
 		// Va eseguito DOPO il salvataggio di tutti gli altri meta: l'action
 		// 'dealer_portal_new_version' deve vedere un documento completo.
-		$previous_id = absint( $_POST['doc_previous_version'] ?? 0 );
-
-		// Non fidarsi del client: il predecessore deve essere un documento reale.
-		if ( $previous_id && get_post_type( $previous_id ) !== 'documento_dealer' ) {
-			$previous_id = 0;
-		}
-
+		// $previous_id è già stato validato (esistenza + diritto di modifica)
+		// in apertura di questo handler.
 		$attached = false;
 		if ( $previous_id && $previous_id !== (int) $post_id ) {
 			$attached = Dealer_Versioning::attach_as_new_version( (int) $post_id, $previous_id );
@@ -1059,13 +1162,22 @@ class Dealer_Admin {
 	public function ajax_mark_obsolete(): void {
 		check_ajax_referer( 'dealer_archive_nonce', 'nonce' );
 
-		if ( ! current_user_can( DEALER_PORTAL_CAP ) ) {
+		if ( ! current_user_can( DEALER_PORTAL_CAP_UPLOAD ) ) {
 			wp_send_json_error( [ 'message' => 'Unauthorized' ], 403 );
 		}
 
 		$post_id = absint( $_POST['post_id'] ?? 0 );
 		if ( ! $post_id || get_post_type( $post_id ) !== 'documento_dealer' ) {
 			wp_send_json_error( [ 'message' => 'Post non valido.' ] );
+		}
+
+		// Marcare obsoleto è una modifica del documento: vale il perimetro.
+		// Un documento senza restrizione di linea, o a cavallo di linee altrui,
+		// resta dell'amministratore (vedi Dealer_Identity::can_edit_document()).
+		if ( ! Dealer_Identity::can_edit_document( wp_get_current_user(), $post_id ) ) {
+			wp_send_json_error( [
+				'message' => 'Non hai i permessi per intervenire su questo documento.',
+			], 403 );
 		}
 
 		// Marcare obsoleta la versione corrente di una catena con storico
@@ -1119,6 +1231,10 @@ class Dealer_Admin {
 	public function ajax_delete_document(): void {
 		check_ajax_referer( 'dealer_archive_nonce', 'nonce' );
 
+		// Eliminazione definitiva: cancella il file dal server ed è
+		// irreversibile. Resta all'amministratore, anche per chi può caricare.
+		// All'area manager basta marcare obsoleto e pubblicare una nuova
+		// versione, che è reversibile e lascia traccia.
 		if ( ! current_user_can( DEALER_PORTAL_CAP ) ) {
 			wp_send_json_error( [ 'message' => 'Unauthorized' ], 403 );
 		}
@@ -1264,5 +1380,48 @@ class Dealer_Admin {
 			}
 		}
 		return $valid;
+	}
+
+	/**
+	 * Alberatura Brand => linee limitata a ciò che l'utente può pubblicare.
+	 *
+	 * Per l'amministratore è l'elenco completo; per un area manager solo le
+	 * linee del suo perimetro, così il wizard non gli propone nemmeno scelte
+	 * che il server rifiuterebbe. Chi non può pubblicare riceve un elenco
+	 * vuoto.
+	 *
+	 * Resta una comodità dell'interfaccia: l'autorizzazione vera avviene in
+	 * ajax_save_document() tramite Dealer_Identity::can_publish_to_lines().
+	 *
+	 * @return array<string, string[]>
+	 */
+	public static function allowed_product_lines( \WP_User $user ): array {
+		if ( user_can( $user, 'manage_options' ) || user_can( $user, DEALER_PORTAL_CAP ) ) {
+			return self::PRODUCT_LINES;
+		}
+
+		if ( ! Dealer_Identity::is_area_manager( $user ) ) {
+			return [];
+		}
+
+		$scope = Dealer_Identity::get_scope_lines( $user );
+		if ( empty( $scope ) ) {
+			return [];
+		}
+
+		$allowed = [];
+		foreach ( self::PRODUCT_LINES as $brand => $brand_lines ) {
+			$kept = [];
+			foreach ( $brand_lines as $line ) {
+				if ( in_array( $brand . '|' . $line, $scope, true ) ) {
+					$kept[] = $line;
+				}
+			}
+			if ( $kept ) {
+				$allowed[ $brand ] = $kept;
+			}
+		}
+
+		return $allowed;
 	}
 }

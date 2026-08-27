@@ -428,8 +428,11 @@
 			markObsolete( postId, $btn, false );
 		} );
 
-		// Elimina
+		// Elimina — solo amministratore. Il pulsante non viene nemmeno reso per
+		// gli altri: questa è una seconda rete, quella vera è lato server in
+		// ajax_delete_document().
 		$( document ).on( 'click', '.dealer-delete-btn', function () {
+			if ( ! dealerAdmin.canDelete ) { return; }
 			var $btn   = $( this );
 			var postId = parseInt( $btn.data( 'post' ), 10 );
 			if ( ! confirm( dealerAdmin.i18n.confirmDelete ) ) { return; }

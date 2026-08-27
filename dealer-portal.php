@@ -14,7 +14,18 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 define( 'DEALER_PORTAL_VERSION', '1.2.0' );
 define( 'DEALER_PORTAL_PATH',    plugin_dir_path( __FILE__ ) );
 define( 'DEALER_PORTAL_URL',     plugin_dir_url( __FILE__ ) );
-define( 'DEALER_PORTAL_CAP',     'manage_dealer_portal' );
+// ─── Capability ──────────────────────────────────────────────────────────────
+// Una sola capability significava "sei amministratore". Con l'area manager i
+// poteri vanno separati: chi carica documenti non deve poter creare utenti né
+// cancellare file dal server.
+//
+// ATTENZIONE: nessuna di queste implica le altre. L'amministratore le riceve
+// tutte esplicitamente in Dealer_DB::setup_capability(); ogni punto di controllo
+// interroga la capability specifica dell'azione, mai una "capability madre".
+define( 'DEALER_PORTAL_CAP',        'manage_dealer_portal' ); // Controllo completo (solo amministratore).
+define( 'DEALER_PORTAL_CAP_UPLOAD', 'upload_dealer_docs' );   // Wizard, salvataggio, versionamento, archivio.
+define( 'DEALER_PORTAL_CAP_LOGS',   'view_dealer_logs' );     // Log download, export CSV, statistiche.
+define( 'DEALER_PORTAL_CAP_ORGS',   'manage_dealer_orgs' );   // Organizzazioni e assegnazione utenti (solo amministratore).
 
 require_once DEALER_PORTAL_PATH . 'includes/class-cpt.php';
 require_once DEALER_PORTAL_PATH . 'includes/class-roles.php';
@@ -28,6 +39,8 @@ require_once DEALER_PORTAL_PATH . 'includes/class-dashboard.php';
 require_once DEALER_PORTAL_PATH . 'includes/class-searchwp.php';
 require_once DEALER_PORTAL_PATH . 'includes/class-notifications.php';
 require_once DEALER_PORTAL_PATH . 'includes/class-access-request.php';
+require_once DEALER_PORTAL_PATH . 'includes/class-org-admin.php';
+require_once DEALER_PORTAL_PATH . 'includes/class-team.php';
 
 // Full setup on first activation.
 register_activation_hook( __FILE__, [ 'Dealer_DB', 'install' ] );
@@ -75,4 +88,6 @@ add_action( 'init', static function (): void {
 	// devono rispondere sia in admin sia sul front-end.
 	new Dealer_Notifications();
 	new Dealer_Access_Request();
+	new Dealer_Org_Admin();
+	new Dealer_Team();
 }, 10 );

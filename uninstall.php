@@ -29,6 +29,18 @@ foreach ( $page_options as $option ) {
 remove_role( 'dealer' );
 remove_role( 'top_dealer' );
 remove_role( 'part_center' );
+remove_role( 'area_manager' );
+
+// ── Toglie le capability del plugin all'amministratore ────────────────────────
+// I ruoli custom se ne vanno con remove_role(); l'amministratore invece resta e
+// senza questo si porterebbe dietro le capability di un plugin che non c'è più.
+// Le costanti non sono definite qui (il plugin non è caricato): valori letterali.
+$admin_role = get_role( 'administrator' );
+if ( $admin_role ) {
+	foreach ( [ 'manage_dealer_portal', 'upload_dealer_docs', 'view_dealer_logs', 'manage_dealer_orgs' ] as $dealer_cap ) {
+		$admin_role->remove_cap( $dealer_cap );
+	}
+}
 
 // ── Rimuove gli eventi cron delle notifiche ───────────────────────────────────
 // Senza questo WordPress continuerebbe a richiamare hook di classi non più
@@ -68,6 +80,7 @@ $wpdb->query( "DROP TABLE IF EXISTS `{$table}`" );
 // ── Pulisce le opzioni del plugin ─────────────────────────────────────────────
 $options = [
 	'dealer_portal_version',
+	'dealer_portal_caps_revision',
 	'dealer_portal_notifications',
 	'dealer_portal_notification_queue',
 ];

@@ -17,11 +17,16 @@ class Dealer_DB {
 	 * current one, ensuring upgrade paths don't rely on reactivation.
 	 */
 	public static function maybe_upgrade(): void {
+		// Le capability hanno un contatore di revisione proprio (CAPS_REVISION):
+		// vanno riparate anche quando la versione del plugin non cambia, perché
+		// aggiungerne una nuova al codice non basta a darla ai ruoli esistenti.
+		// La chiamata esce subito se la mappa corrente è già stata applicata.
+		self::setup_capability();
+
 		if ( get_option( 'dealer_portal_version' ) === DEALER_PORTAL_VERSION ) {
 			return;
 		}
 		self::create_protected_upload_dir();
-		self::setup_capability();
 		update_option( 'dealer_portal_version', DEALER_PORTAL_VERSION );
 	}
 
@@ -126,10 +131,74 @@ class Dealer_DB {
 		}
 	}
 
+	/**
+	 * Distribuzione delle capability ai ruoli.
+	 *
+	 * Mappa esplicita: nessuna capability ne implica un'altra, quindi
+	 * l'amministratore le riceve tutte una per una. Se domani si aggiungesse
+	 * una capability e la si assegnasse solo all'area manager dimenticando
+	 * l'amministratore, quest'ultimo ne resterebbe fuori: la tabella qui sotto
+	 * è l'unico posto in cui guardare.
+	 *
+	 * @return array<string, string[]> ruolo => capability
+	 */
+	private static function capability_map(): array {
+		return [
+			'administrator' => [
+				DEALER_PORTAL_CAP,        // Controllo completo.
+				DEALER_PORTAL_CAP_UPLOAD,
+				DEALER_PORTAL_CAP_LOGS,
+				DEALER_PORTAL_CAP_ORGS,
+			],
+			'area_manager'  => [
+				DEALER_PORTAL_CAP_UPLOAD, // Carica e versiona, dentro il proprio perimetro.
+				DEALER_PORTAL_CAP_LOGS,   // Legge log e statistiche.
+				// NON riceve DEALER_PORTAL_CAP (eliminazioni, richieste di
+				// accesso, notifiche) né DEALER_PORTAL_CAP_ORGS.
+			],
+		];
+	}
+
+	/**
+	 * Revisione della mappa: va incrementata ogni volta che capability_map()
+	 * cambia. È ciò che rende l'assegnazione auto-riparante anche quando la
+	 * versione del plugin non cambia — senza, un'installazione già aggiornata
+	 * non riceverebbe mai le capability nuove.
+	 */
+	const CAPS_REVISION = 2;
+
+	/**
+	 * Idempotente: aggiunge solo ciò che manca e non tocca nulla se la mappa
+	 * corrente è già stata applicata. Richiamata sia all'attivazione sia da
+	 * maybe_upgrade() a ogni caricamento.
+	 */
 	private static function setup_capability(): void {
-		$admin = get_role( 'administrator' );
-		if ( $admin && ! $admin->has_cap( DEALER_PORTAL_CAP ) ) {
-			$admin->add_cap( DEALER_PORTAL_CAP );
+		if ( (int) get_option( 'dealer_portal_caps_revision' ) === self::CAPS_REVISION ) {
+			return;
+		}
+
+		$complete = true;
+
+		foreach ( self::capability_map() as $role_name => $caps ) {
+			$role = get_role( $role_name );
+
+			// Il ruolo area_manager è creato da Dealer_Roles su 'init', mentre
+			// maybe_upgrade() gira su 'plugins_loaded'. Se non c'è ancora non
+			// registriamo la revisione: al caricamento successivo si riprova.
+			if ( ! $role ) {
+				$complete = false;
+				continue;
+			}
+
+			foreach ( $caps as $cap ) {
+				if ( ! $role->has_cap( $cap ) ) {
+					$role->add_cap( $cap );
+				}
+			}
+		}
+
+		if ( $complete ) {
+			update_option( 'dealer_portal_caps_revision', self::CAPS_REVISION );
 		}
 	}
 
