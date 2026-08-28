@@ -47,6 +47,15 @@ class Dealer_Admin {
 
 	// ─── Constructor ─────────────────────────────────────────────────────────
 
+	/**
+	 * Documenti modificabili dall'utente corrente, risolti da render_upload()
+	 * e letti dall'hook che restringe le query del wizard.
+	 * null = nessuna restrizione (amministratore) o wizard non in corso.
+	 *
+	 * @var int[]|null
+	 */
+	private $wizard_document_scope = null;
+
 	public function __construct() {
 		add_action( 'admin_menu',             [ $this, 'register_menus' ] );
 		add_action( 'admin_enqueue_scripts',  [ $this, 'enqueue_assets' ] );
@@ -224,19 +233,24 @@ class Dealer_Admin {
 	const SCOPE_SCAN_LIMIT = 2000;
 
 	/**
-	 * Documenti che l'utente può vedere nelle viste amministrative.
+	 * Documenti del perimetro dell'utente, come insieme di ID.
 	 *
+	 * Due criteri distinti, gli stessi che valgono ovunque nel plugin:
+	 *  - lettura  → sovrapposizione: basta una linea nel perimetro;
+	 *  - modifica → contenimento: tutte le linee devono starci.
+	 *
+	 * @param bool $for_edit false = documenti visibili, true = modificabili.
 	 * @return int[]|null null = nessuna restrizione (amministratore);
 	 *                    array = insieme chiuso, eventualmente vuoto.
 	 */
-	private static function visible_document_ids( \WP_User $user ): ?array {
+	private static function scoped_document_ids( \WP_User $user, bool $for_edit = false ): ?array {
 		static $cache = [];
 
 		if ( Dealer_Search::has_unrestricted_scope( $user ) ) {
 			return null;
 		}
 
-		$key = (int) $user->ID;
+		$key = (int) $user->ID . ( $for_edit ? ':edit' : ':view' );
 		if ( isset( $cache[ $key ] ) ) {
 			return $cache[ $key ];
 		}
@@ -254,8 +268,8 @@ class Dealer_Admin {
 			return $cache[ $key ];
 		}
 
-		// I documenti senza _doc_lines non sono comunque visibili all'area
-		// manager: escluderli già in query riduce la scansione.
+		// I documenti senza _doc_lines non sono comunque di competenza
+		// dell'area manager: escluderli già in query riduce la scansione.
 		$candidates = get_posts( [
 			'post_type'      => 'documento_dealer',
 			'post_status'    => [ 'publish', 'draft' ],
@@ -268,16 +282,29 @@ class Dealer_Admin {
 			],
 		] );
 
-		$visible = [];
+		$matched = [];
 		foreach ( (array) $candidates as $candidate_id ) {
 			$candidate_id = (int) $candidate_id;
-			if ( Dealer_Search::user_can_view_document( $user, $candidate_id, $scope ) ) {
-				$visible[] = $candidate_id;
+			$ok = $for_edit
+				? Dealer_Identity::can_edit_document( $user, $candidate_id )
+				: Dealer_Search::user_can_view_document( $user, $candidate_id, $scope );
+			if ( $ok ) {
+				$matched[] = $candidate_id;
 			}
 		}
 
-		$cache[ $key ] = $visible;
+		$cache[ $key ] = $matched;
 		return $cache[ $key ];
+	}
+
+	/**
+	 * Documenti che l'utente può vedere nelle viste amministrative (archivio,
+	 * log, statistiche, export).
+	 *
+	 * @return int[]|null
+	 */
+	private static function visible_document_ids( \WP_User $user ): ?array {
+		return self::scoped_document_ids( $user, false );
 	}
 
 	/**
@@ -327,49 +354,65 @@ class Dealer_Admin {
 		// manager deve elencare solo i documenti che può davvero modificare:
 		// proporne uno fuori perimetro significherebbe mostrare un'azione che
 		// ajax_save_document() rifiuta — e, peggio, rivelare l'esistenza di
-		// documenti altrui. Il criterio sta su un meta serializzato, quindi non
-		// è esprimibile in meta_query: si filtra sui risultati, per la sola
-		// durata dell'include.
-		$restrict = ! Dealer_Search::has_unrestricted_scope( wp_get_current_user() );
+		// documenti altrui.
+		//
+		// Il criterio sta su un meta serializzato, quindi si risolve prima in
+		// PHP e si inietta come post__in: 'pre_get_posts' è l'unico aggancio
+		// che scatta anche per get_posts(), che di default sopprime i filtri
+		// sui risultati.
+		//
+		// L'insieme va risolto PRIMA di agganciare l'hook: la scansione usa a
+		// sua volta get_posts(), e con l'hook già attivo si richiamerebbe da
+		// sola all'infinito.
+		$this->wizard_document_scope = self::scoped_document_ids( wp_get_current_user(), true );
+		$restrict                    = ( null !== $this->wizard_document_scope );
 
 		if ( $restrict ) {
-			add_filter( 'the_posts', [ $this, 'filter_editable_documents' ], 10, 2 );
+			add_action( 'pre_get_posts', [ $this, 'limit_documents_to_editable' ] );
 		}
 
 		require DEALER_PORTAL_PATH . 'templates/admin-upload.php';
 
 		if ( $restrict ) {
-			remove_filter( 'the_posts', [ $this, 'filter_editable_documents' ], 10 );
+			remove_action( 'pre_get_posts', [ $this, 'limit_documents_to_editable' ] );
 		}
+
+		$this->wizard_document_scope = null;
 	}
 
 	/**
-	 * Tiene solo i documenti che l'utente corrente può modificare.
-	 * Agganciato a 'the_posts' per la sola durata del wizard (vedi
-	 * render_upload()): resta una comodità dell'interfaccia, l'autorizzazione
-	 * vera è in ajax_save_document().
+	 * Restringe ogni query di documenti a quelli modificabili dall'utente
+	 * corrente. Attivo per la sola durata del wizard (vedi render_upload()):
+	 * resta una comodità dell'interfaccia, l'autorizzazione vera è in
+	 * ajax_save_document().
 	 *
-	 * @param array $posts
-	 * @param mixed $query
-	 * @return array
+	 * @param mixed $query WP_Query in costruzione.
 	 */
-	public function filter_editable_documents( array $posts, $query ): array {
+	public function limit_documents_to_editable( $query ): void {
 		if ( ! $query instanceof WP_Query ) {
-			return $posts;
+			return;
 		}
 
 		$post_type = $query->get( 'post_type' );
 		$types     = is_array( $post_type ) ? $post_type : [ $post_type ];
 		if ( ! in_array( 'documento_dealer', $types, true ) ) {
-			return $posts;
+			return;
 		}
 
-		$user = wp_get_current_user();
+		$allowed = $this->wizard_document_scope;
+		if ( null === $allowed ) {
+			return; // Amministratore, o wizard non in corso: nessuna restrizione.
+		}
 
-		return array_values( array_filter( $posts, static function ( $post ) use ( $user ) {
-			$post_id = is_object( $post ) && isset( $post->ID ) ? (int) $post->ID : (int) $post;
-			return $post_id > 0 && Dealer_Identity::can_edit_document( $user, $post_id );
-		} ) );
+		// Un post__in già presente non va allargato, solo ristretto.
+		$existing = array_filter( array_map( 'absint', (array) $query->get( 'post__in' ) ) );
+		if ( $existing ) {
+			$allowed = array_values( array_intersect( $existing, $allowed ) );
+		}
+
+		// Insieme vuoto: 'post__in' => [ 0 ] non corrisponde a nessun post.
+		// Lasciarlo vuoto significherebbe invece "nessun filtro".
+		$query->set( 'post__in', $allowed ?: [ 0 ] );
 	}
 
 	public function render_archive(): void {

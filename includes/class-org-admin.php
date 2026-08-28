@@ -42,6 +42,9 @@ class Dealer_Org_Admin {
 	/** Utenti mostrati nella tendina "aggiungi utente". */
 	const MAX_CANDIDATES = 100;
 
+	/** Utenti per pagina nella scheda utenti di un'organizzazione. */
+	const MEMBERS_PER_PAGE = 25;
+
 	/** Prefisso del transient che trasporta il rapporto di migrazione. */
 	const REPORT_TRANSIENT = 'dealer_org_migration_report_';
 
@@ -129,7 +132,7 @@ class Dealer_Org_Admin {
 				'users'     => (int) ( $user_counts[ $org_id ] ?? 0 ),
 				'lines'     => self::line_breakdown( $org_id ),
 				'status'    => self::status_info( $org_id ),
-				'impact'    => self::suspend_impact( $org_id, $user_counts ),
+				'impact'    => self::impact_from_map( $tree['children'], $org_id, $user_counts ),
 				'children'  => count( $tree['children'][ $org_id ] ?? [] ),
 			];
 		}
@@ -138,13 +141,16 @@ class Dealer_Org_Admin {
 			'orgs'       => count( $orgs ),
 			'truncated'  => count( $orgs ) >= self::MAX_ORGS,
 			'suspended'  => 0,
-			'users'      => array_sum( $user_counts ),
+			'users'      => 0,
 			'unmigrated' => Dealer_Organization::count_unmigrated_users(),
 		];
 		foreach ( $orgs as $org ) {
 			if ( Dealer_Organization::STATUS_SUSPENDED === get_post_meta( $org->ID, Dealer_Organization::META_STATUS, true ) ) {
 				$totals['suspended']++;
 			}
+			// Solo organizzazioni esistenti: un meta rimasto appeso a un'org
+			// cancellata non deve gonfiare il totale.
+			$totals['users'] += (int) ( $user_counts[ (int) $org->ID ] ?? 0 );
 		}
 
 		$notice      = self::notice_from_query();
@@ -241,13 +247,22 @@ class Dealer_Org_Admin {
 		$breakdown = self::line_breakdown( $org_id );
 		$status    = self::status_info( $org_id );
 
+		$all_members = Dealer_Organization::get_users( $org_id );
+		usort( $all_members, static function ( \WP_User $a, \WP_User $b ): int {
+			return strcasecmp( (string) $a->display_name, (string) $b->display_name );
+		} );
+
+		// Ogni riga porta con se' un selettore di linee: oltre qualche decina di
+		// utenti la pagina diventerebbe ingestibile, quindi si impagina.
+		$total_members = count( $all_members );
+		$total_pages   = (int) max( 1, ceil( $total_members / self::MEMBERS_PER_PAGE ) );
+		$paged         = min( max( 1, absint( $_GET['mpaged'] ?? 1 ) ), $total_pages );
+		$page_members  = array_slice( $all_members, ( $paged - 1 ) * self::MEMBERS_PER_PAGE, self::MEMBERS_PER_PAGE );
+
 		$members = [];
-		foreach ( Dealer_Organization::get_users( $org_id ) as $user ) {
+		foreach ( $page_members as $user ) {
 			$members[] = self::describe_member( $user, $org_lines );
 		}
-		usort( $members, static function ( array $a, array $b ): int {
-			return strcasecmp( $a['name'], $b['name'] );
-		} );
 
 		// Candidati: utenti dealer senza organizzazione. La ricerca evita di
 		// stampare una tendina con migliaia di voci.
@@ -355,13 +370,15 @@ class Dealer_Org_Admin {
 				$this->redirect( 'err_org' );
 			}
 
-			wp_update_post( [ 'ID' => $org_id, 'post_title' => $name ] );
-
 			// set_parent() rifiuta i cicli: l'errore va mostrato, non ingoiato.
+			// La verifica precede ogni scrittura, cosi' un tentativo rifiutato
+			// non lascia dietro di se' un salvataggio a meta'.
 			$current_parent = Dealer_Organization::get_parent_id( $org_id );
 			if ( $parent !== $current_parent && ! Dealer_Organization::set_parent( $org_id, $parent ) ) {
 				$this->redirect( 'err_cycle', [ 'view' => 'edit', 'org' => $org_id ] );
 			}
+
+			wp_update_post( [ 'ID' => $org_id, 'post_title' => $name ] );
 		} else {
 			$org_id = Dealer_Organization::create( $name, [ 'tier' => $tier, 'parent' => $parent ] );
 			if ( ! $org_id ) {
@@ -403,8 +420,7 @@ class Dealer_Org_Admin {
 
 		Dealer_Organization::set_status( $org_id, $status );
 
-		$back = self::back_args();
-		$this->redirect( Dealer_Organization::STATUS_SUSPENDED === $status ? 'suspended' : 'reactivated', $back );
+		$this->redirect( Dealer_Organization::STATUS_SUSPENDED === $status ? 'suspended' : 'reactivated' );
 	}
 
 	// ─── Handler: eliminazione ────────────────────────────────────────────────
@@ -728,6 +744,21 @@ class Dealer_Org_Admin {
 		];
 	}
 
+	/**
+	 * Come suspend_impact(), ma sulla mappa dell'albero gia' caricata.
+	 *
+	 * @param array<int,int> $user_counts
+	 */
+	public static function impact_from_map( array $children, int $org_id, array $user_counts ): array {
+		$subtree = self::subtree_from_map( $children, $org_id );
+		$users   = 0;
+		foreach ( $subtree as $id ) {
+			$users += (int) ( $user_counts[ $id ] ?? 0 );
+		}
+
+		return [ 'orgs' => count( $subtree ), 'users' => $users ];
+	}
+
 	// ─── Calcolo: eliminazione ────────────────────────────────────────────────
 
 	/**
@@ -1017,6 +1048,26 @@ class Dealer_Org_Admin {
 		}
 	}
 
+	/**
+	 * Sottoalbero calcolato sulla mappa gia' in memoria: nell'elenco serve
+	 * l'impatto di una sospensione riga per riga, e interrogare il database per
+	 * ciascuna riga renderebbe la pagina lenta senza aggiungere nulla.
+	 *
+	 * @return int[]
+	 */
+	public static function subtree_from_map( array $children, int $org_id, int $depth = 0 ): array {
+		if ( $depth >= Dealer_Organization::MAX_DEPTH ) {
+			return [];
+		}
+
+		$ids = [ $org_id ];
+		foreach ( $children[ $org_id ] ?? [] as $child ) {
+			$ids = array_merge( $ids, self::subtree_from_map( $children, (int) $child, $depth + 1 ) );
+		}
+
+		return array_values( array_unique( $ids ) );
+	}
+
 	/** Percorso leggibile "Gruppo › Concessionaria › Filiale". */
 	public static function org_path( int $org_id ): string {
 		$parts = [ Dealer_Organization::get_name( $org_id ) ];
@@ -1046,6 +1097,25 @@ class Dealer_Org_Admin {
 			Dealer_Identity::FUNCTION_TITOLARE     => 'Titolare',
 			Dealer_Identity::FUNCTION_COLLABORATORE => 'Collaboratore',
 		];
+	}
+
+	/**
+	 * Confronto fra linee effettive prima e dopo un'operazione.
+	 * Un aumento e' un ampliamento silenzioso di diritti, una diminuzione e' una
+	 * perdita di accesso: entrambi vanno segnalati, non solo il caso "peggiore".
+	 */
+	public static function delta_class( int $now, int $after ): string {
+		return ( $now === $after ) ? '' : 'dorg-dead';
+	}
+
+	public static function delta_note( int $now, int $after ): string {
+		if ( $after > $now ) {
+			return sprintf( '+%d — ampliamento', $after - $now );
+		}
+		if ( $after < $now ) {
+			return sprintf( '−%d — restrizione', $now - $after );
+		}
+		return 'invariato';
 	}
 
 	/** Etichetta "Brand › Linea" a partire dal formato interno "Brand|Linea". */
@@ -1079,23 +1149,6 @@ class Dealer_Org_Admin {
 	private static function posted_ids( string $field ): array {
 		$raw = isset( $_POST[ $field ] ) ? (array) wp_unslash( $_POST[ $field ] ) : [];
 		return array_values( array_unique( array_filter( array_map( 'absint', $raw ) ) ) );
-	}
-
-	/** Vista di ritorno dichiarata dal form che ha innescato l'azione. */
-	private static function back_args(): array {
-		$view = sanitize_key( (string) ( $_POST['back_view'] ?? '' ) );
-		$org  = absint( $_POST['back_org'] ?? 0 );
-
-		if ( ! in_array( $view, [ 'edit', 'users', 'merge' ], true ) ) {
-			return [];
-		}
-
-		$args = [ 'view' => $view ];
-		if ( $org ) {
-			$args['org'] = $org;
-		}
-
-		return $args;
 	}
 
 	/** Redirect verso la pagina con un codice di esito. */

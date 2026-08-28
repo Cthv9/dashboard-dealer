@@ -81,6 +81,7 @@ $wpdb->query( "DROP TABLE IF EXISTS `{$table}`" );
 $options = [
 	'dealer_portal_version',
 	'dealer_portal_caps_revision',
+	'dealer_portal_schema_revision',
 	'dealer_portal_notifications',
 	'dealer_portal_notification_queue',
 ];
