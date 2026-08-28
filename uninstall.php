@@ -29,6 +29,18 @@ foreach ( $page_options as $option ) {
 remove_role( 'dealer' );
 remove_role( 'top_dealer' );
 remove_role( 'part_center' );
+remove_role( 'area_manager' );
+
+// ── Toglie le capability del plugin all'amministratore ────────────────────────
+// I ruoli custom se ne vanno con remove_role(); l'amministratore invece resta e
+// senza questo si porterebbe dietro le capability di un plugin che non c'è più.
+// Le costanti non sono definite qui (il plugin non è caricato): valori letterali.
+$admin_role = get_role( 'administrator' );
+if ( $admin_role ) {
+	foreach ( [ 'manage_dealer_portal', 'upload_dealer_docs', 'view_dealer_logs', 'manage_dealer_orgs' ] as $dealer_cap ) {
+		$admin_role->remove_cap( $dealer_cap );
+	}
+}
 
 // ── Rimuove gli eventi cron delle notifiche ───────────────────────────────────
 // Senza questo WordPress continuerebbe a richiamare hook di classi non più
@@ -60,6 +72,21 @@ foreach ( $access_requests as $request_id ) {
 	wp_delete_post( (int) $request_id, true );
 }
 
+// ── Elimina le organizzazioni ──────────────────────────────────────────────────
+// Stessa logica delle richieste di accesso: sono un CPT del plugin, non
+// documenti del cliente. A differenza di documento_dealer non hanno un file
+// allegato da rimuovere: solo il post.
+$organizations = get_posts( [
+	'post_type'        => 'dealer_org',
+	'post_status'      => 'any',
+	'numberposts'      => -1,
+	'fields'           => 'ids',
+	'suppress_filters' => false,
+] );
+foreach ( $organizations as $org_id ) {
+	wp_delete_post( (int) $org_id, true );
+}
+
 // ── Elimina tabella log download ──────────────────────────────────────────────
 $table = $wpdb->prefix . 'dealer_download_log';
 // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
@@ -68,6 +95,8 @@ $wpdb->query( "DROP TABLE IF EXISTS `{$table}`" );
 // ── Pulisce le opzioni del plugin ─────────────────────────────────────────────
 $options = [
 	'dealer_portal_version',
+	'dealer_portal_caps_revision',
+	'dealer_portal_schema_revision',
 	'dealer_portal_notifications',
 	'dealer_portal_notification_queue',
 ];
@@ -89,6 +118,17 @@ $user_meta_keys = [
 	'_referente_telefono',
 	'_dar_company',
 	'_dar_vat',
+	// Modello organizzativo: appartenenza, funzione, restrizione individuale,
+	// perimetro dell'area manager, tracciamento di invito e disattivazione.
+	'_dealer_org',
+	'_dealer_function',
+	'_dealer_line_limit',
+	'_am_orgs',
+	'_am_lines',
+	'_dealer_invited_by',
+	'_dealer_invited_at',
+	'_dealer_deactivated_by',
+	'_dealer_deactivated_at',
 ];
 foreach ( $user_meta_keys as $meta_key ) {
 	delete_metadata( 'user', 0, $meta_key, '', true ); // true = per tutti gli utenti

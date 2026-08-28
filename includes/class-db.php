@@ -7,9 +7,13 @@ class Dealer_DB {
 
 	public static function install(): void {
 		self::create_log_table();
+		// L'attivazione allinea di per sé lo schema: registrarne la revisione
+		// evita che maybe_upgrade() rifaccia subito lo stesso dbDelta().
+		update_option( 'dealer_portal_schema_revision', self::SCHEMA_REVISION );
 		self::create_pages();
 		self::create_protected_upload_dir();
 		self::setup_capability();
+		update_option( 'dealer_portal_version', DEALER_PORTAL_VERSION );
 	}
 
 	/**
@@ -17,12 +21,46 @@ class Dealer_DB {
 	 * current one, ensuring upgrade paths don't rely on reactivation.
 	 */
 	public static function maybe_upgrade(): void {
+		// Le capability hanno un contatore di revisione proprio (CAPS_REVISION):
+		// vanno riparate anche quando la versione del plugin non cambia, perché
+		// aggiungerne una nuova al codice non basta a darla ai ruoli esistenti.
+		// La chiamata esce subito se la mappa corrente è già stata applicata.
+		self::setup_capability();
+
+		// Stessa logica per lo schema della tabella di log: create_log_table()
+		// gira solo all'attivazione, quindi un'installazione che si limita ad
+		// aggiornare i file non vedrebbe mai una colonna nuova.
+		self::maybe_upgrade_schema();
+
 		if ( get_option( 'dealer_portal_version' ) === DEALER_PORTAL_VERSION ) {
 			return;
 		}
 		self::create_protected_upload_dir();
-		self::setup_capability();
 		update_option( 'dealer_portal_version', DEALER_PORTAL_VERSION );
+	}
+
+	/**
+	 * Revisione dello schema della tabella di log: va incrementata ogni volta
+	 * che la definizione in create_log_table() cambia. È l'equivalente di
+	 * CAPS_REVISION per il database.
+	 *
+	 * 1 = colonna access_context (titolo con cui è avvenuto il download).
+	 */
+	const SCHEMA_REVISION = 1;
+
+	/**
+	 * Applica lo schema corrente se l'installazione è indietro.
+	 * Idempotente: dbDelta() confronta la struttura reale con quella dichiarata
+	 * e si limita alle differenze, quindi aggiunge la colonna mancante senza
+	 * toccare le righe già presenti.
+	 */
+	private static function maybe_upgrade_schema(): void {
+		if ( (int) get_option( 'dealer_portal_schema_revision' ) === self::SCHEMA_REVISION ) {
+			return;
+		}
+
+		self::create_log_table();
+		update_option( 'dealer_portal_schema_revision', self::SCHEMA_REVISION );
 	}
 
 	private static function create_log_table(): void {
@@ -32,12 +70,20 @@ class Dealer_DB {
 		$charset_collate = $wpdb->get_charset_collate();
 
 		// dbDelta() crea la tabella se non esiste; se esiste verifica e aggiorna la struttura.
+		//
+		// access_context: con quale titolo è avvenuto il download (admin,
+		// area_manager, dealer). Le righe scritte prima di questa colonna
+		// restano a stringa vuota: non sappiamo con che titolo furono
+		// scaricate, e inventarlo a posteriori con un UPDATE massivo
+		// falsificherebbe il registro. La visualizzazione tratta il vuoto come
+		// "dealer", che era l'unico caso possibile prima dell'area manager.
 		$sql = "CREATE TABLE {$table} (
 			id            BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
 			user_id       BIGINT(20) UNSIGNED NOT NULL,
 			post_id       BIGINT(20) UNSIGNED NOT NULL,
 			download_date DATETIME            NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			ip_address    VARCHAR(45)         NOT NULL DEFAULT '',
+			access_context VARCHAR(20)        NOT NULL DEFAULT '',
 			PRIMARY KEY  (id),
 			KEY user_id  (user_id),
 			KEY post_id  (post_id),
@@ -46,8 +92,6 @@ class Dealer_DB {
 
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 		dbDelta( $sql );
-
-		update_option( 'dealer_portal_version', DEALER_PORTAL_VERSION );
 	}
 
 	/**
@@ -126,10 +170,74 @@ class Dealer_DB {
 		}
 	}
 
+	/**
+	 * Distribuzione delle capability ai ruoli.
+	 *
+	 * Mappa esplicita: nessuna capability ne implica un'altra, quindi
+	 * l'amministratore le riceve tutte una per una. Se domani si aggiungesse
+	 * una capability e la si assegnasse solo all'area manager dimenticando
+	 * l'amministratore, quest'ultimo ne resterebbe fuori: la tabella qui sotto
+	 * è l'unico posto in cui guardare.
+	 *
+	 * @return array<string, string[]> ruolo => capability
+	 */
+	private static function capability_map(): array {
+		return [
+			'administrator' => [
+				DEALER_PORTAL_CAP,        // Controllo completo.
+				DEALER_PORTAL_CAP_UPLOAD,
+				DEALER_PORTAL_CAP_LOGS,
+				DEALER_PORTAL_CAP_ORGS,
+			],
+			'area_manager'  => [
+				DEALER_PORTAL_CAP_UPLOAD, // Carica e versiona, dentro il proprio perimetro.
+				DEALER_PORTAL_CAP_LOGS,   // Legge log e statistiche.
+				// NON riceve DEALER_PORTAL_CAP (eliminazioni, richieste di
+				// accesso, notifiche) né DEALER_PORTAL_CAP_ORGS.
+			],
+		];
+	}
+
+	/**
+	 * Revisione della mappa: va incrementata ogni volta che capability_map()
+	 * cambia. È ciò che rende l'assegnazione auto-riparante anche quando la
+	 * versione del plugin non cambia — senza, un'installazione già aggiornata
+	 * non riceverebbe mai le capability nuove.
+	 */
+	const CAPS_REVISION = 2;
+
+	/**
+	 * Idempotente: aggiunge solo ciò che manca e non tocca nulla se la mappa
+	 * corrente è già stata applicata. Richiamata sia all'attivazione sia da
+	 * maybe_upgrade() a ogni caricamento.
+	 */
 	private static function setup_capability(): void {
-		$admin = get_role( 'administrator' );
-		if ( $admin && ! $admin->has_cap( DEALER_PORTAL_CAP ) ) {
-			$admin->add_cap( DEALER_PORTAL_CAP );
+		if ( (int) get_option( 'dealer_portal_caps_revision' ) === self::CAPS_REVISION ) {
+			return;
+		}
+
+		$complete = true;
+
+		foreach ( self::capability_map() as $role_name => $caps ) {
+			$role = get_role( $role_name );
+
+			// Il ruolo area_manager è creato da Dealer_Roles su 'init', mentre
+			// maybe_upgrade() gira su 'plugins_loaded'. Se non c'è ancora non
+			// registriamo la revisione: al caricamento successivo si riprova.
+			if ( ! $role ) {
+				$complete = false;
+				continue;
+			}
+
+			foreach ( $caps as $cap ) {
+				if ( ! $role->has_cap( $cap ) ) {
+					$role->add_cap( $cap );
+				}
+			}
+		}
+
+		if ( $complete ) {
+			update_option( 'dealer_portal_caps_revision', self::CAPS_REVISION );
 		}
 	}
 
@@ -157,15 +265,29 @@ class Dealer_DB {
 			$ip = '';
 		}
 
+		// Titolo con cui l'utente sta scaricando: un download fatto da un area
+		// manager non è un download di rete e non deve confondersi con quello
+		// di un dealer nelle statistiche e negli export. Si risolve qui, dal
+		// solo utente corrente, così ogni call site lo registra senza doverlo
+		// sapere.
+		$context = '';
+		if ( class_exists( 'Dealer_Identity' ) ) {
+			$user = wp_get_current_user();
+			if ( $user instanceof \WP_User && $user->exists() ) {
+				$context = Dealer_Identity::get_access_context( $user );
+			}
+		}
+
 		$result = $wpdb->insert(
 			$wpdb->prefix . 'dealer_download_log',
 			[
-				'user_id'       => $user_id,
-				'post_id'       => $post_id,
-				'download_date' => current_time( 'mysql' ),
-				'ip_address'    => $ip,
+				'user_id'        => $user_id,
+				'post_id'        => $post_id,
+				'download_date'  => current_time( 'mysql' ),
+				'ip_address'     => $ip,
+				'access_context' => $context,
 			],
-			[ '%d', '%d', '%s', '%s' ]
+			[ '%d', '%d', '%s', '%s', '%s' ]
 		);
 
 		if ( false === $result ) {
@@ -178,6 +300,25 @@ class Dealer_DB {
 		}
 	}
 
+	/**
+	 * Etichetta leggibile del titolo di accesso registrato nel log.
+	 *
+	 * Il valore vuoto sono le righe scritte prima dell'introduzione della
+	 * colonna: allora scaricava solo la rete dealer, quindi è quello il titolo
+	 * che mostriamo — senza però riscriverlo nel database, perché resta un
+	 * dato che non abbiamo mai raccolto.
+	 */
+	public static function access_context_label( string $context ): string {
+		switch ( $context ) {
+			case 'admin':
+				return 'Amministratore';
+			case 'area_manager':
+				return 'Area Manager';
+			default:
+				return 'Dealer';
+		}
+	}
+
 	// ─── Read ────────────────────────────────────────────────────────────────
 
 	public static function get_logs_for_post( int $post_id, int $limit = 50 ): array {
@@ -186,7 +327,7 @@ class Dealer_DB {
 
 		return $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT l.id, l.user_id, u.display_name, l.download_date, l.ip_address
+				"SELECT l.id, l.user_id, u.display_name, l.download_date, l.ip_address, l.access_context
 				 FROM {$table} l
 				 LEFT JOIN {$wpdb->users} u ON u.ID = l.user_id
 				 WHERE l.post_id = %d
@@ -278,7 +419,41 @@ class Dealer_DB {
 			$params[] = absint( $args['max_id'] );
 		}
 
+		// Perimetro di visibilità: insieme chiuso di documenti. Diverso da
+		// post_id (filtro scelto dall'utente) perché non è opzionale — un
+		// array vuoto significa "nessun documento visibile", quindi nessuna
+		// riga, mai "nessun filtro".
+		if ( array_key_exists( 'post_ids', $args ) && null !== $args['post_ids'] ) {
+			$where .= self::post_ids_clause( (array) $args['post_ids'], $params, 'l.' );
+		}
+
 		return [ $where, $params ];
+	}
+
+	/**
+	 * Clausola "AND post_id IN (…)" per un insieme chiuso di documenti.
+	 *
+	 * Un insieme vuoto diventa una condizione sempre falsa: chi non ha nessun
+	 * documento nel proprio perimetro non deve vedere l'intero archivio, che è
+	 * esattamente ciò che accadrebbe saltando la clausola.
+	 *
+	 * @param int[]  $post_ids
+	 * @param array  $params   Parametri di prepare(), estesi per riferimento.
+	 * @param string $alias    Prefisso di tabella (es. 'l.'), '' se non c'è alias.
+	 */
+	private static function post_ids_clause( array $post_ids, array &$params, string $alias = '' ): string {
+		$post_ids = array_values( array_unique( array_filter( array_map( 'absint', $post_ids ) ) ) );
+
+		if ( empty( $post_ids ) ) {
+			return ' AND 1=0';
+		}
+
+		$placeholders = implode( ',', array_fill( 0, count( $post_ids ), '%d' ) );
+		foreach ( $post_ids as $id ) {
+			$params[] = $id;
+		}
+
+		return ' AND ' . $alias . 'post_id IN (' . $placeholders . ')';
 	}
 
 	/**
@@ -322,8 +497,12 @@ class Dealer_DB {
 
 	/**
 	 * Documenti più scaricati. $since accetta una data MySQL ('Y-m-d H:i:s').
+	 *
+	 * @param int[]|null $post_ids Perimetro di visibilità: null = nessuna
+	 *                             restrizione (amministratore), array = solo
+	 *                             questi documenti (array vuoto = nessuno).
 	 */
-	public static function get_top_documents( int $limit = 10, string $since = '' ): array {
+	public static function get_top_documents( int $limit = 10, string $since = '', ?array $post_ids = null ): array {
 		global $wpdb;
 		$table = $wpdb->prefix . 'dealer_download_log';
 
@@ -333,6 +512,9 @@ class Dealer_DB {
 		if ( $since ) {
 			$where   .= ' AND l.download_date >= %s';
 			$params[] = sanitize_text_field( $since );
+		}
+		if ( null !== $post_ids ) {
+			$where .= self::post_ids_clause( $post_ids, $params, 'l.' );
 		}
 
 		$params[] = max( 1, $limit );
@@ -352,8 +534,12 @@ class Dealer_DB {
 
 	/**
 	 * Dealer più attivi per numero di download.
+	 *
+	 * @param int[]|null $post_ids Perimetro di visibilità (vedi get_top_documents()).
+	 *                             La classifica conta solo i download dei
+	 *                             documenti visibili a chi guarda.
 	 */
-	public static function get_top_users( int $limit = 10, string $since = '' ): array {
+	public static function get_top_users( int $limit = 10, string $since = '', ?array $post_ids = null ): array {
 		global $wpdb;
 		$table = $wpdb->prefix . 'dealer_download_log';
 
@@ -363,6 +549,9 @@ class Dealer_DB {
 		if ( $since ) {
 			$where   .= ' AND l.download_date >= %s';
 			$params[] = sanitize_text_field( $since );
+		}
+		if ( null !== $post_ids ) {
+			$where .= self::post_ids_clause( $post_ids, $params, 'l.' );
 		}
 
 		$params[] = max( 1, $limit );
@@ -384,17 +573,27 @@ class Dealer_DB {
 	 * Mappa user_id => datetime dell'ultimo download, per individuare i dealer
 	 * inattivi incrociandola con l'elenco utenti.
 	 *
+	 * @param int[]|null $post_ids Perimetro di visibilità (vedi get_top_documents()).
 	 * @return array<int,string>
 	 */
-	public static function get_last_download_per_user(): array {
+	public static function get_last_download_per_user( ?array $post_ids = null ): array {
 		global $wpdb;
 		$table = $wpdb->prefix . 'dealer_download_log';
 
-		$rows = $wpdb->get_results(
-			"SELECT user_id, MAX(download_date) AS last_download
-			 FROM {$table}
-			 GROUP BY user_id"
-		);
+		$where  = '1=1';
+		$params = [];
+		if ( null !== $post_ids ) {
+			$where .= self::post_ids_clause( $post_ids, $params, '' );
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$sql = "SELECT user_id, MAX(download_date) AS last_download
+				FROM {$table}
+				WHERE {$where}
+				GROUP BY user_id";
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$rows = empty( $params ) ? $wpdb->get_results( $sql ) : $wpdb->get_results( $wpdb->prepare( $sql, ...$params ) );
 
 		$map = [];
 		foreach ( (array) $rows as $row ) {
@@ -405,18 +604,34 @@ class Dealer_DB {
 
 	/**
 	 * Numero totale di download registrati (opzionalmente da una data in poi).
+	 *
+	 * @param int[]|null $post_ids Perimetro di visibilità (vedi get_top_documents()).
 	 */
-	public static function get_total_downloads( string $since = '' ): int {
+	public static function get_total_downloads( string $since = '', ?array $post_ids = null ): int {
 		global $wpdb;
 		$table = $wpdb->prefix . 'dealer_download_log';
 
+		$where  = '1=1';
+		$params = [];
+
 		if ( $since ) {
-			return (int) $wpdb->get_var(
-				$wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE download_date >= %s", sanitize_text_field( $since ) )
-			);
+			$where   .= ' AND download_date >= %s';
+			$params[] = sanitize_text_field( $since );
+		}
+		if ( null !== $post_ids ) {
+			$where .= self::post_ids_clause( $post_ids, $params, '' );
 		}
 
-		return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table}" );
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$sql = "SELECT COUNT(*) FROM {$table} WHERE {$where}";
+
+		if ( empty( $params ) ) {
+			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+			return (int) $wpdb->get_var( $sql );
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		return (int) $wpdb->get_var( $wpdb->prepare( $sql, ...$params ) );
 	}
 
 	/**

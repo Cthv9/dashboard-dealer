@@ -131,6 +131,41 @@
 		}
 	}
 
+	// ── Perimetro: brand selezionabili ────────────────────────────────────
+	// dealerAdmin.productLines contiene solo ciò che l'utente può pubblicare
+	// (per l'amministratore è l'elenco completo, quindi qui non cambia nulla).
+	// Il markup del select è renderizzato con tutti i brand: le voci fuori
+	// perimetro vanno tolte, altrimenti l'utente sceglie un brand che poi non
+	// offre nessuna linea. Resta comodità dell'interfaccia: il rifiuto vero
+	// arriva comunque dal server.
+
+	function pruneBrandsToScope() {
+		var $brand = $( '#doc_brand' );
+		if ( ! $brand.length ) { return; }
+
+		var allowed = dealerAdmin.productLines || {};
+		var kept    = 0;
+
+		$brand.find( 'option' ).each( function () {
+			var $opt = $( this );
+			var val  = $opt.val();
+
+			if ( ! val ) { return; } // Placeholder "— Seleziona brand —".
+
+			if ( Object.prototype.hasOwnProperty.call( allowed, val ) ) {
+				kept++;
+			} else {
+				$opt.remove();
+			}
+		} );
+
+		if ( ! kept ) {
+			$brand.empty().append(
+				$( '<option>' ).val( '' ).text( dealerAdmin.i18n.noBrands )
+			);
+		}
+	}
+
 	// ── AJAX: carica linee prodotto ───────────────────────────────────────
 
 	function fetchProductLines( brand ) {
@@ -153,9 +188,12 @@
 				nonce:  dealerAdmin.nonce,
 				brand:  brand
 			}, function ( res ) {
-				if ( res.success && res.data.lines ) {
-					buildLineSelects( brand, res.data.lines );
-				}
+				// Anche l'endpoint risponde già filtrato sul perimetro: se non
+				// torna nessuna linea i due select vanno svuotati, altrimenti
+				// resterebbero visibili quelli del brand scelto prima.
+				buildLineSelects( brand, ( res && res.success && res.data.lines ) || [] );
+			} ).fail( function () {
+				buildLineSelects( brand, [] );
 			} );
 		}
 	}
@@ -163,6 +201,13 @@
 	function buildLineSelects( brand, lines ) {
 		var $sel2 = $( '#doc_product_line' );
 		var $sel3 = $( '#doc_lines' );
+
+		if ( ! lines || ! lines.length ) {
+			$sel2.empty().append( $( '<option>' ).val( '' ).text( dealerAdmin.i18n.noLines ) );
+			$sel3.empty();
+			return;
+		}
+
 		$sel2.empty().append( '<option value="">— Seleziona linea —</option>' );
 		$sel3.empty();
 
@@ -428,8 +473,11 @@
 			markObsolete( postId, $btn, false );
 		} );
 
-		// Elimina
+		// Elimina — solo amministratore. Il pulsante non viene nemmeno reso per
+		// gli altri: questa è una seconda rete, quella vera è lato server in
+		// ajax_delete_document().
 		$( document ).on( 'click', '.dealer-delete-btn', function () {
+			if ( ! dealerAdmin.canDelete ) { return; }
 			var $btn   = $( this );
 			var postId = parseInt( $btn.data( 'post' ), 10 );
 			if ( ! confirm( dealerAdmin.i18n.confirmDelete ) ) { return; }
@@ -681,6 +729,9 @@
 
 		// Live preview nome file
 		$( '#doc_custom_name, #doc_file' ).on( 'input change', updateFilenamePreview );
+
+		// Brand fuori perimetro: rimossi prima di qualunque interazione.
+		pruneBrandsToScope();
 
 		// Brand change → aggiorna linee prodotto
 		$( '#doc_brand' ).on( 'change', function () {

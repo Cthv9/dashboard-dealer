@@ -305,6 +305,21 @@
 .dealer-role-top_dealer  { background: #c0920a; color: #fff; }
 .dealer-role-part_center { background: #27ae60; color: #fff; }
 
+/* Titolo con cui è avvenuto un download (log e archivio). Il dealer resta
+   neutro: è il caso ordinario, e sono le deleghe a dover saltare all'occhio. */
+.dealer-context-pill {
+	display: inline-block;
+	padding: 1px 8px;
+	border-radius: 10px;
+	font-size: 11px;
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.dealer-context-dealer       { background: #f0f0f1; color: #50575e; }
+.dealer-context-area_manager { background: #e5f0f7; color: #135e96; }
+.dealer-context-admin        { background: #f7e9d7; color: #8a5700; }
+
 .dealer-badge-obsoleto {
 	display: inline-block;
 	background: #757575;
