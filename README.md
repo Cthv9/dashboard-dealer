@@ -2,20 +2,24 @@
 
 ## Descrizione
 
-Dealer Portal è un plugin WordPress per la gestione documentale in una rete di distribuzione (settore nautica/marino). Gli amministratori caricano documenti tecnici (PDF, XLSX, DOCX); i dealer li trovano e li scaricano da un'area riservata che mostra loro **solo** ciò a cui il loro ruolo e le loro linee prodotto danno diritto.
+Dealer Portal è un plugin WordPress per la gestione documentale in una rete di distribuzione (settore nautica/marino). Gli amministratori — e, entro il proprio perimetro, gli area manager — caricano documenti tecnici (PDF, XLSX, DOCX); i dealer li trovano e li scaricano da un'area riservata che mostra loro **solo** ciò a cui la propria organizzazione dà diritto.
 
-Lo scopo primario non è la ricerca né la dashboard: è il **controllo d'accesso granulare con audit trail**. Ogni documento è filtrato per ruolo e per linea prodotto, ogni download è tracciato, e i documenti scaduti vengono bloccati automaticamente. Ricerca, dashboard e notifiche sono gli strati che rendono usabile quel nucleo.
+Lo scopo primario non è la ricerca né la dashboard: è il **controllo d'accesso granulare con audit trail**. Ogni documento è filtrato per livello commerciale e per linea prodotto, ogni download è tracciato con il titolo con cui è avvenuto, e i documenti scaduti vengono bloccati automaticamente. Ricerca, dashboard e notifiche sono gli strati che rendono usabile quel nucleo.
+
+I diritti di accesso appartengono all'**organizzazione** (l'azienda dealer), non al singolo utente: è lei a detenere livello commerciale e linee prodotto, ereditabili lungo una gerarchia gruppo → concessionaria → filiale. Gli utenti vi appartengono con una funzione — titolare o collaboratore — e ereditano un sottoinsieme dei suoi diritti, mai di più. Questo evita che dieci collaboratori della stessa azienda vadano configurati dieci volte con il rischio che divergano fra loro, e fa sì che una revoca sull'azienda si propaghi da sola a tutti i suoi utenti.
 
 ---
 
 ## Funzionalità
 
 ### Accesso e sicurezza
-- Tre ruoli dealer custom: `dealer`, `top_dealer`, `part_center`
-- Doppio controllo di accesso su ogni documento: ruolo **e** linea prodotto assegnata
-- Log di ogni download (utente, documento, timestamp, IP)
+- Tre ruoli dealer custom: `dealer`, `top_dealer`, `part_center`, più il ruolo `area_manager`
+- Modello a organizzazioni: livello commerciale e linee prodotto appartengono all'azienda, non all'utente, con ereditarietà gerarchica che **restringe e non amplia mai**
+- Doppio controllo di accesso su ogni documento: livello commerciale **e** linea prodotto, risolti sempre dall'organizzazione dell'utente
+- Log di ogni download (utente, documento, timestamp, IP, titolo con cui è avvenuto l'accesso)
 - Blocco automatico dei documenti scaduti: esclusi dalla ricerca, HTTP 403 al download
 - Richieste di accesso self-service con coda di approvazione admin
+- Capability separate (`upload_dealer_docs`, `view_dealer_logs`, `manage_dealer_orgs`) invece di un'unica capability amministrativa
 
 ### Ricerca (dealer)
 - Ricerca a faccette: sidebar con filtri a selezione multipla e conteggi live, aggiornamento AJAX senza reload
@@ -32,12 +36,21 @@ Lo scopo primario non è la ricerca né la dashboard: è il **controllo d'access
 - Download aggregato in ZIP dei risultati filtrati o dei preferiti
 - Dashboard con documenti recenti, documenti in scadenza e referente commerciale
 
-### Gestione documenti (admin)
+### Gestione documenti (admin e area manager)
 - Wizard di caricamento in 5 step con drag-and-drop, rinomina file e validazione MIME
 - Versionamento reale: le revisioni formano una catena, con storico e promozione automatica
 - Archivio con filtri, azioni singole e **azioni di gruppo** (obsoleto / eliminazione)
 - Export CSV dei log, con filtri per periodo, documento e dealer
 - Pagina statistiche: top documenti, top dealer, documenti mai scaricati, dealer inattivi
+- L'**area manager** carica e versiona documenti sulle proprie linee, dentro un perimetro validato lato server; non può eliminare definitivamente né pubblicare senza restrizione di linea
+
+### Organizzazioni e delega
+- CPT gerarchico `dealer_org`: livello commerciale, linee concesse, stato, gerarchia gruppo → concessionaria → filiale
+- Linee effettive calcolate come intersezione fra quelle proprie e quelle ereditate dalla madre: una sede non può mai ottenere una linea che il gruppo non ha
+- Sospensione che si propaga automaticamente alle organizzazioni discendenti
+- Interfaccia admin per creare, modificare, assegnare utenti, fondere e sospendere organizzazioni, con l'effetto dell'ereditarietà sempre mostrato esplicitamente
+- Migrazione idempotente degli utenti esistenti: ognuno diventa titolare di un'organizzazione che eredita esattamente le sue linee, senza cambiare cosa vede
+- Il **titolare** di un'azienda invita, limita alle linee e disattiva i propri collaboratori da un'area dedicata, senza passare dall'amministratore
 
 ### Notifiche
 - Email al dealer quando esce un documento accessibile alle sue linee
@@ -68,23 +81,51 @@ Lo scopo primario non è la ricerca né la dashboard: è il **controllo d'access
    - **Dashboard Dealer** (slug: `dashboard-dealer`, shortcode: `[dealer_dashboard]`)
    - **Cerca Documenti** (slug: `dealer-search`, shortcode: `[dealer_search]`)
 5. La tabella custom `{prefisso}_dealer_download_log` viene creata automaticamente.
-6. I tre ruoli custom vengono registrati e la capability `manage_dealer_portal` viene assegnata agli amministratori.
+6. I ruoli custom (`dealer`, `top_dealer`, `part_center`, `area_manager`) vengono registrati; le capability (`manage_dealer_portal`, `upload_dealer_docs`, `view_dealer_logs`, `manage_dealer_orgs`) vengono assegnate ai ruoli corretti.
 7. La cartella protetta `uploads/dealer-docs/` viene creata con `.htaccess` che nega l'accesso HTTP diretto.
 
-Per il modulo richieste di accesso, creare manualmente una pagina pubblica contenente lo shortcode `[dealer_access_request]`. È l'unica pagina non creata automaticamente: la sua collocazione dipende dal sito.
+Per il modulo richieste di accesso, creare manualmente una pagina pubblica contenente lo shortcode `[dealer_access_request]`. Per la gestione dei collaboratori da parte del titolare, creare una pagina riservata con lo shortcode `[dealer_team]`. Sono le uniche due pagine non create automaticamente: la loro collocazione dipende dal sito.
+
+### Aggiornamento da una versione precedente alla 1.3.0
+
+Gli utenti esistenti continuano a funzionare esattamente come prima: senza un'organizzazione, il plugin ricade sui meta storici (`_dealer_lines`, ruolo WordPress). Per passare al nuovo modello:
+
+1. Andare in **Dealer Portal → Organizzazioni**.
+2. Eseguire la **migrazione**: ogni utente dealer non ancora migrato diventa titolare di una propria organizzazione che eredita esattamente le sue linee e il suo livello. È idempotente e produce un rapporto di cosa ha fatto.
+3. **Fondere** le organizzazioni che nella realtà sono la stessa azienda (la migrazione ne crea una per utente).
+4. Solo a questo punto ha senso costruire gerarchie di gruppo o assegnare la funzione di titolare per abilitare la delega dei collaboratori.
+
+Fino a quando la migrazione non viene eseguita, il portale funziona come nella 1.2.0.
 
 ---
 
 ## Configurazione
 
-### Assegnare linee prodotto a un dealer
+### Assegnare linee prodotto a un'organizzazione (modello corrente)
+
+1. **Dealer Portal → Organizzazioni** → creare o modificare l'organizzazione.
+2. Impostare **livello commerciale** e **linee prodotto** (raggruppate per brand, con selezione rapida per brand intero).
+3. Se l'organizzazione ha una madre, l'interfaccia mostra sempre le **linee effettive** risultanti dall'intersezione: una linea selezionata che la madre non possiede non avrà effetto, ed è segnalato esplicitamente.
+4. **Dealer Portal → Organizzazioni → Utenti** per assegnare un utente con una funzione (titolare o collaboratore) e, facoltativamente, restringerlo a un sottoinsieme delle linee aziendali.
+
+Le linee prodotto usano il formato `Brand|Linea` (es. `Mercury|FourStroke`).
+
+### Assegnare linee prodotto a un utente (modello storico, ancora supportato)
 
 1. **Utenti → Tutti gli utenti**, modificare il profilo del dealer.
 2. Sezione **Impostazioni Dealer Portal** → campo **Linee Prodotto Assegnate** (selezione multipla con Ctrl/Cmd).
 3. Compilare opzionalmente i campi del referente commerciale.
 4. Nella sezione **Notifiche Dealer Portal** si attivano o disattivano le email per quell'utente.
 
-Le linee prodotto usano il formato `Brand|Linea` (es. `Mercury|FourStroke`), confrontato fra il meta utente `_dealer_lines` e il meta documento `_doc_lines`.
+Vale solo per gli utenti **senza** un'organizzazione assegnata: il meta storico `_dealer_lines` è il fallback usato da `Dealer_Identity` quando `_dealer_org` è assente.
+
+### L'area manager
+
+1. Creare l'utente con ruolo `area_manager` (da **Utenti → Aggiungi nuovo**, oppure promuovendo un utente esistente).
+2. In **Dealer Portal → Organizzazioni → Utenti**, o direttamente sui meta utente, impostare il suo perimetro su due assi indipendenti:
+   - le **organizzazioni** che segue (`_am_orgs`) — il sottoalbero di ciascuna è incluso automaticamente;
+   - le **linee prodotto** su cui può pubblicare (`_am_lines`).
+3. Con questo può caricare, versionare e marcare obsoleti i documenti sulle sue linee, e vedere log e statistiche limitati al suo perimetro. Non può eliminare definitivamente né toccare organizzazioni, utenti o impostazioni.
 
 ### Brand, linee e tipi di documento
 
@@ -123,11 +164,12 @@ Le revisioni di uno stesso documento formano una **catena**. Una sola versione p
 
 ### Altre operazioni
 
-- **Archivio Documenti**: filtri, log per documento, azioni singole e di gruppo. L'eliminazione rimuove post e file dal server ed è irreversibile.
-- **Log Download**: filtri per periodo/documento/dealer, paginazione, **Esporta CSV** (export completo, non limitato alla vista).
-- **Statistiche**: riepiloghi, classifiche, documenti mai scaricati, dealer inattivi da oltre 90 giorni.
+- **Archivio Documenti**: filtri, log per documento, azioni singole e di gruppo. L'eliminazione rimuove post e file dal server ed è irreversibile. Per l'area manager, mostra solo i documenti nel suo perimetro; quelli a cavallo con linee altrui restano visibili ma in sola lettura.
+- **Log Download**: filtri per periodo/documento/dealer, paginazione, **Esporta CSV** (export completo e ancorato al perimetro di chi lo richiede, non limitato alla vista).
+- **Statistiche**: riepiloghi, classifiche, documenti mai scaricati, dealer inattivi da oltre 90 giorni. Filtrate sul perimetro per l'area manager.
 - **Notifiche**: attivazione dei tre flussi email, mittente, prossimi invii programmati, email di prova.
 - **Richieste Accesso**: coda con badge, approvazione con scelta di ruolo e linee definitive, oppure rifiuto.
+- **Organizzazioni**: albero della rete, creazione e modifica, assegnazione utenti, fusione, sospensione, esecuzione della migrazione.
 
 ---
 
@@ -138,6 +180,17 @@ Le revisioni di uno stesso documento formano una **catena**. Una sola versione p
 3. La **ricerca** (`/dealer-search/`) filtra per brand, linea, tipo e anno tramite la sidebar a faccette, con conteggi che si aggiornano a ogni selezione.
 4. Ogni card permette di scaricare il documento, aggiungerlo ai preferiti e — se esiste — consultare lo storico delle versioni precedenti.
 5. Il pulsante di download aggregato scarica in un unico ZIP i risultati filtrati o i preferiti.
+
+## Workflow Titolare
+
+Un utente con funzione **titolare** (assegnata dall'amministratore in **Organizzazioni → Utenti**) trova nella dashboard una card **Gestione collaboratori** che porta alla pagina con lo shortcode `[dealer_team]`, dove può:
+
+1. Vedere i membri della propria azienda con funzione, linee effettive e ultimo accesso.
+2. **Invitare** un nuovo collaboratore via email (link per impostare la password, mai una password in chiaro).
+3. **Limitare** un collaboratore a un sottoinsieme delle linee aziendali.
+4. **Disattivare** un collaboratore che ha lasciato l'azienda — l'account WordPress resta, così il suo storico download rimane tracciabile, ma perde ogni ruolo dealer.
+
+Non può in nessun caso creare altri titolari, assegnare ruoli arbitrari, o concedere più linee di quante l'azienda ne possieda.
 
 ---
 
@@ -152,18 +205,26 @@ dashboard-dealer/
 │   ├── class-roles.php             Ruoli custom
 │   ├── class-db.php                Tabella log, query di lettura e statistiche
 │   ├── class-versioning.php        Catena di versioni dei documenti
+│   ├── class-organization.php      CPT organizzazione, gerarchia, ereditarietà, migrazione
+│   ├── class-identity.php          Risolutore di identità: diritti effettivi, perimetro area manager
 │   ├── class-admin.php             Menu admin, wizard upload, archivio, export, statistiche
 │   ├── class-search.php            Ricerca a faccette, download, preferiti, ZIP
 │   ├── class-dashboard.php         Dashboard dealer
 │   ├── class-searchwp.php          Integrazione SearchWP 4.x
 │   ├── class-notifications.php     Email, cron, preferenze, impostazioni
-│   └── class-access-request.php    Richieste di accesso self-service
+│   ├── class-access-request.php    Richieste di accesso self-service
+│   ├── class-org-admin.php         Interfaccia amministrativa delle organizzazioni
+│   └── class-team.php              Delega al titolare: gestione dei propri collaboratori
 ├── templates/
 │   ├── admin-upload.php            Wizard upload 5 step
 │   ├── admin-archive.php           Archivio con filtri e azioni di gruppo
 │   ├── admin-logs.php              Log download con filtri ed export
 │   ├── admin-stats.php             Pagina statistiche
 │   ├── admin-access-requests.php   Coda di approvazione
+│   ├── admin-organizations.php     Albero delle organizzazioni
+│   ├── admin-org-edit.php          Creazione e modifica organizzazione
+│   ├── admin-org-users.php         Assegnazione utenti a un'organizzazione
+│   ├── admin-org-merge.php         Fusione di più organizzazioni
 │   ├── dealer-dashboard.php        Dashboard front-end
 │   ├── dealer-search.php           Contenitore della ricerca
 │   ├── dealer-search-facets.php    Sidebar dei filtri
@@ -171,6 +232,7 @@ dashboard-dealer/
 │   ├── dealer-search-results.php   Griglia risultati e barra ZIP
 │   ├── dealer-search-card.php      Card documento
 │   ├── dealer-search-card-extras.php  Stella preferiti e storico versioni
+│   ├── dealer-team.php             Area del titolare per la gestione collaboratori
 │   ├── access-request-form.php     Form pubblico
 │   └── email-*.php                 Layout e corpi delle email
 └── assets/
@@ -216,6 +278,20 @@ I documenti creati prima dell'introduzione del versionamento non hanno questi me
 
 Richieste di accesso self-service. `public`, `show_ui`, `show_in_rest` tutti `false`. Dati in meta `_dar_*`, stato in `_dar_status` (`pending` / `approved` / `rejected`).
 
+### CPT privato e gerarchico: `dealer_org`
+
+L'organizzazione: l'azienda o il gruppo che detiene i diritti di accesso. `public`, `show_in_rest` tutti `false`. Gerarchico (`post_parent`), per la catena gruppo → concessionaria → filiale.
+
+| Meta Key | Tipo | Descrizione |
+|---|---|---|
+| `_org_tier` | string | Livello commerciale (`dealer`, `top_dealer`, `part_center`); se assente, ereditato dalla madre |
+| `_org_lines` | array | Linee **proprie** in formato `Brand\|Linea` (non le effettive: vedi sotto) |
+| `_org_status` | string | `active` oppure `suspended`; la sospensione si propaga alle discendenti |
+| `_org_vat` | string | Partita IVA |
+| `_org_referente_nome` / `_org_referente_email` / `_org_referente_telefono` | string | Referente commerciale dell'azienda |
+
+Le **linee effettive** (`Dealer_Organization::get_effective_lines()`) non sono un meta salvato: si calcolano come intersezione fra `_org_lines` e le linee effettive della madre. Un'organizzazione senza madre (radice) ha come effettive esattamente le proprie; una figlia con `_org_lines` vuoto eredita per intero quelle della madre. Questa regola — restringere, mai ampliare — è il motivo per cui una revoca sul gruppo si propaga automaticamente a ogni sede.
+
 ### Tabella DB: `{prefisso}_dealer_download_log`
 
 | Colonna | Tipo | Descrizione |
@@ -225,20 +301,30 @@ Richieste di accesso self-service. `public`, `show_ui`, `show_in_rest` tutti `fa
 | `post_id` | BIGINT UNSIGNED | ID documento |
 | `download_date` | DATETIME | Timestamp |
 | `ip_address` | VARCHAR(45) | IP client, vuoto se non valido |
+| `access_context` | VARCHAR(20) | Titolo con cui è avvenuto l'accesso: `admin`, `area_manager`, `dealer` (o vuoto per le righe precedenti alla 1.3.0) |
 
-Indici su `user_id`, `post_id`, `download_date`.
+Indici su `user_id`, `post_id`, `download_date`. `access_context` è stata aggiunta con `dbDelta()` tramite un contatore di revisione dello schema, applicato anche a installazioni già attive: le righe registrate prima non vengono modificate retroattivamente, restano a stringa vuota e sono mostrate come "Dealer".
 
 ### User meta
 
 | Meta Key | Tipo | Descrizione |
 |---|---|---|
-| `_dealer_lines` | array | Linee assegnate `Brand\|Linea` |
+| `_dealer_lines` | array | **Modello storico**: linee assegnate `Brand\|Linea`. Fallback usato solo quando l'utente non ha un'organizzazione |
+| `_dealer_org` | int | ID dell'organizzazione di appartenenza (modello corrente) |
+| `_dealer_function` | string | `titolare` oppure `collaboratore` |
+| `_dealer_line_limit` | array | Restrizione individuale, sottoinsieme delle linee effettive dell'organizzazione; vuoto = nessuna restrizione oltre a quella aziendale |
+| `_am_orgs` | array | Perimetro dell'area manager: ID delle organizzazioni radice seguite (i sottoalberi sono inclusi automaticamente) |
+| `_am_lines` | array | Perimetro dell'area manager: linee su cui può pubblicare |
 | `_dealer_last_login` | string | Datetime MySQL dell'ultimo accesso |
 | `_dealer_favorites` | array | ID dei documenti preferiti (max 200) |
 | `_dealer_notify_new` | string | `'1'`/`'0'` — attiva se il meta è assente |
 | `_dealer_notify_expiring` | string | `'1'`/`'0'` — attiva se il meta è assente |
-| `_referente_nome` / `_referente_email` / `_referente_telefono` | string | Referente commerciale |
+| `_referente_nome` / `_referente_email` / `_referente_telefono` | string | Referente commerciale (modello storico; nel modello a organizzazioni il referente sta sull'organizzazione) |
 | `_dar_company` / `_dar_vat` | string | Ragione sociale e P. IVA, dalla richiesta di accesso |
+| `_dealer_invited_by` / `_dealer_invited_at` | int / string | Chi e quando ha invitato un collaboratore |
+| `_dealer_deactivated_by` / `_dealer_deactivated_at` | int / string | Chi e quando ha disattivato un collaboratore |
+
+`Dealer_Identity::get_effective_lines()` è l'unico punto che va interrogato per sapere cosa un utente può vedere: risolve `_dealer_org` quando presente (organizzazione ∩ `_dealer_line_limit`) e ricade su `_dealer_lines` altrimenti. Nessun altro codice dovrebbe leggere questi meta direttamente per decidere un accesso.
 
 ### Opzioni WordPress
 
@@ -249,6 +335,19 @@ Indici su `user_id`, `post_id`, `download_date`.
 | `dealer_portal_search_page_id` | ID pagina ricerca |
 | `dealer_portal_notifications` | Impostazioni del modulo notifiche |
 | `dealer_portal_notification_queue` | Coda di invio email |
+| `dealer_portal_caps_revision` | Contatore di revisione della mappa capability → ruoli, per riparare le assegnazioni senza richiedere la riattivazione |
+| `dealer_portal_schema_revision` | Contatore di revisione dello schema della tabella log, stesso meccanismo delle capability |
+
+### Capability
+
+| Capability | Amministratore | Area manager | A cosa serve |
+|---|---|---|---|
+| `manage_dealer_portal` | ✓ | — | Controllo completo: eliminazione documenti, richieste di accesso, notifiche |
+| `upload_dealer_docs` | ✓ | ✓ | Wizard di caricamento, salvataggio, versionamento, archivio |
+| `view_dealer_logs` | ✓ | ✓ | Log download, export CSV, statistiche |
+| `manage_dealer_orgs` | ✓ | — | Organizzazioni e assegnazione utenti |
+
+Nessuna capability ne implica un'altra: la mappa in `Dealer_DB::capability_map()` è l'unico punto in cui guardare per sapere chi ha cosa.
 
 ### Eventi cron
 
@@ -269,7 +368,13 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 - **Directory protetta**: gli allegati vanno in `uploads/dealer-docs/` con `.htaccess` che nega l'accesso HTTP diretto; i file sono serviti solo via PHP.
 - **MIME whitelist**: solo `application/pdf`, `.xlsx` e `.docx`, validati con `wp_check_filetype_and_ext()` sul contenuto reale, non sull'estensione.
 - **Isolamento CPT**: `documento_dealer` e `dealer_access_req` hanno `public => false` e `show_in_rest => false`. Nessun URL pubblico o endpoint REST li espone.
-- **Doppio controllo accesso**: `user_is_dealer()` e `user_can_access_post()` vengono richiamati prima di servire qualsiasi file. `user_can_download_post()` raccoglie l'intera catena di controlli (tipo, stato, obsolescenza, ruolo, linea, scadenza) ed è usata da download singolo, ZIP, preferiti, cronologia e storico versioni.
+- **Doppio controllo accesso**: `user_is_dealer()` e `user_can_access_post()` vengono richiamati prima di servire qualsiasi file. `user_can_download_post()` raccoglie l'intera catena di controlli (tipo, stato, obsolescenza, livello, linea, scadenza) ed è usata da download singolo, ZIP, preferiti, cronologia e storico versioni.
+- **Le linee sono sempre risolte internamente**: `user_can_access_post()` ignora deliberatamente il parametro `$user_lines` che riceve e richiama `Dealer_Identity::get_effective_lines()`. È una scelta esplicita: un chiamante che passasse un elenco non aggiornato non può allargare l'accesso, perché quell'elenco non viene mai usato per decidere.
+- **L'ereditarietà delle organizzazioni restringe, mai amplia**: le linee effettive sono sempre un'intersezione con quelle della madre, mai un'unione. Nessuna sede può ottenere una linea che il gruppo non ha, indipendentemente da cosa venga configurato sulla sede stessa.
+- **Perimetro dell'area manager, non ruolo**: legge in sovrapposizione (basta una linea del documento nel suo perimetro) ma scrive in contenimento (`can_edit_document()`: tutte le linee del documento devono starci). Un documento senza restrizione di linea non è mai pubblicabile né visibile a un area manager: è visibile a tutta la rete, e sarebbe la scorciatoia per uscire dal proprio perimetro.
+- **Perimetro vuoto = accesso nullo, non accesso pieno**: sia nel controllo dei singoli documenti sia nelle query di log e statistiche, un insieme di linee o di documenti vuoto produce una condizione sempre falsa (`AND 1=0`), non l'assenza di filtro. È il punto in cui un filtro mal scritto diventerebbe silenziosamente un buco.
+- **La delega non si propaga**: un titolare può invitare solo collaboratori (mai altri titolari), non può assegnare un ruolo diverso da quello coerente con la sua organizzazione, e le linee che concede sono sempre filtrate contro quelle che l'azienda possiede — anche se il POST ne chiedesse di più.
+- **Organizzazione sospesa = nessun accesso**, nemmeno ai documenti senza restrizione di linea; la sospensione si propaga automaticamente a tutte le organizzazioni discendenti.
 - **Conteggi dei facet calcolati dopo il filtro di accesso**: calcolarli prima avrebbe rivelato quanti documenti esistono per brand e linee non assegnate al dealer.
 - **ZIP senza ID nell'URL**: il download aggregato riceve solo l'insieme richiesto (risultati o preferiti) e i filtri; la lista dei documenti è ricostruita lato server. Un client non può imporre cosa finisce nell'archivio nemmeno con un nonce valido.
 - **Permessi rivalutati sempre al momento dell'uso**: preferiti, cronologia e destinatari delle email non sono mai serviti da liste precalcolate. Un documento revocato dopo il download sparisce dalla cronologia senza rivelarne il titolo.
@@ -282,6 +387,18 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 ---
 
 ## Changelog
+
+### 1.3.0
+- Modello a organizzazioni: i diritti di accesso (livello commerciale, linee prodotto) appartengono all'azienda dealer, non più al singolo utente. CPT gerarchico `dealer_org` con ereditarietà che restringe e mai amplia (intersezione con la madre, mai unione).
+- Nuovo ruolo `area_manager`: carica, versiona e marca obsoleti i documenti sulle proprie linee, entro un perimetro su due assi (organizzazioni seguite e linee di pubblicazione) validato lato server a ogni scrittura. Non elimina definitivamente, non tocca organizzazioni o utenti.
+- Archivio, log, statistiche ed export CSV filtrati sul perimetro dell'area manager, con lo stesso criterio ovunque (`user_can_view_document()` in lettura, `can_edit_document()` in scrittura) e un perimetro vuoto che nega l'accesso invece di ricadere su "nessun filtro".
+- Nuova colonna `access_context` nel registro download: distingue un accesso da amministratore, area manager o dealer, così la delega non annacqua il valore di audit del registro.
+- Capability separate (`upload_dealer_docs`, `view_dealer_logs`, `manage_dealer_orgs`) al posto dell'unica `manage_dealer_portal`, assegnate esplicitamente e senza che una implichi l'altra.
+- Delega al titolare: shortcode `[dealer_team]` per invitare, limitare alle linee e disattivare i propri collaboratori senza passare dall'amministratore. La disattivazione revoca il ruolo ma non elimina l'account, per non perdere lo storico dei download.
+- Interfaccia amministrativa delle organizzazioni: albero della rete con linee proprie ed ereditate distinte, creazione, modifica, assegnazione utenti, fusione, sospensione (che si propaga alle discendenti) ed esecuzione della migrazione.
+- Migrazione idempotente degli utenti dal modello storico: ogni utente non ancora migrato diventa titolare di un'organizzazione che eredita esattamente le sue linee e il suo livello, senza cambiare cosa vede il giorno dell'aggiornamento. Il modello storico resta un percorso valido per chi non migra.
+- Corretta di conseguenza la paginazione dell'archivio documenti, già rotta in precedenza quando si filtrava per ruolo o linea dopo la query principale.
+- La disinstallazione rimuove anche le organizzazioni e i meta utente introdotti da questa versione.
 
 ### 1.2.0
 - Ricerca a faccette con conteggi live, aggiornamento AJAX e griglia a card; fallback senza JavaScript mantenuto.
