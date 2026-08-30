@@ -837,6 +837,22 @@ class Dealer_Search {
 		return false;
 	}
 
+	/**
+	 * Chi può ricevere un documento: i dealer e gli area manager.
+	 *
+	 * L'area manager non è un dealer, ma pubblica e aggiorna documenti:
+	 * impedirgli di aprirli sarebbe incoerente, non si mantiene un manuale che
+	 * non si può leggere. Il suo diritto sul singolo documento resta comunque
+	 * deciso da user_can_access_post(), che per lui richiede una linea nel
+	 * perimetro — questo metodo apre la porta, non la spalanca.
+	 *
+	 * Il download resta distinguibile nel registro: Dealer_Identity::
+	 * get_access_context() registra con quale titolo è avvenuto.
+	 */
+	public static function can_receive_documents( \WP_User $user ): bool {
+		return self::user_is_dealer( $user ) || Dealer_Identity::is_area_manager( $user );
+	}
+
 	/** Linee assegnate al dealer (user meta _dealer_lines), sempre come array di stringhe. */
 	/**
 	 * Linee dell'utente per la COSTRUZIONE DELL'INTERFACCIA: alimenta il facet
@@ -977,7 +993,7 @@ class Dealer_Search {
 		if ( 'obsoleto' === get_post_meta( $post_id, '_doc_status', true ) ) {
 			return false;
 		}
-		if ( ! self::user_is_dealer( $user ) || ! self::user_can_access_post( $user, $user_lines, $post_id ) ) {
+		if ( ! self::can_receive_documents( $user ) || ! self::user_can_access_post( $user, $user_lines, $post_id ) ) {
 			return false;
 		}
 		if ( self::is_expired_doc( $post_id ) ) {
@@ -1132,7 +1148,7 @@ class Dealer_Search {
 		// Controllo accesso doppio.
 		$user_lines = self::get_user_lines( $user->ID );
 
-		if ( ! self::user_is_dealer( $user ) || ! self::user_can_access_post( $user, $user_lines, $post_id ) ) {
+		if ( ! self::can_receive_documents( $user ) || ! self::user_can_access_post( $user, $user_lines, $post_id ) ) {
 			wp_die( esc_html__( 'Non hai i permessi per scaricare questo documento.', 'dealer-portal' ), '', [ 'response' => 403 ] );
 		}
 

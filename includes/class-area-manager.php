@@ -121,6 +121,18 @@ class Dealer_Area_Manager {
 	 */
 	private static $scope_cache = [];
 
+	/**
+	 * Perimetro organizzazioni gia' risolto, per utente.
+	 *
+	 * get_scope_orgs() espande i sottoalberi con una query per organizzazione:
+	 * richiamarlo una volta per ogni membro di ogni azienda seguita moltiplica
+	 * le query senza cambiare il risultato, che dentro una singola richiesta e'
+	 * costante.
+	 *
+	 * @var array<int,int[]>
+	 */
+	private static $orgs_cache = [];
+
 	// ─── Constructor ──────────────────────────────────────────────────────────
 
 	public function __construct() {
@@ -161,9 +173,26 @@ class Dealer_Area_Manager {
 
 		return [
 			'user'  => $user,
-			'orgs'  => Dealer_Identity::get_scope_orgs( $user ),
+			'orgs'  => self::scope_orgs( $user ),
 			'lines' => Dealer_Identity::get_scope_lines( $user ),
 		];
+	}
+
+	/**
+	 * Perimetro organizzazioni, memorizzato per la durata della richiesta.
+	 *
+	 * Resta un semplice passaggio a Dealer_Identity::get_scope_orgs(): l'unica
+	 * fonte di verita' sul perimetro non cambia, si evita solo di ricalcolarla
+	 * decine di volte nella stessa pagina.
+	 *
+	 * @return int[]
+	 */
+	private static function scope_orgs( \WP_User $user ): array {
+		$key = (int) $user->ID;
+		if ( ! isset( self::$orgs_cache[ $key ] ) ) {
+			self::$orgs_cache[ $key ] = Dealer_Identity::get_scope_orgs( $user );
+		}
+		return self::$orgs_cache[ $key ];
 	}
 
 	/**
@@ -180,7 +209,7 @@ class Dealer_Area_Manager {
 			return 0;
 		}
 
-		if ( ! in_array( $org_id, Dealer_Identity::get_scope_orgs( $manager ), true ) ) {
+		if ( ! in_array( $org_id, self::scope_orgs( $manager ), true ) ) {
 			return 0;
 		}
 
@@ -288,6 +317,7 @@ class Dealer_Area_Manager {
 				'saveSuccess'    => 'Documento salvato.',
 				'saveError'      => 'Errore durante il salvataggio. Controlla i campi e riprova.',
 				'confirmObsolete' => 'Segnare questo documento come obsoleto? Uscirà dalla ricerca dei dealer.',
+				'obsoleteLabel'  => 'Segna obsoleto',
 				'obsoleteError'  => 'Non è stato possibile completare l’operazione.',
 				'working'        => 'Attendi…',
 				'none'           => '—',
@@ -688,7 +718,7 @@ class Dealer_Area_Manager {
 	private function collect_organizations( \WP_User $manager ): array {
 		$out = [];
 
-		foreach ( Dealer_Identity::get_scope_orgs( $manager ) as $org_id ) {
+		foreach ( self::scope_orgs( $manager ) as $org_id ) {
 			$org_id = (int) $org_id;
 			if ( ! Dealer_Organization::exists( $org_id ) ) {
 				continue;
@@ -790,7 +820,7 @@ class Dealer_Area_Manager {
 	 * Numeri di intestazione, comuni a tutte le schede.
 	 */
 	private function collect_summary( \WP_User $user ): array {
-		$orgs      = Dealer_Identity::get_scope_orgs( $user );
+		$orgs      = self::scope_orgs( $user );
 		$lines     = Dealer_Identity::get_scope_lines( $user );
 		$visible   = self::scoped_document_ids( $user, false );
 		$editable  = self::scoped_document_ids( $user, true );

@@ -126,8 +126,24 @@ $am_states = [
 					<tr id="am-doc-<?php echo esc_attr( (string) $am_doc['id'] ); ?>">
 						<td>
 							<span class="dealer-am-doc-title"><?php echo esc_html( $am_doc['title'] ); ?></span>
+							<?php
+							// Chi pubblica e aggiorna un documento deve poterlo aprire.
+							// Il permesso sul singolo file resta deciso a valle da
+							// user_can_download_post(); qui mostriamo il link solo
+							// quando quel controllo passerebbe davvero, per non
+							// offrire un'azione che finirebbe in un errore.
+							$am_can_download = Dealer_Search::user_can_download_post( $user, [], (int) $am_doc['id'] );
+							?>
 							<?php if ( '' !== $am_doc['filename'] ) : ?>
-								<span class="dealer-am-doc-file"><?php echo esc_html( $am_doc['filename'] ); ?></span>
+								<?php if ( $am_can_download ) : ?>
+									<a class="dealer-am-doc-file"
+										href="<?php echo esc_url( Dealer_Search::get_download_url( (int) $am_doc['id'] ) ); ?>"
+										title="Scarica il documento">
+										<?php echo esc_html( $am_doc['filename'] ); ?>
+									</a>
+								<?php else : ?>
+									<span class="dealer-am-doc-file"><?php echo esc_html( $am_doc['filename'] ); ?></span>
+								<?php endif; ?>
 							<?php endif; ?>
 							<div class="dealer-am-chiplist">
 								<?php foreach ( $am_doc['lines'] as $am_line ) : ?>
