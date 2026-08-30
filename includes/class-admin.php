@@ -1363,10 +1363,25 @@ class Dealer_Admin {
 		// onora quelle regole, scaricare il file scavalcando nonce, login e
 		// controllo di linea. Con un token casuale l'URL non è indovinabile
 		// su NESSUN server, che è l'unica garanzia che possiamo dare qui.
-		$disk_ext  = strtolower( pathinfo( $display_filename, PATHINFO_EXTENSION ) );
+		// L'estensione viene da wp_check_filetype_and_ext(), che l'ha appena
+		// validata contro la whitelist confrontando anche il contenuto reale
+		// del file — non dal nome fornito da chi carica. Chi carica documenti
+		// non è più il solo amministratore: l'area manager è un utente
+		// operativo, e l'estensione su disco è ciò che decide se un file verrà
+		// mai interpretato dal server. Deve essere una delle tre ammesse, non
+		// una stringa scelta da chi invia la richiesta.
+		$disk_ext  = strtolower( (string) ( $check['ext'] ?? '' ) );
+		if ( ! array_key_exists( $disk_ext, $allowed_mimes ) ) {
+			wp_send_json_error( [ 'message' => 'Tipo di file non consentito. Sono accettati solo PDF, XLSX e DOCX.' ] );
+		}
+
 		$disk_base = pathinfo( $display_filename, PATHINFO_FILENAME );
-		$_FILES['doc_file']['name'] = $disk_base . '-' . wp_generate_password( 20, false, false )
-			. ( $disk_ext ? '.' . $disk_ext : '' );
+		$_FILES['doc_file']['name'] = $disk_base . '-' . wp_generate_password( 20, false, false ) . '.' . $disk_ext;
+
+		// Anche il nome mostrato al dealer porta l'estensione validata: senza,
+		// un documento potrebbe presentarsi con un'estensione diversa da ciò
+		// che è davvero.
+		$display_filename = $disk_base . '.' . $disk_ext;
 
 		// Redirige l'upload nella sottocartella protetta dealer-docs/.
 		$upload_dir_filter = static function ( array $dirs ): array {

@@ -29,6 +29,12 @@ class Dealer_Search {
 	/** Insiemi ammessi per il download aggregato. */
 	const ZIP_SCOPES = [ 'results', 'favorites' ];
 
+	/** Archivi ZIP consentiti a un utente nella finestra sotto. */
+	const ZIP_RATE_LIMIT_MAX = 10;
+
+	/** Finestra del limite di frequenza sugli archivi ZIP. */
+	const ZIP_RATE_LIMIT_WINDOW = 10 * MINUTE_IN_SECONDS;
+
 	/** Evita la doppia registrazione degli handler AJAX. */
 	private static bool $ajax_registered = false;
 
@@ -1316,6 +1322,19 @@ class Dealer_Search {
 			wp_die( esc_html__( 'Non hai i permessi per scaricare questi documenti.', 'dealer-portal' ), '', [ 'response' => 403 ] );
 		}
 
+		// Limite di frequenza. La creazione dell'archivio è di gran lunga
+		// l'operazione più costosa del portale — legge fino a 200 MB dal disco,
+		// li comprime e scrive un file temporaneo — e la può innescare
+		// qualunque utente autenticato con un semplice link. Senza un tetto,
+		// bastano poche richieste ripetute per saturare CPU e spazio su disco.
+		if ( ! self::zip_rate_limit_ok( $user->ID ) ) {
+			wp_die(
+				esc_html__( 'Hai richiesto troppi archivi in poco tempo. Attendi qualche minuto e riprova.', 'dealer-portal' ),
+				'',
+				[ 'response' => 429 ]
+			);
+		}
+
 		if ( ! class_exists( 'ZipArchive' ) ) {
 			wp_die(
 				esc_html__( 'Il download in un unico archivio non è disponibile su questo server: manca l\'estensione PHP ZipArchive. Scarica i documenti singolarmente dalla ricerca.', 'dealer-portal' ),
@@ -1385,6 +1404,26 @@ class Dealer_Search {
 	 * @param int[] $ids
 	 * @return array[] voci con id, path, name, size.
 	 */
+	/**
+	 * Consente un numero limitato di archivi per utente in una finestra breve.
+	 *
+	 * Il contatore sta in un transient per utente: se lo storage dei transient
+	 * non fosse disponibile la funzione lascia passare, perché negare un
+	 * download legittimo per un problema di cache sarebbe peggio del rischio
+	 * che il limite copre.
+	 */
+	private static function zip_rate_limit_ok( int $user_id ): bool {
+		$key   = 'dealer_zip_rl_' . $user_id;
+		$count = (int) get_transient( $key );
+
+		if ( $count >= self::ZIP_RATE_LIMIT_MAX ) {
+			return false;
+		}
+
+		set_transient( $key, $count + 1, self::ZIP_RATE_LIMIT_WINDOW );
+		return true;
+	}
+
 	private static function collect_zip_entries( \WP_User $user, array $user_lines, array $ids ): array {
 		$uploads   = wp_upload_dir();
 		$real_base = realpath( $uploads['basedir'] ?? '' );
