@@ -3,6 +3,44 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class Dealer_DB {
 
+	// ─── URL delle pagine del plugin ────────────────────────────────────────
+	//
+	// Le due pagine create da create_pages() vanno sempre raggiunte tramite
+	// l'ID salvato in opzione + get_permalink(), MAI con un percorso fisso
+	// come site_url('/dealer-search/'). Un percorso fisso presuppone che lo
+	// slug reale coincida esattamente con quello previsto: si rompe con
+	// permalink non "nome articolo", un'installazione in sottocartella, un
+	// amministratore che rinomina la pagina, o — il caso più comune in
+	// sviluppo — un secondo inserimento con slug suffisso (-2, -3…) dopo
+	// riattivazioni ripetute del plugin. Questo è l'unico punto che risolve
+	// questi URL: nessun altro punto del plugin deve costruirli a mano.
+
+	/** URL della pagina Dashboard Dealer, risolto dall'ID pagina reale. */
+	public static function dashboard_url(): string {
+		return self::resolve_page_url( 'dealer_portal_dashboard_page_id', '/dashboard-dealer/' );
+	}
+
+	/** URL della pagina Cerca Documenti, risolto dall'ID pagina reale. */
+	public static function search_url(): string {
+		return self::resolve_page_url( 'dealer_portal_search_page_id', '/dealer-search/' );
+	}
+
+	/**
+	 * Legge l'ID salvato in opzione e ne risolve il permalink attuale.
+	 * Il percorso fisso resta solo come ultima risorsa, se la pagina non
+	 * esiste più o l'opzione non è mai stata popolata.
+	 */
+	private static function resolve_page_url( string $option, string $fallback_path ): string {
+		$page_id = (int) get_option( $option );
+		if ( $page_id ) {
+			$permalink = get_permalink( $page_id );
+			if ( $permalink ) {
+				return $permalink;
+			}
+		}
+		return home_url( $fallback_path );
+	}
+
 	// ─── Activation ──────────────────────────────────────────────────────────
 
 	public static function install(): void {

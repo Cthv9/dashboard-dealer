@@ -61,7 +61,9 @@ add_filter( 'login_redirect', function ( string $redirect_to, string $request, $
 	$dealer_roles = [ 'dealer', 'top_dealer', 'part_center' ];
 	foreach ( $dealer_roles as $role ) {
 		if ( in_array( $role, $user->roles, true ) ) {
-			return site_url( '/dashboard-dealer/' );
+			// Risolto dall'ID pagina reale, non da un percorso fisso: vedi
+			// Dealer_DB::dashboard_url() per il perché.
+			return Dealer_DB::dashboard_url();
 		}
 	}
 	return $redirect_to;

@@ -19,7 +19,9 @@ $role_colors = [
 ];
 $role_color_class = $role_colors[ $display_role ] ?? '';
 
-$search_url  = esc_url( site_url( '/dealer-search/' ) );
+// Risolto dall'ID pagina reale, non da un percorso fisso: vedi
+// Dealer_DB::search_url() per il perché.
+$search_url  = esc_url( Dealer_DB::search_url() );
 $last_login_fmt = $last_login ? gmdate( 'd/m/Y \a\l\l\e H:i', strtotime( $last_login ) ) : '—';
 ?>
 <div class="dealer-dashboard-wrap">

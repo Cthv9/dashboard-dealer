@@ -743,7 +743,7 @@ class Dealer_Access_Request {
 		);
 
 		$site_name  = wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES );
-		$dashboard  = site_url( '/dashboard-dealer/' );
+		$dashboard  = Dealer_DB::dashboard_url();
 		$line_list  = $lines ? implode( "\n  - ", array_map( [ __CLASS__, 'line_label' ], $lines ) ) : '—';
 
 		$subject = sprintf( '[%s] Il tuo accesso all’area riservata è attivo', $site_name );

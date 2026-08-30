@@ -164,7 +164,7 @@ $submitted  = ( 'success' === $fb_status );
 			<div class="dar-card">
 				<p style="margin:0;">
 					Risulti già autenticato su questo sito.
-					<a href="<?php echo esc_url( site_url( '/dashboard-dealer/' ) ); ?>">Vai alla tua area riservata</a>.
+					<a href="<?php echo esc_url( Dealer_DB::dashboard_url() ); ?>">Vai alla tua area riservata</a>.
 				</p>
 			</div>
 		<?php elseif ( $submitted ) : ?>
