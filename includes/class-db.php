@@ -32,7 +32,11 @@ class Dealer_DB {
 	 */
 	private static function resolve_page_url( string $option, string $fallback_path ): string {
 		$page_id = (int) get_option( $option );
-		if ( $page_id ) {
+		// La pagina deve essere PUBBLICATA: get_permalink() restituisce
+		// volentieri un URL anche per una bozza o un elemento nel cestino, e
+		// quell'URL da' 404 a chiunque non possa modificare il contenuto —
+		// cioe' esattamente ai dealer. Verificare l'ID non basta.
+		if ( $page_id && 'publish' === get_post_status( $page_id ) ) {
 			$permalink = get_permalink( $page_id );
 			if ( $permalink ) {
 				return $permalink;
@@ -153,16 +157,22 @@ class Dealer_DB {
 		];
 
 		foreach ( $pages as $page ) {
-			// Controlla se la pagina esiste già (per slug).
+			// Controlla se la pagina esiste già (per slug). Adottiamo solo una
+			// pagina PUBBLICATA: get_page_by_path() restituisce anche bozze e
+			// pagine in attesa di revisione, e adottarne una lascerebbe i
+			// dealer davanti a un 404 con l'opzione apparentemente a posto.
 			$existing = get_page_by_path( $page['slug'], OBJECT, 'page' );
-			if ( $existing ) {
+			if ( $existing && 'publish' === get_post_status( $existing ) ) {
 				update_option( $page['option'], $existing->ID );
 				continue;
 			}
 
-			// Controlla se l'ID salvato in precedenza è ancora valido.
+			// Controlla se l'ID salvato in precedenza punta a una pagina ancora
+			// pubblicata. get_post_status() e' vero anche per 'draft' e 'trash':
+			// senza il confronto esplicito, una pagina cestinata verrebbe
+			// considerata valida e non ne verrebbe creata una nuova.
 			$saved_id = (int) get_option( $page['option'] );
-			if ( $saved_id && get_post_status( $saved_id ) ) {
+			if ( $saved_id && 'publish' === get_post_status( $saved_id ) ) {
 				continue;
 			}
 
