@@ -77,8 +77,9 @@ class Dealer_Dashboard {
 			return '<p class="dealer-notice">Accesso non autorizzato.</p>';
 		}
 
-		$user_lines = get_user_meta( $user->ID, '_dealer_lines', true );
-		if ( ! is_array( $user_lines ) ) { $user_lines = []; }
+		// Dal risolutore di identità, non dal meta storico: per un utente del
+		// modello a organizzazioni quel meta può essere assente o superato.
+		$user_lines = Dealer_Identity::get_effective_lines( $user );
 
 		$last_login = get_user_meta( $user->ID, '_dealer_last_login', true );
 

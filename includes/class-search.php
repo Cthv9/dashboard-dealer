@@ -161,6 +161,14 @@ class Dealer_Search {
 			return '<p class="dealer-notice">Accesso non autorizzato.</p>';
 		}
 
+		// Organizzazione sospesa: senza un messaggio esplicito l'utente
+		// vedrebbe soltanto una libreria vuota e non avrebbe modo di capire
+		// che si tratta di una sospensione e non di un guasto.
+		if ( ! Dealer_Identity::is_active( $user ) ) {
+			return '<p class="dealer-notice">L’accesso della tua azienda ai documenti è attualmente sospeso. '
+				. 'Contatta il tuo referente commerciale per maggiori informazioni.</p>';
+		}
+
 		$user_lines = self::get_user_lines( $user->ID );
 
 		// I filtri arrivano dalla query string: nessuna azione distruttiva, nonce non necessario.
@@ -824,12 +832,23 @@ class Dealer_Search {
 	}
 
 	/** Linee assegnate al dealer (user meta _dealer_lines), sempre come array di stringhe. */
+	/**
+	 * Linee dell'utente per la COSTRUZIONE DELL'INTERFACCIA: alimenta il facet
+	 * "Linea prodotto" e restringe il filtro richiesto a ciò che l'utente ha.
+	 *
+	 * Passa dal risolutore di identità, non dal meta storico. Leggendo
+	 * `_dealer_lines` direttamente, un utente del modello a organizzazioni —
+	 * per esempio un collaboratore invitato dal titolare, che quel meta non lo
+	 * ha mai avuto — si ritroverebbe senza alcun filtro per linea. L'accesso
+	 * resterebbe comunque corretto (user_can_access_post() risolve per conto
+	 * suo), ma il portale gli risulterebbe monco senza un motivo visibile.
+	 */
 	public static function get_user_lines( int $user_id ): array {
-		$lines = get_user_meta( $user_id, '_dealer_lines', true );
-		if ( ! is_array( $lines ) ) {
+		$user = get_user_by( 'id', $user_id );
+		if ( ! $user ) {
 			return [];
 		}
-		return array_values( array_filter( array_map( 'strval', $lines ) ) );
+		return Dealer_Identity::get_effective_lines( $user );
 	}
 
 	/**

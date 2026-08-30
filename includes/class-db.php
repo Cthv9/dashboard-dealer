@@ -25,6 +25,16 @@ class Dealer_DB {
 		return self::resolve_page_url( 'dealer_portal_search_page_id', '/dealer-search/' );
 	}
 
+	/** URL dell'area di gestione collaboratori del titolare. */
+	public static function team_url(): string {
+		return self::resolve_page_url( 'dealer_portal_team_page_id', '/dealer-team/' );
+	}
+
+	/** URL dell'area di lavoro dell'area manager. */
+	public static function area_manager_url(): string {
+		return self::resolve_page_url( 'dealer_portal_am_page_id', '/dealer-area-manager/' );
+	}
+
 	/**
 	 * Legge l'ID salvato in opzione e ne risolve il permalink attuale.
 	 * Il percorso fisso resta solo come ultima risorsa, se la pagina non
@@ -153,6 +163,23 @@ class Dealer_DB {
 				'slug'      => 'dealer-search',
 				'shortcode' => '[dealer_search]',
 				'option'    => 'dealer_portal_search_page_id',
+			],
+			// Aree operative dei ruoli con deleghe. Vengono create in automatico
+			// come le altre: se dovessero essere costruite a mano, dimenticarne
+			// una farebbe sparire la funzione senza alcun errore visibile —
+			// il titolare semplicemente non vedrebbe la card, l'area manager
+			// resterebbe senza un posto dove lavorare.
+			[
+				'title'     => 'Gestione Collaboratori',
+				'slug'      => 'dealer-team',
+				'shortcode' => '[dealer_team]',
+				'option'    => 'dealer_portal_team_page_id',
+			],
+			[
+				'title'     => 'Area Manager',
+				'slug'      => 'dealer-area-manager',
+				'shortcode' => '[dealer_area_manager]',
+				'option'    => 'dealer_portal_am_page_id',
 			],
 		];
 
