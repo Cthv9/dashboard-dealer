@@ -200,6 +200,7 @@ class Dealer_DB {
 			wp_mkdir_p( $dir );
 		}
 
+		// ── Difesa 1: Apache ──────────────────────────────────────────────
 		$htaccess = $dir . '/.htaccess';
 		if ( ! file_exists( $htaccess ) ) {
 			// Blocca l'accesso HTTP diretto. I file vengono serviti via PHP (readfile).
@@ -212,10 +213,67 @@ class Dealer_DB {
 			file_put_contents( $htaccess, $rules );
 		}
 
+		// ── Difesa 2: IIS ─────────────────────────────────────────────────
+		$webconfig = $dir . '/web.config';
+		if ( ! file_exists( $webconfig ) ) {
+			$xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+				 . "<configuration>\n"
+				 . "  <system.webServer>\n"
+				 . "    <authorization>\n"
+				 . "      <deny users=\"*\" />\n"
+				 . "    </authorization>\n"
+				 . "  </system.webServer>\n"
+				 . "</configuration>\n";
+			file_put_contents( $webconfig, $xml );
+		}
+
+		// ── Difesa 3: nessun listing della cartella ───────────────────────
 		$index = $dir . '/index.php';
 		if ( ! file_exists( $index ) ) {
 			file_put_contents( $index, '<?php // Silence is golden.' );
 		}
+
+		// ── Difesa 4, quella che regge ovunque ────────────────────────────
+		// Le tre difese sopra dipendono dal server: nginx ignora .htaccess,
+		// Apache ignora web.config, e nessuna delle due impedisce l'accesso
+		// diretto dove non è configurata. Poiché il plugin viene consegnato
+		// senza sapere su cosa girerà, la protezione che DEVE reggere è
+		// un'altra: i nomi dei file su disco contengono un token casuale
+		// (vedi Dealer_Admin::storage_filename()), quindi l'URL diretto non è
+		// indovinabile su nessun server. Le regole qui sopra restano come
+		// difesa in profondità dove il server le onora.
+	}
+
+	/**
+	 * Il server in uso onora i file .htaccess?
+	 *
+	 * Euristica volutamente prudente: risponde false solo quando riconosce con
+	 * certezza un server che li ignora. Serve a mostrare un avviso a chi
+	 * installa il plugin, non a decidere una misura di sicurezza — quella non
+	 * dipende mai da questa risposta.
+	 */
+	public static function server_honours_htaccess(): bool {
+		$software = isset( $_SERVER['SERVER_SOFTWARE'] )
+			? strtolower( sanitize_text_field( wp_unslash( $_SERVER['SERVER_SOFTWARE'] ) ) )
+			: '';
+
+		if ( '' === $software ) {
+			return true; // Sconosciuto: non allarmiamo senza motivo.
+		}
+
+		foreach ( [ 'nginx', 'iis', 'microsoft-iis', 'caddy', 'lighttpd' ] as $needle ) {
+			if ( false !== strpos( $software, $needle ) ) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/** Percorso assoluto della cartella protetta dei documenti. */
+	public static function protected_dir(): string {
+		$uploads = wp_upload_dir();
+		return $uploads['basedir'] . '/dealer-docs';
 	}
 
 	/**
@@ -231,17 +289,26 @@ class Dealer_DB {
 	 */
 	private static function capability_map(): array {
 		return [
-			'administrator' => [
-				DEALER_PORTAL_CAP,        // Controllo completo.
-				DEALER_PORTAL_CAP_UPLOAD,
-				DEALER_PORTAL_CAP_LOGS,
-				DEALER_PORTAL_CAP_ORGS,
-			],
+			'administrator' => array_merge(
+				[
+					DEALER_PORTAL_CAP,        // Controllo completo.
+					DEALER_PORTAL_CAP_UPLOAD,
+					DEALER_PORTAL_CAP_LOGS,
+					DEALER_PORTAL_CAP_ORGS,
+				],
+				// Capability proprie del CPT documenti: senza queste nessuno,
+				// nemmeno l'amministratore, aprirebbe l'editor nativo di un
+				// documento. Vanno al solo amministratore — l'area manager
+				// lavora dalle schermate del plugin, che applicano il controllo
+				// di perimetro che l'editor nativo non ha.
+				Dealer_CPT::primitive_caps()
+			),
 			'area_manager'  => [
 				DEALER_PORTAL_CAP_UPLOAD, // Carica e versiona, dentro il proprio perimetro.
 				DEALER_PORTAL_CAP_LOGS,   // Legge log e statistiche.
 				// NON riceve DEALER_PORTAL_CAP (eliminazioni, richieste di
-				// accesso, notifiche) né DEALER_PORTAL_CAP_ORGS.
+				// accesso, notifiche), DEALER_PORTAL_CAP_ORGS, né le capability
+				// del CPT: l'editor nativo di WordPress aggirerebbe il perimetro.
 			],
 		];
 	}
@@ -252,7 +319,7 @@ class Dealer_DB {
 	 * versione del plugin non cambia — senza, un'installazione già aggiornata
 	 * non riceverebbe mai le capability nuove.
 	 */
-	const CAPS_REVISION = 2;
+	const CAPS_REVISION = 3;
 
 	/**
 	 * Idempotente: aggiunge solo ciò che manca e non tocca nulla se la mappa

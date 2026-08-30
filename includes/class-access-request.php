@@ -111,8 +111,12 @@ class Dealer_Access_Request {
 			'rewrite'             => false,
 			'query_var'           => false,
 			'supports'            => [ 'title' ],
-			'capability_type'     => 'post',
+			// Permessi mappati sulla capability del plugin invece che su
+			// quelle generiche dei post: le richieste contengono dati
+			// anagrafici di aziende terze e non devono essere leggibili da
+			// chiunque abbia i permessi sui contenuti del sito.
 			'map_meta_cap'        => true,
+			'capabilities'        => Dealer_Organization::post_type_capabilities( DEALER_PORTAL_CAP ),
 		] );
 	}
 

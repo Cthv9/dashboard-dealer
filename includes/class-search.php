@@ -89,11 +89,43 @@ class Dealer_Search {
 
 	// ─── Assets ──────────────────────────────────────────────────────────────
 
+	/**
+	 * Aggancio su wp_enqueue_scripts: caso normale, asset già nell'head.
+	 *
+	 * Il rilevamento non può basarsi sul solo has_shortcode(): Elementor, Divi,
+	 * WPBakery e simili non salvano il contenuto in post_content ma nei
+	 * postmeta, e lo shortcode può anche stare in un template part o in un
+	 * widget. In quei casi il controllo fallirebbe e la pagina si aprirebbe
+	 * senza stile e senza JavaScript, senza alcun errore visibile.
+	 */
 	public function enqueue_assets(): void {
 		global $post;
-		if ( ! is_a( $post, 'WP_Post' ) || ! has_shortcode( $post->post_content, 'dealer_search' ) ) {
+
+		$has_shortcode = is_a( $post, 'WP_Post' )
+			&& has_shortcode( (string) $post->post_content, 'dealer_search' );
+
+		// Confronto anche con la pagina registrata dal plugin: regge quando il
+		// contenuto non è in post_content.
+		$is_search_page = is_a( $post, 'WP_Post' )
+			&& (int) $post->ID === (int) get_option( 'dealer_portal_search_page_id' );
+
+		if ( ! $has_shortcode && ! $is_search_page ) {
 			return;
 		}
+
+		self::enqueue_search_assets();
+	}
+
+	/**
+	 * Carica gli asset della ricerca. Idempotente: wp_enqueue_* ignora una
+	 * seconda registrazione dello stesso handle.
+	 *
+	 * Viene richiamata anche dallo shortcode durante il rendering — è la rete
+	 * di sicurezza che rende il caricamento indipendente da come la pagina è
+	 * stata costruita: se lo shortcode gira, gli asset partono. WordPress
+	 * stampa in footer ciò che viene accodato dopo wp_head.
+	 */
+	public static function enqueue_search_assets(): void {
 		wp_enqueue_style( 'dashicons' );
 		wp_enqueue_style( 'dealer-portal-dealer', DEALER_PORTAL_URL . 'assets/css/dealer.css', [], DEALER_PORTAL_VERSION );
 		wp_enqueue_script(
@@ -116,6 +148,11 @@ class Dealer_Search {
 	// ─── Shortcode render ────────────────────────────────────────────────────
 
 	public function render( $atts ): string {
+		// Rete di sicurezza sugli asset: se lo shortcode gira, la pagina ha
+		// bisogno di CSS e JS, qualunque sia il sistema che l'ha costruita.
+		// Copre i page builder, dove il rilevamento su post_content fallisce.
+		self::enqueue_search_assets();
+
 		if ( ! is_user_logged_in() ) {
 			return '<p class="dealer-notice"><a href="' . esc_url( wp_login_url( get_permalink() ) ) . '">Accedi</a> per cercare i documenti.</p>';
 		}

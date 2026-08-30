@@ -365,7 +365,9 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 
 - **Nonce sui download**: ogni URL di download è limitato nel tempo da un nonce (`dealer_download_{post_id}`). URL diretti o indovinati vengono rifiutati con HTTP 403.
 - **Path traversal prevention**: sia il download singolo sia lo ZIP verificano con `realpath()` che il file si trovi nella cartella uploads prima di servirlo.
-- **Directory protetta**: gli allegati vanno in `uploads/dealer-docs/` con `.htaccess` che nega l'accesso HTTP diretto; i file sono serviti solo via PHP.
+- **Nomi file non indovinabili**: sul disco ogni allegato porta un token casuale nel nome (il dealer scarica comunque il nome pulito, grazie all'header `Content-Disposition`). È la protezione che regge **su qualunque server**: i nomi derivano da brand, linea e tipo documento, quindi senza token sarebbero prevedibili e tentabili via URL diretto.
+- **Directory protetta, per quanto il server lo consenta**: `uploads/dealer-docs/` riceve un `.htaccess` (Apache), un `web.config` (IIS) e un `index.php` che impedisce il listing. Sono difese in profondità: nginx ignora `.htaccess`, Apache ignora `web.config`, e il plugin viene consegnato senza sapere su cosa girerà — per questo la protezione portante è il token nei nomi, non queste regole. Quando il server non onora `.htaccess`, il plugin lo rileva e mostra in admin la regola da aggiungere.
+- **CPT con capability proprie**: `documento_dealer` non usa `capability_type => 'post'`. Con quelle generiche, qualunque Editor — un ruolo che sui siti aziendali esiste quasi sempre per il sito pubblico — avrebbe potuto elencare, modificare ed eliminare i documenti da `edit.php?post_type=documento_dealer`, note interne comprese, scavalcando l'intero impianto di permessi. Le capability del CPT sono assegnate al solo amministratore: l'area manager opera dalle schermate del plugin, che applicano il controllo di perimetro assente nell'editor nativo. Stesso principio per `dealer_org` e `dealer_access_req`, mappati sulle capability del plugin.
 - **MIME whitelist**: solo `application/pdf`, `.xlsx` e `.docx`, validati con `wp_check_filetype_and_ext()` sul contenuto reale, non sull'estensione.
 - **Isolamento CPT**: `documento_dealer` e `dealer_access_req` hanno `public => false` e `show_in_rest => false`. Nessun URL pubblico o endpoint REST li espone.
 - **Doppio controllo accesso**: `user_is_dealer()` e `user_can_access_post()` vengono richiamati prima di servire qualsiasi file. `user_can_download_post()` raccoglie l'intera catena di controlli (tipo, stato, obsolescenza, livello, linea, scadenza) ed è usata da download singolo, ZIP, preferiti, cronologia e storico versioni.
@@ -387,6 +389,15 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 ---
 
 ## Changelog
+
+### 1.3.1
+Correzioni a difetti strutturali emersi al primo collaudo su un'installazione reale. Tutte progettate per reggere senza richiedere configurazioni al server o al tema: il plugin viene consegnato a chi amministra il sito, non installato da chi lo ha scritto.
+
+- Fix: i link a dashboard e ricerca erano percorsi fissi (`/dashboard-dealer/`, `/dealer-search/`) invece che permalink risolti dall'ID pagina. Davano 404 con permalink diversi da "nome articolo", con il sito in sottocartella o con la pagina rinominata — cioè al primo dealer che faceva login.
+- Fix: una pagina in bozza o nel cestino veniva adottata come pagina ufficiale del portale, riaprendo lo stesso 404 da un'altra strada.
+- Fix: `documento_dealer` usava le capability generiche dei post, quindi qualunque Editor poteva gestire i documenti dal backend WordPress aggirando tutti i permessi del plugin. Ora il CPT ha capability proprie, assegnate al solo amministratore. Stesso trattamento per organizzazioni e richieste di accesso.
+- Fix: la protezione dei file era il solo `.htaccess`, ignorato da nginx e da altri server, con nomi file prevedibili. Ora ogni file porta un token casuale nel nome — l'URL diretto non è indovinabile su nessun server — affiancato da `web.config` per IIS e da un avviso in admin quando il server non onora `.htaccess`.
+- Fix: CSS e JavaScript non venivano caricati con Elementor, Divi, WPBakery e simili, che salvano il contenuto nei postmeta e non in `post_content`: la pagina si apriva senza stile e la ricerca a faccette degradava in silenzio. Gli asset ora vengono richiesti anche dallo shortcode durante il rendering, quindi partono qualunque sia il sistema che costruisce la pagina.
 
 ### 1.3.0
 - Modello a organizzazioni: i diritti di accesso (livello commerciale, linee prodotto) appartengono all'azienda dealer, non più al singolo utente. CPT gerarchico `dealer_org` con ereditarietà che restringe e mai amplia (intersezione con la madre, mai unione).
