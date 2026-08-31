@@ -16,7 +16,12 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) { exit; }
 global $wpdb;
 
 // ── Elimina le pagine create automaticamente all'attivazione ─────────────────
-$page_options = [ 'dealer_portal_dashboard_page_id', 'dealer_portal_search_page_id' ];
+$page_options = [
+	'dealer_portal_dashboard_page_id',
+	'dealer_portal_search_page_id',
+	'dealer_portal_team_page_id',
+	'dealer_portal_am_page_id',
+];
 foreach ( $page_options as $option ) {
 	$page_id = (int) get_option( $option );
 	if ( $page_id ) {
@@ -115,6 +120,7 @@ $options = [
 	'dealer_portal_version',
 	'dealer_portal_caps_revision',
 	'dealer_portal_schema_revision',
+	'dealer_portal_pages_revision',
 	'dealer_portal_notifications',
 	'dealer_portal_notification_queue',
 ];
