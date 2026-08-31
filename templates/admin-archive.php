@@ -113,7 +113,7 @@ $colspan      = $can_manage ? 9 : 8;
 				<option value="">Tutti i ruoli</option>
 				<option value="dealer"<?php selected( $filter_role, 'dealer' ); ?>>Dealer</option>
 				<option value="top_dealer"<?php selected( $filter_role, 'top_dealer' ); ?>>Top Dealer</option>
-				<option value="part_center"<?php selected( $filter_role, 'part_center' ); ?>>Part Center</option>
+				<option value="part_center"<?php selected( $filter_role, 'part_center' ); ?>>Parts Center</option>
 			</select>
 
 			<select name="filter_status">

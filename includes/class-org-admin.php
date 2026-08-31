@@ -1083,7 +1083,7 @@ class Dealer_Org_Admin {
 		return [
 			'dealer'      => 'Dealer',
 			'top_dealer'  => 'Top Dealer',
-			'part_center' => 'Part Center',
+			'part_center' => 'Parts Center',
 		];
 	}
 

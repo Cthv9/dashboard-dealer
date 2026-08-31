@@ -108,7 +108,7 @@ class Dealer_Dashboard {
 		$role_labels = [
 			'dealer'      => 'Dealer',
 			'top_dealer'  => 'Top Dealer',
-			'part_center' => 'Part Center',
+			'part_center' => 'Parts Center',
 		];
 
 		ob_start();

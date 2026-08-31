@@ -344,7 +344,7 @@
 
 		var roles = [];
 		$( 'input[name="doc_roles[]"]:checked' ).each( function () {
-			var labels = { dealer: 'Dealer', top_dealer: 'Top Dealer', part_center: 'Part Center' };
+			var labels = { dealer: 'Dealer', top_dealer: 'Top Dealer', part_center: 'Parts Center' };
 			roles.push( labels[ $( this ).val() ] || $( this ).val() );
 		} );
 
