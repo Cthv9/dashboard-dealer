@@ -25,6 +25,31 @@
 	font-family: inherit;
 }
 
+/* ── Link di ritorno alla dashboard ──────────────────────────────────────
+   La dashboard è la home dell'area riservata: ogni altra pagina (ricerca,
+   gestione collaboratori, area manager) ne è un ramo, e senza questo link
+   non c'era modo di risalire se non con il tasto "indietro" del browser. */
+.dealer-back-link {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	margin-bottom: 16px;
+	color: var(--dp-blue);
+	text-decoration: none;
+	font-size: 0.92rem;
+	font-weight: 500;
+}
+.dealer-back-link:hover,
+.dealer-back-link:focus {
+	color: var(--dp-blue-dk);
+	text-decoration: underline;
+}
+.dealer-back-link .dashicons {
+	font-size: 16px;
+	width: 16px;
+	height: 16px;
+}
+
 /* ── Hero ────────────────────────────────────────────────────────────────── */
 .dealer-hero {
 	background: linear-gradient(135deg, var(--dp-navy) 0%, var(--dp-blue) 100%);

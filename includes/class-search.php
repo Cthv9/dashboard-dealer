@@ -201,6 +201,10 @@ class Dealer_Search {
 		$count_label  = self::count_label( $data['total'] );
 		$paged        = $data['paged'];
 
+		// La dashboard è la home dell'area riservata: questa pagina ne è un
+		// ramo e deve poterci tornare senza affidarsi al tasto "indietro".
+		$dashboard_url = Dealer_DB::dashboard_url();
+
 		ob_start();
 		require DEALER_PORTAL_PATH . 'templates/dealer-search.php';
 		return ob_get_clean();

@@ -96,7 +96,12 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 	.dealer-team-actions details[open] summary{margin-bottom:12px;}
 	.dealer-team-empty{color:var(--dt-muted);font-style:italic;}
 	.dealer-team-note{color:var(--dt-muted);font-size:.84rem;margin:8px 0 0;}
+	.dealer-team-back{display:inline-flex;align-items:center;gap:6px;margin-bottom:14px;
+		color:var(--dt-blue);text-decoration:none;font-size:.9rem;font-weight:500;}
+	.dealer-team-back:hover,.dealer-team-back:focus{color:var(--dt-blue-dk);text-decoration:underline;}
 	</style>
+
+	<a class="dealer-team-back" href="<?php echo esc_url( Dealer_DB::dashboard_url() ); ?>">← Torna alla Dashboard</a>
 
 	<div class="dealer-team-head">
 		<h2><?php echo esc_html( $title ); ?></h2>
