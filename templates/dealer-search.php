@@ -17,6 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  * $facets_html   string           HTML sidebar facet   (già escapato lato PHP)
  * $filters_html  string           HTML chip filtri     (già escapato lato PHP)
  * $results_html  string           HTML griglia + paginazione (già escapato lato PHP)
+ * $dashboard_url string           permalink della dashboard dealer
  *
  * Progressive enhancement: senza JavaScript questo è un normale form GET con
  * i pulsanti "Cerca" e "Applica filtri". Il JS intercetta il submit e aggiorna
@@ -24,6 +25,11 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  */
 ?>
 <div class="dealer-search-wrap">
+
+	<a class="dealer-back-link" href="<?php echo esc_url( $dashboard_url ); ?>">
+		<span class="dashicons dashicons-arrow-left-alt" aria-hidden="true"></span>
+		Torna alla Dashboard
+	</a>
 
 	<form class="dealer-search-form" id="dealer-search-form" method="get" action="<?php echo esc_url( $base_url ); ?>" role="search">
 

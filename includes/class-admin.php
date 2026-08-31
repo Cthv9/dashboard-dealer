@@ -642,7 +642,15 @@ class Dealer_Admin {
 
 		// Opzioni per i menu a tendina dei filtri.
 		$log_documents = self::get_filterable_documents( $filters['args']['post_ids'] );
-		$log_dealers   = self::get_filterable_dealers();
+
+		// Il menu "dealer" segue lo stesso perimetro delle statistiche: per un
+		// area manager elenca solo i dealer delle organizzazioni che segue.
+		// L'elenco completo qui esporrebbe nome ed email dell'intera rete —
+		// anagrafica altrui — anche se le righe di log restano filtrate.
+		// post_ids === null significa "nessuna restrizione": amministratore.
+		$log_dealers = ( null === $filters['args']['post_ids'] )
+			? self::get_filterable_dealers()
+			: self::scoped_dealer_users( $current_user );
 
 		// URL di export: stessi filtri della vista + nonce dedicato.
 		$export_url = self::build_export_url( $filters );
@@ -1099,29 +1107,23 @@ class Dealer_Admin {
 			}
 
 			if ( Dealer_Versioning::is_current( $id ) ) {
-				$successor = self::preview_successor( $id );
+				$chain = Dealer_Versioning::get_chain( $id );
 
-				// demote() promuove sempre la versione con seq più alta: la si
-				// declassa solo se quel candidato è davvero pubblicabile, cioè
-				// non è a sua volta nella selezione né già obsoleto. Altrimenti
-				// si finirebbe per rendere "corrente" un documento obsoleto.
-				$viable = $successor
-					&& ! in_array( $successor, $ids, true )
-					&& get_post_meta( $successor, '_doc_status', true ) !== 'obsoleto';
-
-				if ( $successor && $viable ) {
-					$chain = Dealer_Versioning::get_chain( $id );
-					if ( Dealer_Versioning::demote( $id ) ) {
-						$promoted++;
-						foreach ( $chain as $chain_post ) {
-							if ( (int) $chain_post->ID !== $id ) {
-								$reindex[ (int) $chain_post->ID ] = true;
-							}
+				// L'intera selezione va esclusa dai candidati: quei documenti
+				// stanno per diventare obsoleti a loro volta in questo stesso
+				// ciclo. Il resto della viabilità (pubblicato, non obsoleto) lo
+				// applica find_best_successor().
+				if ( Dealer_Versioning::demote( $id, $ids ) ) {
+					$promoted++;
+					foreach ( $chain as $chain_post ) {
+						if ( (int) $chain_post->ID !== $id ) {
+							$reindex[ (int) $chain_post->ID ] = true;
 						}
 					}
-				} elseif ( $successor ) {
-					// Catena senza successore promuovibile: il documento viene
-					// comunque marcato obsoleto, ma nessuno prende il suo posto.
+				} elseif ( count( $chain ) > 1 ) {
+					// Catena con storico ma senza successore promuovibile: il
+					// documento viene comunque marcato obsoleto, ma nessuno
+					// prende il suo posto.
 					$no_succ++;
 				}
 			}
@@ -1205,30 +1207,6 @@ class Dealer_Admin {
 			'promoted'  => $promoted,
 			'failed'    => $failed,
 		];
-	}
-
-	/**
-	 * Anticipa quale versione verrebbe promossa da Dealer_Versioning::demote():
-	 * la sequenza più alta della catena, escluso il documento stesso.
-	 * Replica la stessa logica di selezione, in sola lettura.
-	 */
-	private static function preview_successor( int $post_id ): int {
-		$best_id  = 0;
-		$best_seq = 0;
-
-		foreach ( Dealer_Versioning::get_chain( $post_id ) as $chain_post ) {
-			$id = (int) $chain_post->ID;
-			if ( $id === $post_id ) {
-				continue;
-			}
-			$seq = Dealer_Versioning::get_sequence( $id );
-			if ( $seq >= $best_seq ) {
-				$best_seq = $seq;
-				$best_id  = $id;
-			}
-		}
-
-		return $best_id;
 	}
 
 	// ─── AJAX: linee prodotto per brand ──────────────────────────────────────
@@ -1567,28 +1545,41 @@ class Dealer_Admin {
 		$breaks_chain   = ( $is_current && $previous_count > 0 );
 		$confirmed      = ! empty( $_POST['confirm_chain'] );
 
+		// Il successore si calcola prima di chiedere conferma: promettere che
+		// "la versione precedente tornerà corrente" quando nessuna è
+		// promuovibile — perché già obsoleta o non pubblicata — farebbe
+		// approvare all'admin una conseguenza diversa da quella reale.
+		$successor = $breaks_chain ? Dealer_Versioning::find_best_successor( $post_id ) : 0;
+
 		if ( $breaks_chain && ! $confirmed ) {
+			$plural = ( 1 === $previous_count ) ? 'e' : 'i';
 			wp_send_json_success( [
 				'needs_confirm' => true,
 				'message'       => sprintf(
-					'Questo documento è la versione corrente di una catena con %d version%s precedent%s. '
-					. 'Se lo segni obsoleto la versione precedente tornerà corrente e visibile ai dealer; '
-					. 'questo documento resterà nello storico della catena. Procedere?',
+					'Questo documento è la versione corrente di una catena con %d version%s precedent%s. %s Procedere?',
 					$previous_count,
-					$previous_count === 1 ? 'e' : 'i',
-					$previous_count === 1 ? 'e' : 'i'
+					$plural,
+					$plural,
+					$successor
+						? 'Se lo segni obsoleto la versione precedente tornerà corrente e visibile ai dealer; '
+							. 'questo documento resterà nello storico della catena.'
+						: 'Nessuna delle versioni precedenti può prenderne il posto (sono già obsolete o non pubblicate): '
+							. 'la catena resterà senza alcun documento visibile ai dealer.'
 				),
 			] );
 		}
 
+		$promoted_id = 0;
 		if ( $breaks_chain ) {
 			// demote() (non detach()): promuove la precedente ma tiene il
 			// documento obsoleto nella catena, così lo storico resta leggibile.
-			$chain = Dealer_Versioning::get_chain( $post_id );
-			Dealer_Versioning::demote( $post_id );
-			foreach ( $chain as $chain_post ) {
-				if ( (int) $chain_post->ID !== $post_id ) {
-					do_action( 'searchwp\index\post', (int) $chain_post->ID );
+			$chain       = Dealer_Versioning::get_chain( $post_id );
+			$promoted_id = Dealer_Versioning::demote( $post_id );
+			if ( $promoted_id ) {
+				foreach ( $chain as $chain_post ) {
+					if ( (int) $chain_post->ID !== $post_id ) {
+						do_action( 'searchwp\index\post', (int) $chain_post->ID );
+					}
 				}
 			}
 		}
@@ -1597,10 +1588,10 @@ class Dealer_Admin {
 		wp_update_post( [ 'ID' => $post_id, 'post_status' => 'draft' ] );
 
 		wp_send_json_success( [
-			'message' => $breaks_chain
+			'message' => $promoted_id
 				? 'Documento segnato come obsoleto. La versione precedente è tornata corrente.'
 				: 'Documento segnato come obsoleto.',
-			'reload'  => $breaks_chain,
+			'reload'  => (bool) $promoted_id,
 		] );
 	}
 

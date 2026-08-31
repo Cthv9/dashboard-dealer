@@ -189,7 +189,7 @@ $versionable = Dealer_Versioning::get_versionable_documents();
 							<legend class="screen-reader-text">Seleziona i ruoli che possono vedere questo documento</legend>
 							<label><input type="checkbox" name="doc_roles[]" value="dealer"> <strong>Dealer</strong> — accesso base</label><br>
 							<label><input type="checkbox" name="doc_roles[]" value="top_dealer"> <strong>Top Dealer</strong> — accesso esteso</label><br>
-							<label><input type="checkbox" name="doc_roles[]" value="part_center"> <strong>Part Center</strong> — ricambi e tecnico</label>
+							<label><input type="checkbox" name="doc_roles[]" value="part_center"> <strong>Parts Center</strong> — ricambi e tecnico</label>
 						</fieldset>
 						<p class="description">Seleziona almeno un ruolo.</p>
 					</td>

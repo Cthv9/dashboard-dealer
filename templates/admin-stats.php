@@ -261,7 +261,7 @@ $fmt_date = static function ( string $mysql_date ): string {
 		</h2>
 		<div class="inside">
 			<p class="description">
-				Utenti con ruolo Dealer, Top Dealer o Part Center che non scaricano da più di 90 giorni — o che non hanno mai scaricato nulla.
+				Utenti con ruolo Dealer, Top Dealer o Parts Center che non scaricano da più di 90 giorni — o che non hanno mai scaricato nulla.
 			</p>
 			<?php if ( empty( $inactive_dealers ) ) : ?>
 				<p><strong>Nessun dealer inattivo:</strong> tutti hanno scaricato almeno un documento negli ultimi 90 giorni.</p>

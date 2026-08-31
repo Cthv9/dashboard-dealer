@@ -16,7 +16,13 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) { exit; }
 global $wpdb;
 
 // ── Elimina le pagine create automaticamente all'attivazione ─────────────────
-$page_options = [ 'dealer_portal_dashboard_page_id', 'dealer_portal_search_page_id' ];
+$page_options = [
+	'dealer_portal_dashboard_page_id',
+	'dealer_portal_search_page_id',
+	'dealer_portal_team_page_id',
+	'dealer_portal_am_page_id',
+	'dealer_portal_fav_page_id',
+];
 foreach ( $page_options as $option ) {
 	$page_id = (int) get_option( $option );
 	if ( $page_id ) {
@@ -115,6 +121,7 @@ $options = [
 	'dealer_portal_version',
 	'dealer_portal_caps_revision',
 	'dealer_portal_schema_revision',
+	'dealer_portal_pages_revision',
 	'dealer_portal_notifications',
 	'dealer_portal_notification_queue',
 ];
@@ -147,6 +154,9 @@ $user_meta_keys = [
 	'_dealer_invited_at',
 	'_dealer_deactivated_by',
 	'_dealer_deactivated_at',
+	// Etichette personali sui preferiti (facoltative, per il dealer).
+	'_dealer_fav_tags',
+	'_dealer_fav_doc_tags',
 ];
 foreach ( $user_meta_keys as $meta_key ) {
 	delete_metadata( 'user', 0, $meta_key, '', true ); // true = per tutti gli utenti

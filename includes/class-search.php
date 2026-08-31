@@ -201,6 +201,10 @@ class Dealer_Search {
 		$count_label  = self::count_label( $data['total'] );
 		$paged        = $data['paged'];
 
+		// La dashboard è la home dell'area riservata: questa pagina ne è un
+		// ramo e deve poterci tornare senza affidarsi al tasto "indietro".
+		$dashboard_url = Dealer_DB::dashboard_url();
+
 		ob_start();
 		require DEALER_PORTAL_PATH . 'templates/dealer-search.php';
 		return ob_get_clean();
@@ -1041,6 +1045,57 @@ class Dealer_Search {
 
 	public static function is_favorite( int $user_id, int $post_id ): bool {
 		return in_array( $post_id, self::get_favorites( $user_id ), true );
+	}
+
+	/**
+	 * Documenti preferiti ancora accessibili al dealer, con pulizia
+	 * silenziosa di quelli che non lo sono più.
+	 *
+	 * Unico punto in cui si risolve "quali preferiti mostrare": usato dalla
+	 * dashboard e dal modulo Preferiti, così il criterio non diverge fra i
+	 * due. Un preferito il cui accesso è stato revocato — o il cui documento
+	 * è stato eliminato — sparisce senza dirlo all'utente e senza mostrarne
+	 * il titolo: rivelarlo sarebbe un'informazione che non deve più avere.
+	 * Scaduti e obsoleti restano salvati (la situazione può cambiare) ma non
+	 * compaiono nell'elenco restituito.
+	 *
+	 * @return \WP_Post[]
+	 */
+	public static function get_accessible_favorites( \WP_User $user, array $user_lines, int $limit = 0 ): array {
+		$ids = self::get_favorites( $user->ID );
+		if ( empty( $ids ) ) {
+			return [];
+		}
+
+		$docs  = [];
+		$keep  = [];
+		$dirty = false;
+
+		foreach ( $ids as $post_id ) {
+			$post = get_post( $post_id );
+
+			if ( ! $post
+				|| 'documento_dealer' !== $post->post_type
+				|| 'publish' !== $post->post_status
+				|| ! self::user_can_access_post( $user, $user_lines, $post_id ) ) {
+				$dirty = true;
+				continue;
+			}
+
+			$keep[] = $post_id;
+
+			if ( ! self::user_can_download_post( $user, $user_lines, $post_id ) ) {
+				continue;
+			}
+
+			$docs[] = $post;
+		}
+
+		if ( $dirty ) {
+			self::set_favorites( $user->ID, $keep );
+		}
+
+		return $limit > 0 ? array_slice( $docs, 0, $limit ) : $docs;
 	}
 
 	public static function count_favorites( int $user_id ): int {

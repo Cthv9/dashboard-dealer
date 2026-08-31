@@ -199,7 +199,7 @@ $am_year           = (int) ( $upload['year'] ?? (int) gmdate( 'Y' ) );
 					<div>
 						<label class="dealer-am-check"><input type="checkbox" name="doc_roles[]" value="dealer"> Dealer</label>
 						<label class="dealer-am-check"><input type="checkbox" name="doc_roles[]" value="top_dealer"> Top Dealer</label>
-						<label class="dealer-am-check"><input type="checkbox" name="doc_roles[]" value="part_center"> Part Center</label>
+						<label class="dealer-am-check"><input type="checkbox" name="doc_roles[]" value="part_center"> Parts Center</label>
 					</div>
 					<p class="dealer-am-error" data-error="doc_roles" hidden></p>
 				</div>

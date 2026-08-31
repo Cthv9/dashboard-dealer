@@ -184,9 +184,10 @@ class Dealer_Organization {
 	 * Linee effettive dell'organizzazione, applicando l'ereditarieta'.
 	 * Vedi la regola fondante nel docblock della classe.
 	 *
+	 * @param int[] $seen ID gia' attraversati in questa risalita: uso interno.
 	 * @return string[] formato "Brand|Linea"
 	 */
-	public static function get_effective_lines( int $org_id ): array {
+	public static function get_effective_lines( int $org_id, array $seen = [] ): array {
 		if ( ! self::exists( $org_id ) ) {
 			return [];
 		}
@@ -199,7 +200,17 @@ class Dealer_Organization {
 			return $own;
 		}
 
-		$inherited = self::get_effective_lines( $parent );
+		// Stesso tetto di get_ancestors(): post_parent e' un campo scrivibile e
+		// un ciclo (A madre di B, B madre di A) manderebbe la ricorsione in
+		// stack overflow, cioe' in schermata bianca su ogni pagina del portale.
+		// Interrompere restituisce le linee proprie: restringe, non allarga —
+		// coerente con la regola dell'intersezione.
+		$seen[ $org_id ] = true;
+		if ( isset( $seen[ $parent ] ) || count( $seen ) >= self::MAX_DEPTH ) {
+			return $own;
+		}
+
+		$inherited = self::get_effective_lines( $parent, $seen );
 
 		// Figlia senza linee proprie: vale esattamente quanto la madre.
 		if ( empty( $own ) ) {
@@ -214,8 +225,11 @@ class Dealer_Organization {
 	/**
 	 * Livello commerciale effettivo: quello dichiarato, altrimenti ereditato
 	 * dalla madre, altrimenti il livello base.
+	 *
+	 * @param int[] $seen ID gia' attraversati in questa risalita: uso interno.
+	 *                    Vedi get_effective_lines() per il perche' del tetto.
 	 */
-	public static function get_tier( int $org_id ): string {
+	public static function get_tier( int $org_id, array $seen = [] ): string {
 		if ( ! self::exists( $org_id ) ) {
 			return 'dealer';
 		}
@@ -225,9 +239,14 @@ class Dealer_Organization {
 			return $tier;
 		}
 
-		$parent = self::get_parent_id( $org_id );
-		if ( $parent ) {
-			return self::get_tier( $parent );
+		$parent          = self::get_parent_id( $org_id );
+		$seen[ $org_id ] = true;
+
+		// Ciclo o gerarchia troppo profonda: si ripiega sul livello base, il
+		// meno privilegiato. Un errore di configurazione non deve poter
+		// promuovere nessuno.
+		if ( $parent && ! isset( $seen[ $parent ] ) && count( $seen ) < self::MAX_DEPTH ) {
+			return self::get_tier( $parent, $seen );
 		}
 
 		return 'dealer';

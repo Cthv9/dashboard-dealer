@@ -35,6 +35,11 @@ class Dealer_DB {
 		return self::resolve_page_url( 'dealer_portal_am_page_id', '/dealer-area-manager/' );
 	}
 
+	/** URL della pagina Preferiti. */
+	public static function favorites_url(): string {
+		return self::resolve_page_url( 'dealer_portal_fav_page_id', '/dealer-preferiti/' );
+	}
+
 	/**
 	 * Legge l'ID salvato in opzione e ne risolve il permalink attuale.
 	 * Il percorso fisso resta solo come ultima risorsa, se la pagina non
@@ -59,10 +64,11 @@ class Dealer_DB {
 
 	public static function install(): void {
 		self::create_log_table();
-		// L'attivazione allinea di per sé lo schema: registrarne la revisione
-		// evita che maybe_upgrade() rifaccia subito lo stesso dbDelta().
+		// L'attivazione allinea di per sé lo schema e le pagine: registrare le
+		// revisioni evita che maybe_upgrade() rifaccia subito lo stesso lavoro.
 		update_option( 'dealer_portal_schema_revision', self::SCHEMA_REVISION );
 		self::create_pages();
+		update_option( 'dealer_portal_pages_revision', self::PAGES_REVISION );
 		self::create_protected_upload_dir();
 		self::setup_capability();
 		update_option( 'dealer_portal_version', DEALER_PORTAL_VERSION );
@@ -83,6 +89,12 @@ class Dealer_DB {
 		// gira solo all'attivazione, quindi un'installazione che si limita ad
 		// aggiornare i file non vedrebbe mai una colonna nuova.
 		self::maybe_upgrade_schema();
+
+		// E per le pagine: senza questo, un plugin aggiornato sostituendo i
+		// file (il modo normale in cui si aggiorna un sito reale, senza
+		// disattivare e riattivare) non crea mai le pagine introdotte in una
+		// versione successiva alla prima installazione.
+		self::maybe_upgrade_pages();
 
 		if ( get_option( 'dealer_portal_version' ) === DEALER_PORTAL_VERSION ) {
 			return;
@@ -113,6 +125,40 @@ class Dealer_DB {
 
 		self::create_log_table();
 		update_option( 'dealer_portal_schema_revision', self::SCHEMA_REVISION );
+	}
+
+	/**
+	 * Revisione dell'elenco delle pagine create in automatico: va incrementata
+	 * ogni volta che create_pages() guadagna una voce. Stesso principio di
+	 * CAPS_REVISION e SCHEMA_REVISION.
+	 *
+	 * create_pages() girava solo in install(), cioè solo all'attivazione: su
+	 * un sito reale un plugin si aggiorna quasi sempre sostituendo i file
+	 * senza disattivare e riattivare, quindi una pagina aggiunta in una
+	 * versione successiva (qui: Gestione Collaboratori e Area Manager) non
+	 * veniva mai creata. Chi ci contava — il titolare, l'area manager — si
+	 * trovava un 404 e nessun modo di capire perché, perché non era stato
+	 * commesso alcun errore da parte loro: mancava solo la pagina.
+	 *
+	 * 1 = Dashboard Dealer, Cerca Documenti (dalla release iniziale).
+	 * 2 = Gestione Collaboratori, Area Manager.
+	 * 3 = Preferiti.
+	 */
+	const PAGES_REVISION = 3;
+
+	/**
+	 * Crea le pagine mancanti anche su un'installazione già attiva.
+	 * create_pages() è già idempotente (adotta per slug, non duplica), quindi
+	 * richiamarla di nuovo su un sito che le ha già tutte non ha alcun
+	 * effetto collaterale.
+	 */
+	private static function maybe_upgrade_pages(): void {
+		if ( (int) get_option( 'dealer_portal_pages_revision' ) === self::PAGES_REVISION ) {
+			return;
+		}
+
+		self::create_pages();
+		update_option( 'dealer_portal_pages_revision', self::PAGES_REVISION );
 	}
 
 	private static function create_log_table(): void {
@@ -150,6 +196,11 @@ class Dealer_DB {
 	 * Crea automaticamente le due pagine WordPress necessarie al plugin,
 	 * se non esistono già. Sicuro da richiamare più volte (idempotente).
 	 */
+	/**
+	 * Elenco delle pagine create in automatico. Aggiungerne una nuova al
+	 * codice qui non basta a farla comparire su un'installazione già attiva:
+	 * vedi PAGES_REVISION più sotto.
+	 */
 	private static function create_pages(): void {
 		$pages = [
 			[
@@ -180,6 +231,12 @@ class Dealer_DB {
 				'slug'      => 'dealer-area-manager',
 				'shortcode' => '[dealer_area_manager]',
 				'option'    => 'dealer_portal_am_page_id',
+			],
+			[
+				'title'     => 'Preferiti',
+				'slug'      => 'dealer-preferiti',
+				'shortcode' => '[dealer_favorites]',
+				'option'    => 'dealer_portal_fav_page_id',
 			],
 		];
 

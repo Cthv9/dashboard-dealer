@@ -76,11 +76,10 @@ $last_login_fmt = $last_login ? gmdate( 'd/m/Y \a\l\l\e H:i', strtotime( $last_l
 			<?php endif; ?>
 		</a>
 
-		<a class="dealer-card<?php echo empty( $favorite_docs ) ? ' dealer-card-disabled' : ''; ?>"
-			href="<?php echo empty( $favorite_docs ) ? $search_url : '#dealer-preferiti'; ?>">
+		<a class="dealer-card" href="<?php echo esc_url( Dealer_DB::favorites_url() ); ?>">
 			<span class="dealer-card-icon dashicons dashicons-star-filled"></span>
 			<span class="dealer-card-title">I tuoi preferiti</span>
-			<span class="dealer-card-text">I documenti che hai segnato con la stella nella ricerca.</span>
+			<span class="dealer-card-text">Etichettali, filtrali e ritrovali in una pagina dedicata.</span>
 			<?php if ( ! empty( $favorite_docs ) ) : ?>
 				<span class="dealer-card-badge"><?php echo count( $favorite_docs ); ?></span>
 			<?php endif; ?>
@@ -169,15 +168,27 @@ $last_login_fmt = $last_login ? gmdate( 'd/m/Y \a\l\l\e H:i', strtotime( $last_l
 
 	<!-- ── I TUOI PREFERITI ──────────────────────────────────────────────── -->
 	<?php if ( ! empty( $favorite_docs ) ) : ?>
-	<h2 class="dealer-section-title" id="dealer-preferiti">
-		<span class="dashicons dashicons-star-filled"></span> I Tuoi Preferiti
-	</h2>
-	<?php if ( count( $favorite_docs ) > 1 ) : ?>
+	<div class="dealer-section-title-row">
+		<h2 class="dealer-section-title" id="dealer-preferiti">
+			<span class="dashicons dashicons-star-filled"></span> I Tuoi Preferiti
+		</h2>
+		<a class="dealer-section-link" href="<?php echo esc_url( Dealer_DB::favorites_url() ); ?>">
+			Gestisci ed etichetta i preferiti →
+		</a>
+	</div>
+	<?php
+	// Il conteggio è sul totale dei preferiti accessibili, non sulla lista
+	// mostrata qui (troncata a Dealer_Dashboard::MY_DOCS_LIMIT): lo ZIP scarica
+	// tutti i preferiti, quindi è il totale a dover stare entro il limite.
+	// Contare la lista troncata direbbe sempre di sì e offrirebbe un pulsante
+	// che il download poi rifiuta.
+	?>
+	<?php if ( $favorite_total > 1 ) : ?>
 		<div class="dealer-bulk-bar">
 			<span class="dealer-bulk-text">
 				Scarica in un unico archivio i preferiti ancora disponibili.
 			</span>
-			<?php if ( count( $favorite_docs ) <= Dealer_Search::ZIP_MAX_FILES ) : ?>
+			<?php if ( $favorite_total <= Dealer_Search::ZIP_MAX_FILES ) : ?>
 				<a class="dealer-btn dealer-btn-zip" href="<?php echo esc_url( Dealer_Search::get_zip_url( 'favorites' ) ); ?>">
 					<span class="dashicons dashicons-media-archive" aria-hidden="true"></span>
 					Scarica i preferiti in ZIP

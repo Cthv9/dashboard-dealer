@@ -37,6 +37,41 @@ class Dealer_Access_Guard {
 	public function __construct() {
 		add_action( 'admin_init', [ $this, 'block_admin_access' ], 1 );
 		add_filter( 'show_admin_bar', [ $this, 'maybe_hide_admin_bar' ] );
+		add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_layout_helper' ] );
+	}
+
+	/**
+	 * Misura della larghezza reale della finestra, usata dal layout a tutta
+	 * pagina (vedi assets/js/dealer-layout.js).
+	 *
+	 * Sta qui, e non nei singoli moduli, perché le pagine del portale sono
+	 * cinque e con stili distribuiti fra dealer.css e blocchi <style> nei
+	 * template: registrarlo una volta per l'utente del portale copre tutte
+	 * quelle esistenti e quelle che verranno. Non si usa has_shortcode() per
+	 * riconoscere la pagina — i page builder salvano il contenuto nei postmeta
+	 * e quel controllo fallirebbe, che è già costato una volta.
+	 *
+	 * Sono poche centinaia di byte senza dipendenze: caricarlo su tutto il
+	 * front-end di chi ha un ruolo del portale non ha un costo apprezzabile, e
+	 * la sua assenza degraderebbe soltanto (il CSS ricade su 100vw).
+	 */
+	public function enqueue_layout_helper(): void {
+		if ( ! is_user_logged_in() ) {
+			return;
+		}
+
+		// Anche l'amministratore, che le pagine del portale può visitarle.
+		if ( ! self::is_portal_user() && ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		wp_enqueue_script(
+			'dealer-portal-layout',
+			DEALER_PORTAL_URL . 'assets/js/dealer-layout.js',
+			[],
+			DEALER_PORTAL_VERSION,
+			false // Nell'head: deve girare prima che la pagina venga disegnata.
+		);
 	}
 
 	// ─── Riconoscimento ───────────────────────────────────────────────────────
