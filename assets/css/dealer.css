@@ -1424,3 +1424,308 @@ html.dealer-js .dealer-nojs-only {
 		justify-content: center;
 	}
 }
+
+/* ═══ Pagina "I miei preferiti" — etichette personali ═══════════════════════
+   Aggiunte in coda al foglio esistente: nessuna regola sopra viene toccata.
+   Il modulo riusa le classi condivise già definite (.dealer-back-link,
+   .dealer-empty*, .dealer-btn*, .dealer-doc-chip, .dealer-feed-icon/-body/
+   -title/-meta/-actions, .dealer-results-toolbar, .dealer-sort, .dealer-
+   section-title, .dealer-notice) e aggiunge solo ciò che gli è proprio. */
+
+.dealer-favorites-wrap {
+	background: var(--dp-gray);
+	min-height: 60vh;
+	padding: 40px 20px 60px;
+	font-family: inherit;
+	max-width: 1080px;
+	margin: 0 auto;
+}
+
+.dealer-favorites-wrap .screen-reader-text {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+/* ── Bottone "pericoloso" (elimina etichetta), non ancora nel foglio base ── */
+.dealer-btn-danger {
+	background: transparent;
+	color: #a63232;
+	border: 1px solid #e0b4b4;
+}
+
+.dealer-btn-danger:hover,
+.dealer-btn-danger:focus {
+	background: #fdf4f4;
+	color: #a63232;
+	text-decoration: none;
+}
+
+/* ── Messaggio di esito (pattern PRG) ────────────────────────────────────── */
+.dealer-fav-msg {
+	margin: 0 0 22px;
+	padding: 14px 18px;
+	border-radius: 0 var(--dp-radius) var(--dp-radius) 0;
+	border-left: 4px solid var(--dp-blue);
+	background: var(--dp-white);
+	font-size: 14px;
+	color: var(--dp-text);
+}
+
+.dealer-fav-msg-success { border-left-color: #2e7d4f; background: #f2faf5; }
+.dealer-fav-msg-error   { border-left-color: #a63232; background: #fdf4f4; }
+
+/* ── Pannello etichette ──────────────────────────────────────────────────── */
+.dealer-fav-panel {
+	background: var(--dp-white);
+	border: 1px solid var(--dp-border);
+	border-radius: var(--dp-radius);
+	box-shadow: var(--dp-shadow);
+	padding: 22px 24px;
+	margin-bottom: 28px;
+}
+
+.dealer-fav-panel .dealer-section-title {
+	margin-bottom: 6px;
+}
+
+.dealer-fav-panel-hint {
+	margin: 0 0 16px;
+	font-size: 13px;
+	color: var(--dp-muted);
+}
+
+.dealer-fav-tag-list {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	margin-bottom: 18px;
+}
+
+.dealer-fav-tag-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 10px;
+	padding: 10px 14px;
+	background: var(--dp-gray);
+	border: 1px solid var(--dp-border);
+	border-radius: 6px;
+}
+
+.dealer-fav-tag-name {
+	font-weight: 600;
+	color: var(--dp-navy);
+	flex: 1;
+	min-width: 120px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.dealer-fav-tag-row form {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	margin: 0;
+}
+
+.dealer-fav-tag-row input[type="text"] {
+	padding: 6px 9px;
+	border: 1px solid var(--dp-border);
+	border-radius: 5px;
+	font-size: 13px;
+	width: 150px;
+	color: var(--dp-text);
+}
+
+.dealer-fav-tag-row input[type="text"]:focus {
+	outline: none;
+	border-color: var(--dp-blue);
+}
+
+.dealer-fav-create-form {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	align-items: center;
+}
+
+.dealer-fav-create-form input[type="text"] {
+	flex: 1;
+	min-width: 200px;
+	padding: 9px 12px;
+	border: 1px solid var(--dp-border);
+	border-radius: 6px;
+	font-size: 14px;
+	color: var(--dp-text);
+}
+
+.dealer-fav-create-form input[type="text"]:focus {
+	outline: none;
+	border-color: var(--dp-blue);
+	box-shadow: 0 0 0 3px rgba(30, 111, 168, .12);
+}
+
+/* ── Filtro per etichetta ────────────────────────────────────────────────── */
+.dealer-fav-tagbar {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-bottom: 22px;
+}
+
+.dealer-fav-tagchip {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	background: var(--dp-white);
+	border: 1px solid var(--dp-border);
+	color: var(--dp-text);
+	border-radius: 99px;
+	padding: 6px 14px;
+	font-size: 13px;
+	font-weight: 600;
+	text-decoration: none;
+	transition: background .15s, color .15s, border-color .15s;
+}
+
+.dealer-fav-tagchip:hover,
+.dealer-fav-tagchip:focus {
+	border-color: var(--dp-blue);
+	color: var(--dp-blue);
+	text-decoration: none;
+}
+
+.dealer-fav-tagchip.is-active {
+	background: var(--dp-blue);
+	border-color: var(--dp-blue);
+	color: var(--dp-white);
+}
+
+.dealer-fav-tagchip-count {
+	opacity: .75;
+	font-size: 11.5px;
+}
+
+/* ── Gruppi ("Tutte" raggruppa per etichetta + Senza etichetta) ──────────── */
+.dealer-fav-group {
+	margin-bottom: 30px;
+}
+
+.dealer-fav-group-title {
+	font-size: 13px;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: .06em;
+	color: var(--dp-muted);
+	margin: 0 0 10px;
+}
+
+/* ── Riga preferito: intestazione + chip etichette + gestione etichette ──── */
+.dealer-fav-feed-item {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	background: var(--dp-white);
+	border: 1px solid var(--dp-border);
+	border-radius: var(--dp-radius);
+	padding: 14px 18px;
+	box-shadow: var(--dp-shadow);
+	margin-bottom: 12px;
+}
+
+.dealer-fav-feed-top {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+}
+
+.dealer-fav-item-tags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+/* ── Gestione etichette del singolo documento (details/summary nativi) ───── */
+.dealer-fav-assign {
+	border: 1px solid var(--dp-border);
+	border-radius: 6px;
+	background: var(--dp-gray);
+	font-size: 12.5px;
+}
+
+.dealer-fav-assign summary {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 7px 10px;
+	cursor: pointer;
+	font-weight: 600;
+	color: var(--dp-blue);
+	list-style: none;
+}
+
+.dealer-fav-assign summary::-webkit-details-marker {
+	display: none;
+}
+
+.dealer-fav-assign summary .dashicons {
+	font-size: 15px !important;
+	width: 15px;
+	height: 15px;
+	line-height: 15px;
+}
+
+.dealer-fav-assign-body {
+	padding: 4px 12px 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.dealer-fav-assign-checks {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px 16px;
+}
+
+.dealer-fav-assign-check {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	font-size: 12.5px;
+	color: var(--dp-text);
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+	.dealer-fav-tag-row {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.dealer-fav-tag-row input[type="text"] {
+		width: 100%;
+	}
+
+	.dealer-results-toolbar .dealer-sort {
+		width: 100%;
+	}
+
+	.dealer-results-toolbar .dealer-sort select {
+		flex: 1;
+	}
+}
+
+@media (max-width: 480px) {
+	.dealer-favorites-wrap {
+		padding: 20px 12px 40px;
+	}
+}
