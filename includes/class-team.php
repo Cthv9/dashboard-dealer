@@ -614,7 +614,7 @@ class Dealer_Team {
 		);
 
 		$site_name = wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES );
-		$dashboard = site_url( '/dashboard-dealer/' );
+		$dashboard = Dealer_DB::dashboard_url();
 		$org_name  = Dealer_Organization::get_name( $org_id );
 		$lines     = Dealer_Identity::get_effective_lines( $user );
 		$line_list = $lines ? implode( "\n  - ", array_map( [ __CLASS__, 'line_label' ], $lines ) ) : '—';

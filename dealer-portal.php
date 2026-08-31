@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Dealer Portal
  * Description:       Area riservata dealer: upload documenti, ricerca full-text, dashboard personalizzata. SearchWP supportato (opzionale).
- * Version:           1.3.0
+ * Version:           1.3.1
  * Author:            —
  * Text Domain:       dealer-portal
  * Requires PHP:      7.4
@@ -11,7 +11,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'DEALER_PORTAL_VERSION', '1.3.0' );
+define( 'DEALER_PORTAL_VERSION', '1.3.1' );
 define( 'DEALER_PORTAL_PATH',    plugin_dir_path( __FILE__ ) );
 define( 'DEALER_PORTAL_URL',     plugin_dir_url( __FILE__ ) );
 // ─── Capability ──────────────────────────────────────────────────────────────
@@ -41,6 +41,8 @@ require_once DEALER_PORTAL_PATH . 'includes/class-notifications.php';
 require_once DEALER_PORTAL_PATH . 'includes/class-access-request.php';
 require_once DEALER_PORTAL_PATH . 'includes/class-org-admin.php';
 require_once DEALER_PORTAL_PATH . 'includes/class-team.php';
+require_once DEALER_PORTAL_PATH . 'includes/class-area-manager.php';
+require_once DEALER_PORTAL_PATH . 'includes/class-access-guard.php';
 
 // Full setup on first activation.
 register_activation_hook( __FILE__, [ 'Dealer_DB', 'install' ] );
@@ -53,18 +55,19 @@ register_deactivation_hook( __FILE__, [ 'Dealer_Notifications', 'clear_scheduled
 add_action( 'plugins_loaded', [ 'Dealer_DB', 'maybe_upgrade' ] );
 
 // ─── Login Redirect ──────────────────────────────────────────────────────────
-// I dealer vengono rimandati alla dashboard dealer; gli admin al flusso standard.
+// Ogni utente del portale finisce nella propria area operativa, mai in
+// wp-admin: i dealer e i titolari sulla dashboard, gli area manager sulla loro
+// area di lavoro. Gli amministratori seguono il flusso standard di WordPress.
 add_filter( 'login_redirect', function ( string $redirect_to, string $request, $user ): string {
 	if ( is_wp_error( $user ) || ! isset( $user->roles ) || ! is_array( $user->roles ) ) {
 		return $redirect_to;
 	}
-	$dealer_roles = [ 'dealer', 'top_dealer', 'part_center' ];
-	foreach ( $dealer_roles as $role ) {
-		if ( in_array( $role, $user->roles, true ) ) {
-			return site_url( '/dashboard-dealer/' );
-		}
+	if ( ! Dealer_Access_Guard::is_portal_user( $user ) ) {
+		return $redirect_to;
 	}
-	return $redirect_to;
+	// Risolto dall'ID pagina reale, non da un percorso fisso: vedi
+	// Dealer_DB::dashboard_url() per il perché.
+	return Dealer_Access_Guard::home_url_for( $user );
 }, 10, 3 );
 
 // ─── Boot ────────────────────────────────────────────────────────────────────
@@ -90,4 +93,9 @@ add_action( 'init', static function (): void {
 	new Dealer_Access_Request();
 	new Dealer_Org_Admin();
 	new Dealer_Team();
+	new Dealer_Area_Manager();
+
+	// Deve girare in entrambi i contesti: blocca wp-admin e nasconde la barra
+	// di amministrazione agli utenti del portale.
+	new Dealer_Access_Guard();
 }, 10 );

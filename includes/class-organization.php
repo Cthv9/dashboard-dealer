@@ -65,6 +65,36 @@ class Dealer_Organization {
 		}
 	}
 
+	/**
+	 * Mappa ogni capability di un post type su un'unica capability del plugin.
+	 *
+	 * Serve ai CPT interni (organizzazioni, richieste di accesso) che non
+	 * devono in nessun caso essere governati dai permessi generici dei post:
+	 * quelli darebbero accesso a chiunque abbia edit_others_posts, cioè a
+	 * qualunque Editor del sito.
+	 *
+	 * @param string $cap Capability del plugin a cui mappare tutto.
+	 * @return array<string,string>
+	 */
+	public static function post_type_capabilities( string $cap ): array {
+		return [
+			'edit_post'              => $cap,
+			'read_post'              => $cap,
+			'delete_post'            => $cap,
+			'edit_posts'             => $cap,
+			'edit_others_posts'      => $cap,
+			'edit_private_posts'     => $cap,
+			'edit_published_posts'   => $cap,
+			'publish_posts'          => $cap,
+			'read_private_posts'     => $cap,
+			'delete_posts'           => $cap,
+			'delete_others_posts'    => $cap,
+			'delete_private_posts'   => $cap,
+			'delete_published_posts' => $cap,
+			'create_posts'           => $cap,
+		];
+	}
+
 	// ─── CPT ──────────────────────────────────────────────────────────────────
 
 	public function register_cpt(): void {
@@ -89,8 +119,12 @@ class Dealer_Organization {
 			'query_var'           => false,
 			'hierarchical'        => true,    // Abilita post_parent
 			'supports'            => [ 'title', 'page-attributes' ],
-			'capability_type'     => 'post',
+			// Permessi mappati sulla capability del plugin invece che su
+			// quelle generiche dei post: senza questo un Editor, che ha
+			// edit_others_posts, potrebbe manipolare le organizzazioni —
+			// cioè i diritti di accesso di tutta la rete.
 			'map_meta_cap'        => true,
+			'capabilities'        => self::post_type_capabilities( DEALER_PORTAL_CAP_ORGS ),
 		] );
 	}
 

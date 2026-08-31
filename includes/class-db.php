@@ -3,6 +3,58 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class Dealer_DB {
 
+	// ─── URL delle pagine del plugin ────────────────────────────────────────
+	//
+	// Le due pagine create da create_pages() vanno sempre raggiunte tramite
+	// l'ID salvato in opzione + get_permalink(), MAI con un percorso fisso
+	// come site_url('/dealer-search/'). Un percorso fisso presuppone che lo
+	// slug reale coincida esattamente con quello previsto: si rompe con
+	// permalink non "nome articolo", un'installazione in sottocartella, un
+	// amministratore che rinomina la pagina, o — il caso più comune in
+	// sviluppo — un secondo inserimento con slug suffisso (-2, -3…) dopo
+	// riattivazioni ripetute del plugin. Questo è l'unico punto che risolve
+	// questi URL: nessun altro punto del plugin deve costruirli a mano.
+
+	/** URL della pagina Dashboard Dealer, risolto dall'ID pagina reale. */
+	public static function dashboard_url(): string {
+		return self::resolve_page_url( 'dealer_portal_dashboard_page_id', '/dashboard-dealer/' );
+	}
+
+	/** URL della pagina Cerca Documenti, risolto dall'ID pagina reale. */
+	public static function search_url(): string {
+		return self::resolve_page_url( 'dealer_portal_search_page_id', '/dealer-search/' );
+	}
+
+	/** URL dell'area di gestione collaboratori del titolare. */
+	public static function team_url(): string {
+		return self::resolve_page_url( 'dealer_portal_team_page_id', '/dealer-team/' );
+	}
+
+	/** URL dell'area di lavoro dell'area manager. */
+	public static function area_manager_url(): string {
+		return self::resolve_page_url( 'dealer_portal_am_page_id', '/dealer-area-manager/' );
+	}
+
+	/**
+	 * Legge l'ID salvato in opzione e ne risolve il permalink attuale.
+	 * Il percorso fisso resta solo come ultima risorsa, se la pagina non
+	 * esiste più o l'opzione non è mai stata popolata.
+	 */
+	private static function resolve_page_url( string $option, string $fallback_path ): string {
+		$page_id = (int) get_option( $option );
+		// La pagina deve essere PUBBLICATA: get_permalink() restituisce
+		// volentieri un URL anche per una bozza o un elemento nel cestino, e
+		// quell'URL da' 404 a chiunque non possa modificare il contenuto —
+		// cioe' esattamente ai dealer. Verificare l'ID non basta.
+		if ( $page_id && 'publish' === get_post_status( $page_id ) ) {
+			$permalink = get_permalink( $page_id );
+			if ( $permalink ) {
+				return $permalink;
+			}
+		}
+		return home_url( $fallback_path );
+	}
+
 	// ─── Activation ──────────────────────────────────────────────────────────
 
 	public static function install(): void {
@@ -112,19 +164,42 @@ class Dealer_DB {
 				'shortcode' => '[dealer_search]',
 				'option'    => 'dealer_portal_search_page_id',
 			],
+			// Aree operative dei ruoli con deleghe. Vengono create in automatico
+			// come le altre: se dovessero essere costruite a mano, dimenticarne
+			// una farebbe sparire la funzione senza alcun errore visibile —
+			// il titolare semplicemente non vedrebbe la card, l'area manager
+			// resterebbe senza un posto dove lavorare.
+			[
+				'title'     => 'Gestione Collaboratori',
+				'slug'      => 'dealer-team',
+				'shortcode' => '[dealer_team]',
+				'option'    => 'dealer_portal_team_page_id',
+			],
+			[
+				'title'     => 'Area Manager',
+				'slug'      => 'dealer-area-manager',
+				'shortcode' => '[dealer_area_manager]',
+				'option'    => 'dealer_portal_am_page_id',
+			],
 		];
 
 		foreach ( $pages as $page ) {
-			// Controlla se la pagina esiste già (per slug).
+			// Controlla se la pagina esiste già (per slug). Adottiamo solo una
+			// pagina PUBBLICATA: get_page_by_path() restituisce anche bozze e
+			// pagine in attesa di revisione, e adottarne una lascerebbe i
+			// dealer davanti a un 404 con l'opzione apparentemente a posto.
 			$existing = get_page_by_path( $page['slug'], OBJECT, 'page' );
-			if ( $existing ) {
+			if ( $existing && 'publish' === get_post_status( $existing ) ) {
 				update_option( $page['option'], $existing->ID );
 				continue;
 			}
 
-			// Controlla se l'ID salvato in precedenza è ancora valido.
+			// Controlla se l'ID salvato in precedenza punta a una pagina ancora
+			// pubblicata. get_post_status() e' vero anche per 'draft' e 'trash':
+			// senza il confronto esplicito, una pagina cestinata verrebbe
+			// considerata valida e non ne verrebbe creata una nuova.
 			$saved_id = (int) get_option( $page['option'] );
-			if ( $saved_id && get_post_status( $saved_id ) ) {
+			if ( $saved_id && 'publish' === get_post_status( $saved_id ) ) {
 				continue;
 			}
 
@@ -152,6 +227,7 @@ class Dealer_DB {
 			wp_mkdir_p( $dir );
 		}
 
+		// ── Difesa 1: Apache ──────────────────────────────────────────────
 		$htaccess = $dir . '/.htaccess';
 		if ( ! file_exists( $htaccess ) ) {
 			// Blocca l'accesso HTTP diretto. I file vengono serviti via PHP (readfile).
@@ -164,10 +240,67 @@ class Dealer_DB {
 			file_put_contents( $htaccess, $rules );
 		}
 
+		// ── Difesa 2: IIS ─────────────────────────────────────────────────
+		$webconfig = $dir . '/web.config';
+		if ( ! file_exists( $webconfig ) ) {
+			$xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+				 . "<configuration>\n"
+				 . "  <system.webServer>\n"
+				 . "    <authorization>\n"
+				 . "      <deny users=\"*\" />\n"
+				 . "    </authorization>\n"
+				 . "  </system.webServer>\n"
+				 . "</configuration>\n";
+			file_put_contents( $webconfig, $xml );
+		}
+
+		// ── Difesa 3: nessun listing della cartella ───────────────────────
 		$index = $dir . '/index.php';
 		if ( ! file_exists( $index ) ) {
 			file_put_contents( $index, '<?php // Silence is golden.' );
 		}
+
+		// ── Difesa 4, quella che regge ovunque ────────────────────────────
+		// Le tre difese sopra dipendono dal server: nginx ignora .htaccess,
+		// Apache ignora web.config, e nessuna delle due impedisce l'accesso
+		// diretto dove non è configurata. Poiché il plugin viene consegnato
+		// senza sapere su cosa girerà, la protezione che DEVE reggere è
+		// un'altra: i nomi dei file su disco contengono un token casuale
+		// (vedi Dealer_Admin::storage_filename()), quindi l'URL diretto non è
+		// indovinabile su nessun server. Le regole qui sopra restano come
+		// difesa in profondità dove il server le onora.
+	}
+
+	/**
+	 * Il server in uso onora i file .htaccess?
+	 *
+	 * Euristica volutamente prudente: risponde false solo quando riconosce con
+	 * certezza un server che li ignora. Serve a mostrare un avviso a chi
+	 * installa il plugin, non a decidere una misura di sicurezza — quella non
+	 * dipende mai da questa risposta.
+	 */
+	public static function server_honours_htaccess(): bool {
+		$software = isset( $_SERVER['SERVER_SOFTWARE'] )
+			? strtolower( sanitize_text_field( wp_unslash( $_SERVER['SERVER_SOFTWARE'] ) ) )
+			: '';
+
+		if ( '' === $software ) {
+			return true; // Sconosciuto: non allarmiamo senza motivo.
+		}
+
+		foreach ( [ 'nginx', 'iis', 'microsoft-iis', 'caddy', 'lighttpd' ] as $needle ) {
+			if ( false !== strpos( $software, $needle ) ) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/** Percorso assoluto della cartella protetta dei documenti. */
+	public static function protected_dir(): string {
+		$uploads = wp_upload_dir();
+		return $uploads['basedir'] . '/dealer-docs';
 	}
 
 	/**
@@ -183,17 +316,26 @@ class Dealer_DB {
 	 */
 	private static function capability_map(): array {
 		return [
-			'administrator' => [
-				DEALER_PORTAL_CAP,        // Controllo completo.
-				DEALER_PORTAL_CAP_UPLOAD,
-				DEALER_PORTAL_CAP_LOGS,
-				DEALER_PORTAL_CAP_ORGS,
-			],
+			'administrator' => array_merge(
+				[
+					DEALER_PORTAL_CAP,        // Controllo completo.
+					DEALER_PORTAL_CAP_UPLOAD,
+					DEALER_PORTAL_CAP_LOGS,
+					DEALER_PORTAL_CAP_ORGS,
+				],
+				// Capability proprie del CPT documenti: senza queste nessuno,
+				// nemmeno l'amministratore, aprirebbe l'editor nativo di un
+				// documento. Vanno al solo amministratore — l'area manager
+				// lavora dalle schermate del plugin, che applicano il controllo
+				// di perimetro che l'editor nativo non ha.
+				Dealer_CPT::primitive_caps()
+			),
 			'area_manager'  => [
 				DEALER_PORTAL_CAP_UPLOAD, // Carica e versiona, dentro il proprio perimetro.
 				DEALER_PORTAL_CAP_LOGS,   // Legge log e statistiche.
 				// NON riceve DEALER_PORTAL_CAP (eliminazioni, richieste di
-				// accesso, notifiche) né DEALER_PORTAL_CAP_ORGS.
+				// accesso, notifiche), DEALER_PORTAL_CAP_ORGS, né le capability
+				// del CPT: l'editor nativo di WordPress aggirerebbe il perimetro.
 			],
 		];
 	}
@@ -204,7 +346,7 @@ class Dealer_DB {
 	 * versione del plugin non cambia — senza, un'installazione già aggiornata
 	 * non riceverebbe mai le capability nuove.
 	 */
-	const CAPS_REVISION = 2;
+	const CAPS_REVISION = 3;
 
 	/**
 	 * Idempotente: aggiunge solo ciò che manca e non tocca nulla se la mappa

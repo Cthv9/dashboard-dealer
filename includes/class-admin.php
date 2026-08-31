@@ -59,6 +59,7 @@ class Dealer_Admin {
 	public function __construct() {
 		add_action( 'admin_menu',             [ $this, 'register_menus' ] );
 		add_action( 'admin_enqueue_scripts',  [ $this, 'enqueue_assets' ] );
+		add_action( 'admin_notices',          [ $this, 'render_server_notice' ] );
 		add_action( 'wp_ajax_dealer_save_document',    [ $this, 'ajax_save_document' ] );
 		add_action( 'wp_ajax_dealer_get_lines',        [ $this, 'ajax_get_lines' ] );
 		add_action( 'wp_ajax_dealer_mark_obsolete',    [ $this, 'ajax_mark_obsolete' ] );
@@ -71,6 +72,44 @@ class Dealer_Admin {
 		add_action( 'edit_user_profile',      [ $this, 'render_user_fields' ] );
 		add_action( 'personal_options_update',   [ $this, 'save_user_fields' ] );
 		add_action( 'edit_user_profile_update',  [ $this, 'save_user_fields' ] );
+	}
+
+	// ─── Avviso di configurazione server ─────────────────────────────────────
+
+	/**
+	 * Avvisa chi amministra il sito quando il server ignora i file .htaccess.
+	 *
+	 * Non è una misura di sicurezza — quella è il token casuale nei nomi dei
+	 * file, che regge su qualunque server. Questo avviso serve a chi installa
+	 * il plugin per aggiungere, se vuole, la difesa in profondità che sul suo
+	 * server manca: il plugin viene consegnato a un webmaster che non
+	 * conosciamo, quindi l'informazione deve arrivargli da sola.
+	 */
+	public function render_server_notice(): void {
+		if ( ! current_user_can( DEALER_PORTAL_CAP ) ) {
+			return;
+		}
+		if ( Dealer_DB::server_honours_htaccess() ) {
+			return;
+		}
+
+		$dir = str_replace( ABSPATH, '', Dealer_DB::protected_dir() );
+		?>
+		<div class="notice notice-warning">
+			<p>
+				<strong>Dealer Portal — nota per l'amministratore di sistema.</strong>
+				Questo server non usa i file <code>.htaccess</code>, quindi la regola che
+				il plugin scrive in <code><?php echo esc_html( $dir ); ?></code> non ha effetto.
+			</p>
+			<p>
+				I documenti restano protetti perché i nomi dei file contengono un token
+				casuale e non sono indovinabili, e ogni download passa comunque dai
+				controlli del plugin. Per aggiungere una difesa in più, negare l'accesso
+				diretto a quella cartella nella configurazione del server. Con nginx:
+			</p>
+			<p><code>location ~* /uploads/dealer-docs/ { deny all; }</code></p>
+		</div>
+		<?php
 	}
 
 	// ─── Menu ────────────────────────────────────────────────────────────────
@@ -1309,6 +1348,41 @@ class Dealer_Admin {
 			}
 		}
 
+		// Nome che il dealer vedrà scaricando il file: quello "pulito", senza
+		// il token aggiunto sotto. Va salvato in _doc_filename e finisce
+		// nell'header Content-Disposition.
+		$display_filename = sanitize_file_name( (string) $_FILES['doc_file']['name'] );
+
+		// Token casuale nel nome su disco.
+		//
+		// La cartella dealer-docs/ è protetta da .htaccess (Apache) e
+		// web.config (IIS), ma nginx e altri server ignorano entrambi e il
+		// plugin viene consegnato senza sapere su cosa girerà. Poiché i nomi
+		// derivano da brand, linea e tipo documento, sarebbero prevedibili:
+		// chiunque potrebbe tentare l'URL diretto e, su un server che non
+		// onora quelle regole, scaricare il file scavalcando nonce, login e
+		// controllo di linea. Con un token casuale l'URL non è indovinabile
+		// su NESSUN server, che è l'unica garanzia che possiamo dare qui.
+		// L'estensione viene da wp_check_filetype_and_ext(), che l'ha appena
+		// validata contro la whitelist confrontando anche il contenuto reale
+		// del file — non dal nome fornito da chi carica. Chi carica documenti
+		// non è più il solo amministratore: l'area manager è un utente
+		// operativo, e l'estensione su disco è ciò che decide se un file verrà
+		// mai interpretato dal server. Deve essere una delle tre ammesse, non
+		// una stringa scelta da chi invia la richiesta.
+		$disk_ext  = strtolower( (string) ( $check['ext'] ?? '' ) );
+		if ( ! array_key_exists( $disk_ext, $allowed_mimes ) ) {
+			wp_send_json_error( [ 'message' => 'Tipo di file non consentito. Sono accettati solo PDF, XLSX e DOCX.' ] );
+		}
+
+		$disk_base = pathinfo( $display_filename, PATHINFO_FILENAME );
+		$_FILES['doc_file']['name'] = $disk_base . '-' . wp_generate_password( 20, false, false ) . '.' . $disk_ext;
+
+		// Anche il nome mostrato al dealer porta l'estensione validata: senza,
+		// un documento potrebbe presentarsi con un'estensione diversa da ciò
+		// che è davvero.
+		$display_filename = $disk_base . '.' . $disk_ext;
+
 		// Redirige l'upload nella sottocartella protetta dealer-docs/.
 		$upload_dir_filter = static function ( array $dirs ): array {
 			$dirs['subdir'] = '/dealer-docs';
@@ -1420,7 +1494,9 @@ class Dealer_Admin {
 			'_doc_file_id'            => $attachment_id,
 			'_doc_keep_original_name' => $keep_original ? 1 : 0,
 			'_doc_status'             => 'active',
-			'_doc_filename'           => basename( $uploaded['file'] ),
+			// Nome pulito, senza il token casuale presente sul disco: è quello
+			// che il dealer vede scaricando il documento.
+			'_doc_filename'           => $display_filename ?: basename( $uploaded['file'] ),
 		];
 		foreach ( $meta as $key => $value ) {
 			update_post_meta( $post_id, $key, $value );

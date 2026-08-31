@@ -29,6 +29,12 @@ class Dealer_Search {
 	/** Insiemi ammessi per il download aggregato. */
 	const ZIP_SCOPES = [ 'results', 'favorites' ];
 
+	/** Archivi ZIP consentiti a un utente nella finestra sotto. */
+	const ZIP_RATE_LIMIT_MAX = 10;
+
+	/** Finestra del limite di frequenza sugli archivi ZIP. */
+	const ZIP_RATE_LIMIT_WINDOW = 10 * MINUTE_IN_SECONDS;
+
 	/** Evita la doppia registrazione degli handler AJAX. */
 	private static bool $ajax_registered = false;
 
@@ -89,11 +95,43 @@ class Dealer_Search {
 
 	// ─── Assets ──────────────────────────────────────────────────────────────
 
+	/**
+	 * Aggancio su wp_enqueue_scripts: caso normale, asset già nell'head.
+	 *
+	 * Il rilevamento non può basarsi sul solo has_shortcode(): Elementor, Divi,
+	 * WPBakery e simili non salvano il contenuto in post_content ma nei
+	 * postmeta, e lo shortcode può anche stare in un template part o in un
+	 * widget. In quei casi il controllo fallirebbe e la pagina si aprirebbe
+	 * senza stile e senza JavaScript, senza alcun errore visibile.
+	 */
 	public function enqueue_assets(): void {
 		global $post;
-		if ( ! is_a( $post, 'WP_Post' ) || ! has_shortcode( $post->post_content, 'dealer_search' ) ) {
+
+		$has_shortcode = is_a( $post, 'WP_Post' )
+			&& has_shortcode( (string) $post->post_content, 'dealer_search' );
+
+		// Confronto anche con la pagina registrata dal plugin: regge quando il
+		// contenuto non è in post_content.
+		$is_search_page = is_a( $post, 'WP_Post' )
+			&& (int) $post->ID === (int) get_option( 'dealer_portal_search_page_id' );
+
+		if ( ! $has_shortcode && ! $is_search_page ) {
 			return;
 		}
+
+		self::enqueue_search_assets();
+	}
+
+	/**
+	 * Carica gli asset della ricerca. Idempotente: wp_enqueue_* ignora una
+	 * seconda registrazione dello stesso handle.
+	 *
+	 * Viene richiamata anche dallo shortcode durante il rendering — è la rete
+	 * di sicurezza che rende il caricamento indipendente da come la pagina è
+	 * stata costruita: se lo shortcode gira, gli asset partono. WordPress
+	 * stampa in footer ciò che viene accodato dopo wp_head.
+	 */
+	public static function enqueue_search_assets(): void {
 		wp_enqueue_style( 'dashicons' );
 		wp_enqueue_style( 'dealer-portal-dealer', DEALER_PORTAL_URL . 'assets/css/dealer.css', [], DEALER_PORTAL_VERSION );
 		wp_enqueue_script(
@@ -116,12 +154,25 @@ class Dealer_Search {
 	// ─── Shortcode render ────────────────────────────────────────────────────
 
 	public function render( $atts ): string {
+		// Rete di sicurezza sugli asset: se lo shortcode gira, la pagina ha
+		// bisogno di CSS e JS, qualunque sia il sistema che l'ha costruita.
+		// Copre i page builder, dove il rilevamento su post_content fallisce.
+		self::enqueue_search_assets();
+
 		if ( ! is_user_logged_in() ) {
 			return '<p class="dealer-notice"><a href="' . esc_url( wp_login_url( get_permalink() ) ) . '">Accedi</a> per cercare i documenti.</p>';
 		}
 		$user = wp_get_current_user();
 		if ( ! self::user_is_dealer( $user ) ) {
 			return '<p class="dealer-notice">Accesso non autorizzato.</p>';
+		}
+
+		// Organizzazione sospesa: senza un messaggio esplicito l'utente
+		// vedrebbe soltanto una libreria vuota e non avrebbe modo di capire
+		// che si tratta di una sospensione e non di un guasto.
+		if ( ! Dealer_Identity::is_active( $user ) ) {
+			return '<p class="dealer-notice">L’accesso della tua azienda ai documenti è attualmente sospeso. '
+				. 'Contatta il tuo referente commerciale per maggiori informazioni.</p>';
 		}
 
 		$user_lines = self::get_user_lines( $user->ID );
@@ -786,13 +837,40 @@ class Dealer_Search {
 		return false;
 	}
 
+	/**
+	 * Chi può ricevere un documento: i dealer e gli area manager.
+	 *
+	 * L'area manager non è un dealer, ma pubblica e aggiorna documenti:
+	 * impedirgli di aprirli sarebbe incoerente, non si mantiene un manuale che
+	 * non si può leggere. Il suo diritto sul singolo documento resta comunque
+	 * deciso da user_can_access_post(), che per lui richiede una linea nel
+	 * perimetro — questo metodo apre la porta, non la spalanca.
+	 *
+	 * Il download resta distinguibile nel registro: Dealer_Identity::
+	 * get_access_context() registra con quale titolo è avvenuto.
+	 */
+	public static function can_receive_documents( \WP_User $user ): bool {
+		return self::user_is_dealer( $user ) || Dealer_Identity::is_area_manager( $user );
+	}
+
 	/** Linee assegnate al dealer (user meta _dealer_lines), sempre come array di stringhe. */
+	/**
+	 * Linee dell'utente per la COSTRUZIONE DELL'INTERFACCIA: alimenta il facet
+	 * "Linea prodotto" e restringe il filtro richiesto a ciò che l'utente ha.
+	 *
+	 * Passa dal risolutore di identità, non dal meta storico. Leggendo
+	 * `_dealer_lines` direttamente, un utente del modello a organizzazioni —
+	 * per esempio un collaboratore invitato dal titolare, che quel meta non lo
+	 * ha mai avuto — si ritroverebbe senza alcun filtro per linea. L'accesso
+	 * resterebbe comunque corretto (user_can_access_post() risolve per conto
+	 * suo), ma il portale gli risulterebbe monco senza un motivo visibile.
+	 */
 	public static function get_user_lines( int $user_id ): array {
-		$lines = get_user_meta( $user_id, '_dealer_lines', true );
-		if ( ! is_array( $lines ) ) {
+		$user = get_user_by( 'id', $user_id );
+		if ( ! $user ) {
 			return [];
 		}
-		return array_values( array_filter( array_map( 'strval', $lines ) ) );
+		return Dealer_Identity::get_effective_lines( $user );
 	}
 
 	/**
@@ -915,7 +993,7 @@ class Dealer_Search {
 		if ( 'obsoleto' === get_post_meta( $post_id, '_doc_status', true ) ) {
 			return false;
 		}
-		if ( ! self::user_is_dealer( $user ) || ! self::user_can_access_post( $user, $user_lines, $post_id ) ) {
+		if ( ! self::can_receive_documents( $user ) || ! self::user_can_access_post( $user, $user_lines, $post_id ) ) {
 			return false;
 		}
 		if ( self::is_expired_doc( $post_id ) ) {
@@ -1070,7 +1148,7 @@ class Dealer_Search {
 		// Controllo accesso doppio.
 		$user_lines = self::get_user_lines( $user->ID );
 
-		if ( ! self::user_is_dealer( $user ) || ! self::user_can_access_post( $user, $user_lines, $post_id ) ) {
+		if ( ! self::can_receive_documents( $user ) || ! self::user_can_access_post( $user, $user_lines, $post_id ) ) {
 			wp_die( esc_html__( 'Non hai i permessi per scaricare questo documento.', 'dealer-portal' ), '', [ 'response' => 403 ] );
 		}
 
@@ -1260,6 +1338,19 @@ class Dealer_Search {
 			wp_die( esc_html__( 'Non hai i permessi per scaricare questi documenti.', 'dealer-portal' ), '', [ 'response' => 403 ] );
 		}
 
+		// Limite di frequenza. La creazione dell'archivio è di gran lunga
+		// l'operazione più costosa del portale — legge fino a 200 MB dal disco,
+		// li comprime e scrive un file temporaneo — e la può innescare
+		// qualunque utente autenticato con un semplice link. Senza un tetto,
+		// bastano poche richieste ripetute per saturare CPU e spazio su disco.
+		if ( ! self::zip_rate_limit_ok( $user->ID ) ) {
+			wp_die(
+				esc_html__( 'Hai richiesto troppi archivi in poco tempo. Attendi qualche minuto e riprova.', 'dealer-portal' ),
+				'',
+				[ 'response' => 429 ]
+			);
+		}
+
 		if ( ! class_exists( 'ZipArchive' ) ) {
 			wp_die(
 				esc_html__( 'Il download in un unico archivio non è disponibile su questo server: manca l\'estensione PHP ZipArchive. Scarica i documenti singolarmente dalla ricerca.', 'dealer-portal' ),
@@ -1329,6 +1420,26 @@ class Dealer_Search {
 	 * @param int[] $ids
 	 * @return array[] voci con id, path, name, size.
 	 */
+	/**
+	 * Consente un numero limitato di archivi per utente in una finestra breve.
+	 *
+	 * Il contatore sta in un transient per utente: se lo storage dei transient
+	 * non fosse disponibile la funzione lascia passare, perché negare un
+	 * download legittimo per un problema di cache sarebbe peggio del rischio
+	 * che il limite copre.
+	 */
+	private static function zip_rate_limit_ok( int $user_id ): bool {
+		$key   = 'dealer_zip_rl_' . $user_id;
+		$count = (int) get_transient( $key );
+
+		if ( $count >= self::ZIP_RATE_LIMIT_MAX ) {
+			return false;
+		}
+
+		set_transient( $key, $count + 1, self::ZIP_RATE_LIMIT_WINDOW );
+		return true;
+	}
+
 	private static function collect_zip_entries( \WP_User $user, array $user_lines, array $ids ): array {
 		$uploads   = wp_upload_dir();
 		$real_base = realpath( $uploads['basedir'] ?? '' );

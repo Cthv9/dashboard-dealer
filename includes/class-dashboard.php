@@ -14,11 +14,35 @@ class Dealer_Dashboard {
 
 	// ─── Assets ──────────────────────────────────────────────────────────────
 
+	/**
+	 * Aggancio su wp_enqueue_scripts: caso normale, asset già nell'head.
+	 *
+	 * Non ci si può basare sul solo has_shortcode(): i page builder salvano il
+	 * contenuto nei postmeta, non in post_content, e lì il controllo
+	 * fallirebbe lasciando la dashboard senza stile e senza alcun errore.
+	 */
 	public function enqueue_assets(): void {
 		global $post;
-		if ( ! is_a( $post, 'WP_Post' ) || ! has_shortcode( $post->post_content, 'dealer_dashboard' ) ) {
+
+		$has_shortcode = is_a( $post, 'WP_Post' )
+			&& has_shortcode( (string) $post->post_content, 'dealer_dashboard' );
+
+		$is_dashboard_page = is_a( $post, 'WP_Post' )
+			&& (int) $post->ID === (int) get_option( 'dealer_portal_dashboard_page_id' );
+
+		if ( ! $has_shortcode && ! $is_dashboard_page ) {
 			return;
 		}
+
+		self::enqueue_dashboard_assets();
+	}
+
+	/**
+	 * Idempotente, richiamata anche dallo shortcode durante il rendering: è la
+	 * rete di sicurezza che rende il caricamento indipendente da come la
+	 * pagina è stata costruita.
+	 */
+	public static function enqueue_dashboard_assets(): void {
 		wp_enqueue_style( 'dashicons' );
 		wp_enqueue_style( 'dealer-portal-dealer', DEALER_PORTAL_URL . 'assets/css/dealer.css', [], DEALER_PORTAL_VERSION );
 	}
@@ -32,6 +56,10 @@ class Dealer_Dashboard {
 	// ─── Shortcode render ────────────────────────────────────────────────────
 
 	public function render( $atts ): string {
+		// Rete di sicurezza sugli asset: se lo shortcode gira, la pagina ha
+		// bisogno del CSS, qualunque sia il sistema che l'ha costruita.
+		self::enqueue_dashboard_assets();
+
 		// Reindirizza al login se non autenticato.
 		if ( ! is_user_logged_in() ) {
 			wp_safe_redirect( wp_login_url( get_permalink() ) );
@@ -49,8 +77,9 @@ class Dealer_Dashboard {
 			return '<p class="dealer-notice">Accesso non autorizzato.</p>';
 		}
 
-		$user_lines = get_user_meta( $user->ID, '_dealer_lines', true );
-		if ( ! is_array( $user_lines ) ) { $user_lines = []; }
+		// Dal risolutore di identità, non dal meta storico: per un utente del
+		// modello a organizzazioni quel meta può essere assente o superato.
+		$user_lines = Dealer_Identity::get_effective_lines( $user );
 
 		$last_login = get_user_meta( $user->ID, '_dealer_last_login', true );
 

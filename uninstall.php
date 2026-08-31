@@ -37,7 +37,25 @@ remove_role( 'area_manager' );
 // Le costanti non sono definite qui (il plugin non è caricato): valori letterali.
 $admin_role = get_role( 'administrator' );
 if ( $admin_role ) {
-	foreach ( [ 'manage_dealer_portal', 'upload_dealer_docs', 'view_dealer_logs', 'manage_dealer_orgs' ] as $dealer_cap ) {
+	$dealer_caps = [
+		'manage_dealer_portal',
+		'upload_dealer_docs',
+		'view_dealer_logs',
+		'manage_dealer_orgs',
+		// Capability proprie del CPT documenti (Dealer_CPT::primitive_caps()),
+		// ripetute qui come letterali perché il plugin non è caricato.
+		'edit_documenti_dealer',
+		'edit_others_documenti_dealer',
+		'edit_private_documenti_dealer',
+		'edit_published_documenti_dealer',
+		'publish_documenti_dealer',
+		'read_private_documenti_dealer',
+		'delete_documenti_dealer',
+		'delete_others_documenti_dealer',
+		'delete_private_documenti_dealer',
+		'delete_published_documenti_dealer',
+	];
+	foreach ( $dealer_caps as $dealer_cap ) {
 		$admin_role->remove_cap( $dealer_cap );
 	}
 }

@@ -718,33 +718,20 @@ class Dealer_Notifications {
 
 	// ─── URL utili ───────────────────────────────────────────────────────────
 
-	/** Pagina di ricerca documenti (override in impostazioni, poi opzione, poi slug). */
+	/** Pagina di ricerca documenti (override in impostazioni, poi Dealer_DB). */
 	public static function search_url(): string {
 		$options = self::get_options();
 		if ( '' !== (string) $options['search_url'] ) {
 			return (string) $options['search_url'];
 		}
-
-		$page_id = (int) get_option( 'dealer_portal_search_page_id' );
-		if ( $page_id ) {
-			$permalink = get_permalink( $page_id );
-			if ( $permalink ) {
-				return $permalink;
-			}
-		}
-		return home_url( '/dealer-search/' );
+		// Risoluzione canonica in Dealer_DB::search_url(): dall'ID pagina
+		// reale, mai da un percorso fisso.
+		return Dealer_DB::search_url();
 	}
 
 	/** Dashboard dealer. */
 	public static function dashboard_url(): string {
-		$page_id = (int) get_option( 'dealer_portal_dashboard_page_id' );
-		if ( $page_id ) {
-			$permalink = get_permalink( $page_id );
-			if ( $permalink ) {
-				return $permalink;
-			}
-		}
-		return home_url( '/dashboard-dealer/' );
+		return Dealer_DB::dashboard_url();
 	}
 
 	private static function site_name(): string {
