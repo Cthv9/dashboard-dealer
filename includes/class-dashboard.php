@@ -77,6 +77,17 @@ class Dealer_Dashboard {
 			return '<p class="dealer-notice">Accesso non autorizzato.</p>';
 		}
 
+		// Organizzazione sospesa: stesso messaggio e stessa regola della pagina
+		// di ricerca. Senza questo controllo la dashboard proverebbe comunque a
+		// costruire le sue liste, e get_accessible_favorites() — non trovando
+		// più accessibile nessun preferito — li cancellerebbe tutti dal user
+		// meta. Una sospensione temporanea distruggerebbe la libreria personale
+		// del dealer in modo irreversibile.
+		if ( ! Dealer_Identity::is_active( $user ) ) {
+			return '<p class="dealer-notice">L’accesso della tua azienda ai documenti è attualmente sospeso. '
+				. 'Contatta il tuo referente commerciale per maggiori informazioni.</p>';
+		}
+
 		// Dal risolutore di identità, non dal meta storico: per un utente del
 		// modello a organizzazioni quel meta può essere assente o superato.
 		$user_lines = Dealer_Identity::get_effective_lines( $user );
@@ -93,7 +104,13 @@ class Dealer_Dashboard {
 		// "I miei documenti": preferiti e cronologia di download. Entrambe le
 		// liste ripassano dal controllo accessi — un documento può essere stato
 		// revocato o scaduto dopo essere stato salvato o scaricato.
-		$favorite_docs   = $this->get_favorite_docs( $user, $user_lines, self::MY_DOCS_LIMIT );
+		// I preferiti si risolvono per intero e si troncano dopo: il template
+		// decide con il totale se lo ZIP dei preferiti rientra nel limite, e
+		// contare la lista già troncata risponderebbe sempre di sì. Una sola
+		// chiamata anche perché ognuna riscrive il user meta ripulito.
+		$all_favorites   = $this->get_favorite_docs( $user, $user_lines );
+		$favorite_total  = count( $all_favorites );
+		$favorite_docs   = array_slice( $all_favorites, 0, self::MY_DOCS_LIMIT );
 		$downloaded_docs = $this->get_downloaded_docs( $user, $user_lines, self::MY_DOCS_LIMIT );
 
 		// Ruolo da mostrare nel badge (il primo trovato nella lista ordinata).
@@ -187,10 +204,11 @@ class Dealer_Dashboard {
 	 *
 	 * @return \WP_Post[]
 	 */
-	private function get_favorite_docs( \WP_User $user, array $user_lines, int $limit ): array {
+	private function get_favorite_docs( \WP_User $user, array $user_lines ): array {
 		// Delegato a Dealer_Search: stesso criterio usato dal modulo Preferiti,
-		// niente logica duplicata che potrebbe divergere nel tempo.
-		return Dealer_Search::get_accessible_favorites( $user, $user_lines, $limit );
+		// niente logica duplicata che potrebbe divergere nel tempo. Senza
+		// limite: tronca il chiamante, che ha bisogno anche del totale.
+		return Dealer_Search::get_accessible_favorites( $user, $user_lines );
 	}
 
 	// ─── Query helper: cronologia download ───────────────────────────────────

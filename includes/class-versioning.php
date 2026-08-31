@@ -211,18 +211,23 @@ class Dealer_Versioning {
 	 * Da usare quando il documento continua a esistere (es. viene marcato
 	 * obsoleto); usa detach() solo quando sta per essere eliminato.
 	 *
+	 * @param int[] $exclude ID da non promuovere, oltre ai filtri di
+	 *                       find_best_successor(): serve alle azioni massive,
+	 *                       dove gli altri documenti selezionati stanno per
+	 *                       diventare obsoleti a loro volta e non possono
+	 *                       prendere questo posto.
 	 * @return int ID della versione promossa, 0 se non c'era nessun candidato
 	 *             (in quel caso non viene modificato nulla).
 	 */
-	public static function demote( int $post_id ): int {
+	public static function demote( int $post_id, array $exclude = [] ): int {
 		if ( ! self::is_current( $post_id ) ) {
 			return 0;
 		}
 
-		$promoted = self::find_best_successor( $post_id );
+		$promoted = self::find_best_successor( $post_id, $exclude );
 		if ( ! $promoted ) {
-			// Catena di un solo elemento: declassarlo lo renderebbe invisibile
-			// senza che nulla prenda il suo posto.
+			// Nessun candidato promuovibile: declassare renderebbe il documento
+			// invisibile senza che nulla prenda il suo posto.
 			return 0;
 		}
 
@@ -233,15 +238,36 @@ class Dealer_Versioning {
 	}
 
 	/**
-	 * Versione con sequenza più alta della catena, escluso $post_id.
+	 * Versione promuovibile con sequenza più alta della catena, escluso $post_id.
+	 *
+	 * "Promuovibile" non è solo "la più recente": un documento obsoleto o non
+	 * pubblicato, promosso a versione corrente, lascerebbe la catena con una
+	 * corrente che nessun dealer vede in ricerca — peggio che non promuovere
+	 * nulla, perché il documento appena declassato sparisce comunque.
+	 *
+	 * Il filtro vive qui e non nei chiamanti: demote() e detach() devono
+	 * comportarsi allo stesso modo ovunque, e una copia della regola per ogni
+	 * punto di chiamata è esattamente ciò che prima o poi diverge.
+	 *
+	 * @param int[] $exclude ID da scartare a prescindere dal loro stato.
 	 */
-	private static function find_best_successor( int $post_id ): int {
+	public static function find_best_successor( int $post_id, array $exclude = [] ): int {
 		$best_id  = 0;
 		$best_seq = 0;
+		$exclude  = array_map( 'intval', $exclude );
 
 		foreach ( self::get_chain( $post_id ) as $post ) {
 			$id = (int) $post->ID;
-			if ( $id === $post_id ) {
+			if ( $id === $post_id || in_array( $id, $exclude, true ) ) {
+				continue;
+			}
+			// get_chain() include le bozze (lo storico resta leggibile
+			// all'admin), ma solo un documento pubblicato e non obsoleto può
+			// diventare la versione corrente.
+			if ( 'publish' !== get_post_status( $id ) ) {
+				continue;
+			}
+			if ( 'obsoleto' === get_post_meta( $id, '_doc_status', true ) ) {
 				continue;
 			}
 			$seq = self::get_sequence( $id );
