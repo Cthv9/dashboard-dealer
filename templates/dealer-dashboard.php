@@ -76,11 +76,10 @@ $last_login_fmt = $last_login ? gmdate( 'd/m/Y \a\l\l\e H:i', strtotime( $last_l
 			<?php endif; ?>
 		</a>
 
-		<a class="dealer-card<?php echo empty( $favorite_docs ) ? ' dealer-card-disabled' : ''; ?>"
-			href="<?php echo empty( $favorite_docs ) ? $search_url : '#dealer-preferiti'; ?>">
+		<a class="dealer-card" href="<?php echo esc_url( Dealer_DB::favorites_url() ); ?>">
 			<span class="dealer-card-icon dashicons dashicons-star-filled"></span>
 			<span class="dealer-card-title">I tuoi preferiti</span>
-			<span class="dealer-card-text">I documenti che hai segnato con la stella nella ricerca.</span>
+			<span class="dealer-card-text">Etichettali, filtrali e ritrovali in una pagina dedicata.</span>
 			<?php if ( ! empty( $favorite_docs ) ) : ?>
 				<span class="dealer-card-badge"><?php echo count( $favorite_docs ); ?></span>
 			<?php endif; ?>
@@ -169,9 +168,14 @@ $last_login_fmt = $last_login ? gmdate( 'd/m/Y \a\l\l\e H:i', strtotime( $last_l
 
 	<!-- ── I TUOI PREFERITI ──────────────────────────────────────────────── -->
 	<?php if ( ! empty( $favorite_docs ) ) : ?>
-	<h2 class="dealer-section-title" id="dealer-preferiti">
-		<span class="dashicons dashicons-star-filled"></span> I Tuoi Preferiti
-	</h2>
+	<div class="dealer-section-title-row">
+		<h2 class="dealer-section-title" id="dealer-preferiti">
+			<span class="dashicons dashicons-star-filled"></span> I Tuoi Preferiti
+		</h2>
+		<a class="dealer-section-link" href="<?php echo esc_url( Dealer_DB::favorites_url() ); ?>">
+			Gestisci ed etichetta i preferiti →
+		</a>
+	</div>
 	<?php if ( count( $favorite_docs ) > 1 ) : ?>
 		<div class="dealer-bulk-bar">
 			<span class="dealer-bulk-text">

@@ -188,43 +188,9 @@ class Dealer_Dashboard {
 	 * @return \WP_Post[]
 	 */
 	private function get_favorite_docs( \WP_User $user, array $user_lines, int $limit ): array {
-		$ids = Dealer_Search::get_favorites( $user->ID );
-		if ( empty( $ids ) ) {
-			return [];
-		}
-
-		$docs  = [];
-		$keep  = [];
-		$dirty = false;
-
-		foreach ( $ids as $post_id ) {
-			$post = get_post( $post_id );
-
-			// Documento sparito, non pubblicato o non più accessibile: si toglie
-			// dai preferiti senza dirlo all'utente e senza mostrarne nulla.
-			if ( ! $post
-				|| 'documento_dealer' !== $post->post_type
-				|| 'publish' !== $post->post_status
-				|| ! Dealer_Search::user_can_access_post( $user, $user_lines, $post_id ) ) {
-				$dirty = true;
-				continue;
-			}
-
-			$keep[] = $post_id;
-
-			// Scaduti e obsoleti restano salvati ma fuori dall'elenco.
-			if ( ! Dealer_Search::user_can_download_post( $user, $user_lines, $post_id ) ) {
-				continue;
-			}
-
-			$docs[] = $post;
-		}
-
-		if ( $dirty ) {
-			Dealer_Search::set_favorites( $user->ID, $keep );
-		}
-
-		return array_slice( $docs, 0, $limit );
+		// Delegato a Dealer_Search: stesso criterio usato dal modulo Preferiti,
+		// niente logica duplicata che potrebbe divergere nel tempo.
+		return Dealer_Search::get_accessible_favorites( $user, $user_lines, $limit );
 	}
 
 	// ─── Query helper: cronologia download ───────────────────────────────────

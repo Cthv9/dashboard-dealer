@@ -35,6 +35,11 @@ class Dealer_DB {
 		return self::resolve_page_url( 'dealer_portal_am_page_id', '/dealer-area-manager/' );
 	}
 
+	/** URL della pagina Preferiti. */
+	public static function favorites_url(): string {
+		return self::resolve_page_url( 'dealer_portal_fav_page_id', '/dealer-preferiti/' );
+	}
+
 	/**
 	 * Legge l'ID salvato in opzione e ne risolve il permalink attuale.
 	 * Il percorso fisso resta solo come ultima risorsa, se la pagina non
@@ -137,8 +142,9 @@ class Dealer_DB {
 	 *
 	 * 1 = Dashboard Dealer, Cerca Documenti (dalla release iniziale).
 	 * 2 = Gestione Collaboratori, Area Manager.
+	 * 3 = Preferiti.
 	 */
-	const PAGES_REVISION = 2;
+	const PAGES_REVISION = 3;
 
 	/**
 	 * Crea le pagine mancanti anche su un'installazione già attiva.
@@ -225,6 +231,12 @@ class Dealer_DB {
 				'slug'      => 'dealer-area-manager',
 				'shortcode' => '[dealer_area_manager]',
 				'option'    => 'dealer_portal_am_page_id',
+			],
+			[
+				'title'     => 'Preferiti',
+				'slug'      => 'dealer-preferiti',
+				'shortcode' => '[dealer_favorites]',
+				'option'    => 'dealer_portal_fav_page_id',
 			],
 		];
 

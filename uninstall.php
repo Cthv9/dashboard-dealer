@@ -21,6 +21,7 @@ $page_options = [
 	'dealer_portal_search_page_id',
 	'dealer_portal_team_page_id',
 	'dealer_portal_am_page_id',
+	'dealer_portal_fav_page_id',
 ];
 foreach ( $page_options as $option ) {
 	$page_id = (int) get_option( $option );
@@ -153,6 +154,9 @@ $user_meta_keys = [
 	'_dealer_invited_at',
 	'_dealer_deactivated_by',
 	'_dealer_deactivated_at',
+	// Etichette personali sui preferiti (facoltative, per il dealer).
+	'_dealer_fav_tags',
+	'_dealer_fav_doc_tags',
 ];
 foreach ( $user_meta_keys as $meta_key ) {
 	delete_metadata( 'user', 0, $meta_key, '', true ); // true = per tutti gli utenti

@@ -135,6 +135,30 @@
 	gap: 6px;
 }
 
+.dealer-section-title-row {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 12px;
+	flex-wrap: wrap;
+}
+.dealer-section-title-row .dealer-section-title {
+	margin-bottom: 0;
+}
+.dealer-section-link {
+	font-size: 0.88rem;
+	font-weight: 600;
+	color: var(--dp-blue);
+	text-decoration: none;
+	white-space: nowrap;
+	margin-bottom: 16px;
+}
+.dealer-section-link:hover,
+.dealer-section-link:focus {
+	color: var(--dp-blue-dk);
+	text-decoration: underline;
+}
+
 /* ── Card grid ───────────────────────────────────────────────────────────── */
 .dealer-card-grid {
 	display: grid;

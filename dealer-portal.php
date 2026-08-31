@@ -42,6 +42,7 @@ require_once DEALER_PORTAL_PATH . 'includes/class-access-request.php';
 require_once DEALER_PORTAL_PATH . 'includes/class-org-admin.php';
 require_once DEALER_PORTAL_PATH . 'includes/class-team.php';
 require_once DEALER_PORTAL_PATH . 'includes/class-area-manager.php';
+require_once DEALER_PORTAL_PATH . 'includes/class-favorites.php';
 require_once DEALER_PORTAL_PATH . 'includes/class-access-guard.php';
 
 // Full setup on first activation.
@@ -87,13 +88,18 @@ add_action( 'init', static function (): void {
 		new Dealer_Dashboard();
 	}
 
-	// Moduli attivi su entrambi i contesti: cron/email e richieste di accesso
-	// devono rispondere sia in admin sia sul front-end.
+	// Moduli attivi su entrambi i contesti: cron/email, richieste di accesso e
+	// i moduli con delega devono rispondere sia in admin sia sul front-end,
+	// perché admin-ajax.php gira in contesto admin (is_admin() === true) pur
+	// essendo l'endpoint che il front-end chiama. Istanziare un modulo con
+	// endpoint AJAX solo nel ramo front-end lo renderebbe irraggiungibile da
+	// admin-ajax.php — è la stessa causa già trovata per Dealer_Search.
 	new Dealer_Notifications();
 	new Dealer_Access_Request();
 	new Dealer_Org_Admin();
 	new Dealer_Team();
 	new Dealer_Area_Manager();
+	new Dealer_Favorites();
 
 	// Deve girare in entrambi i contesti: blocca wp-admin e nasconde la barra
 	// di amministrazione agli utenti del portale.
