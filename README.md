@@ -20,6 +20,7 @@ I diritti di accesso appartengono all'**organizzazione** (l'azienda dealer), non
 - Blocco automatico dei documenti scaduti: esclusi dalla ricerca, HTTP 403 al download
 - Richieste di accesso self-service con coda di approvazione admin
 - Capability separate (`upload_dealer_docs`, `view_dealer_logs`, `manage_dealer_orgs`) invece di un'unica capability amministrativa
+- **wp-admin chiuso a tutti gli utenti del portale**, area manager compresi: chi usa il portale lavora sulle pagine del portale, non nel backend di WordPress. Barra di amministrazione nascosta, redirect dopo il login sulla propria area. Unica eccezione `profile.php`, perché la password è dell'utente
 
 ### Ricerca (dealer)
 - Ricerca a faccette: sidebar con filtri a selezione multipla e conteggi live, aggiornamento AJAX senza reload
@@ -30,11 +31,14 @@ I diritti di accesso appartengono all'**organizzazione** (l'azienda dealer), non
 - Ricerca full-text via SearchWP 4.x, con fallback alla ricerca nativa WP
 
 ### Libreria personale (dealer)
-- Preferiti: stella su ogni card, sezione dedicata in dashboard
+- Preferiti: stella su ogni card, anteprima in dashboard e **pagina dedicata** (`[dealer_favorites]`)
+- **Etichette personali**: il dealer crea le proprie etichette, le assegna ai preferiti, filtra e ordina la propria raccolta. Sono sue e visibili solo a lui — nessun amministratore le vede né le imposta
 - Cronologia dei propri download
 - Storico versioni consultabile e scaricabile dalla card
 - Download aggregato in ZIP dei risultati filtrati o dei preferiti
 - Dashboard con documenti recenti, documenti in scadenza e referente commerciale
+- Link di ritorno alla dashboard da ogni pagina del portale: la dashboard è la home dell'area riservata, ogni altra pagina ne è un ramo
+- Layout a tutta larghezza: le pagine escono dal contenitore del tema e usano lo schermo, con ripiego automatico sui temi che ritagliano ciò che deborda
 
 ### Gestione documenti (admin e area manager)
 - Wizard di caricamento in 5 step con drag-and-drop, rinomina file e validazione MIME
@@ -77,14 +81,19 @@ I diritti di accesso appartengono all'**organizzazione** (l'azienda dealer), non
 1. Scaricare o clonare il repository come ZIP.
 2. In WordPress admin, andare in **Plugin → Aggiungi nuovo → Carica plugin** e selezionare il file ZIP.
 3. Cliccare **Attiva plugin**.
-4. Due pagine vengono create automaticamente:
+4. Cinque pagine vengono create automaticamente:
    - **Dashboard Dealer** (slug: `dashboard-dealer`, shortcode: `[dealer_dashboard]`)
    - **Cerca Documenti** (slug: `dealer-search`, shortcode: `[dealer_search]`)
+   - **Preferiti** (slug: `dealer-preferiti`, shortcode: `[dealer_favorites]`)
+   - **Gestione Collaboratori** (slug: `dealer-team`, shortcode: `[dealer_team]`)
+   - **Area Manager** (slug: `dealer-area-manager`, shortcode: `[dealer_area_manager]`)
 5. La tabella custom `{prefisso}_dealer_download_log` viene creata automaticamente.
 6. I ruoli custom (`dealer`, `top_dealer`, `part_center`, `area_manager`) vengono registrati; le capability (`manage_dealer_portal`, `upload_dealer_docs`, `view_dealer_logs`, `manage_dealer_orgs`) vengono assegnate ai ruoli corretti.
 7. La cartella protetta `uploads/dealer-docs/` viene creata con `.htaccess` che nega l'accesso HTTP diretto.
 
-Per il modulo richieste di accesso, creare manualmente una pagina pubblica contenente lo shortcode `[dealer_access_request]`. Per la gestione dei collaboratori da parte del titolare, creare una pagina riservata con lo shortcode `[dealer_team]`. Sono le uniche due pagine non create automaticamente: la loro collocazione dipende dal sito.
+L'unica pagina **non** creata automaticamente è quella delle richieste di accesso: va creata a mano, pubblica, con lo shortcode `[dealer_access_request]`, perché la sua collocazione nel sito è una scelta editoriale.
+
+Le pagine create automaticamente vengono ricontrollate a ogni aggiornamento del plugin, non solo alla prima attivazione: chi aggiorna sostituendo i file trova comunque le pagine nuove. Ogni link interno del portale è risolto dall'ID della pagina, quindi rinominarle o spostarle non rompe nulla.
 
 ### Aggiornamento da una versione precedente alla 1.3.0
 
@@ -126,6 +135,8 @@ Vale solo per gli utenti **senza** un'organizzazione assegnata: il meta storico 
    - le **organizzazioni** che segue (`_am_orgs`) — il sottoalbero di ciascuna è incluso automaticamente;
    - le **linee prodotto** su cui può pubblicare (`_am_lines`).
 3. Con questo può caricare, versionare e marcare obsoleti i documenti sulle sue linee, e vedere log e statistiche limitati al suo perimetro. Non può eliminare definitivamente né toccare organizzazioni, utenti o impostazioni.
+
+Tutto questo avviene **sul front-end**, nella sua area di lavoro (`[dealer_area_manager]`): caricamento, aggiornamento delle versioni, archivio e statistiche del perimetro. L'area manager non è un tecnico del sito e non entra mai in wp-admin — dopo il login viene portato direttamente lì.
 
 ### Brand, linee e tipi di documento
 
@@ -180,6 +191,7 @@ Le revisioni di uno stesso documento formano una **catena**. Una sola versione p
 3. La **ricerca** (`/dealer-search/`) filtra per brand, linea, tipo e anno tramite la sidebar a faccette, con conteggi che si aggiornano a ogni selezione.
 4. Ogni card permette di scaricare il documento, aggiungerlo ai preferiti e — se esiste — consultare lo storico delle versioni precedenti.
 5. Il pulsante di download aggregato scarica in un unico ZIP i risultati filtrati o i preferiti.
+6. La pagina **Preferiti** raccoglie tutto ciò che ha messo da parte e gli permette di organizzarlo a modo suo: etichette che crea lui (fino a un tetto), assegnabili a più documenti, con filtro per etichetta e ordinamento. Da ogni pagina un link riporta alla dashboard.
 
 ## Workflow Titolare
 
@@ -191,6 +203,17 @@ Un utente con funzione **titolare** (assegnata dall'amministratore in **Organizz
 4. **Disattivare** un collaboratore che ha lasciato l'azienda — l'account WordPress resta, così il suo storico download rimane tracciabile, ma perde ogni ruolo dealer.
 
 Non può in nessun caso creare altri titolari, assegnare ruoli arbitrari, o concedere più linee di quante l'azienda ne possieda.
+
+## Workflow Area Manager
+
+Dopo il login viene portato sulla sua **area di lavoro** (`[dealer_area_manager]`), non in wp-admin — che gli è chiuso come a ogni altro utente del portale. Da lì:
+
+1. **Carica** un documento nuovo sulle proprie linee, con lo stesso wizard dell'amministratore.
+2. **Aggiorna** un documento esistente pubblicandone una nuova versione, che entra nella catena e sostituisce la precedente.
+3. **Marca obsoleto** un documento che non è più valido. Non lo elimina definitivamente: l'eliminazione dal server resta all'amministratore, perché è irreversibile e cancella il file.
+4. Consulta **archivio, log e statistiche** limitati al proprio perimetro.
+
+Ogni scrittura è rivalidata lato server sul doppio perimetro (organizzazioni seguite e linee di pubblicazione): l'interfaccia non mostra ciò che il server rifiuterebbe, ma è il server a decidere.
 
 ---
 
@@ -214,7 +237,10 @@ dashboard-dealer/
 │   ├── class-notifications.php     Email, cron, preferenze, impostazioni
 │   ├── class-access-request.php    Richieste di accesso self-service
 │   ├── class-org-admin.php         Interfaccia amministrativa delle organizzazioni
-│   └── class-team.php              Delega al titolare: gestione dei propri collaboratori
+│   ├── class-team.php              Delega al titolare: gestione dei propri collaboratori
+│   ├── class-area-manager.php      Area di lavoro front-end dell'area manager
+│   ├── class-favorites.php         Pagina preferiti ed etichette personali del dealer
+│   └── class-access-guard.php      wp-admin chiuso agli utenti del portale, redirect e barra admin
 ├── templates/
 │   ├── admin-upload.php            Wizard upload 5 step
 │   ├── admin-archive.php           Archivio con filtri e azioni di gruppo
@@ -232,12 +258,14 @@ dashboard-dealer/
 │   ├── dealer-search-results.php   Griglia risultati e barra ZIP
 │   ├── dealer-search-card.php      Card documento
 │   ├── dealer-search-card-extras.php  Stella preferiti e storico versioni
+│   ├── dealer-favorites.php        Pagina preferiti con etichette personali
 │   ├── dealer-team.php             Area del titolare per la gestione collaboratori
+│   ├── am-workspace.php            Area di lavoro dell'area manager
 │   ├── access-request-form.php     Form pubblico
 │   └── email-*.php                 Layout e corpi delle email
 └── assets/
     ├── css/{admin,dealer}.css
-    └── js/{admin-upload,dealer-search}.js
+    └── js/{admin-upload,dealer-search,dealer-am,dealer-layout}.js
 ```
 
 ---
@@ -317,6 +345,8 @@ Indici su `user_id`, `post_id`, `download_date`. `access_context` è stata aggiu
 | `_am_lines` | array | Perimetro dell'area manager: linee su cui può pubblicare |
 | `_dealer_last_login` | string | Datetime MySQL dell'ultimo accesso |
 | `_dealer_favorites` | array | ID dei documenti preferiti (max 200) |
+| `_dealer_fav_tags` | array | Etichette personali del dealer sui preferiti: `[ id => etichetta ]` |
+| `_dealer_fav_doc_tags` | array | Assegnazione etichette → documenti preferiti: `[ post_id => [ tag_id ] ]` |
 | `_dealer_notify_new` | string | `'1'`/`'0'` — attiva se il meta è assente |
 | `_dealer_notify_expiring` | string | `'1'`/`'0'` — attiva se il meta è assente |
 | `_referente_nome` / `_referente_email` / `_referente_telefono` | string | Referente commerciale (modello storico; nel modello a organizzazioni il referente sta sull'organizzazione) |
@@ -333,10 +363,14 @@ Indici su `user_id`, `post_id`, `download_date`. `access_context` è stata aggiu
 | `dealer_portal_version` | Versione installata |
 | `dealer_portal_dashboard_page_id` | ID pagina dashboard |
 | `dealer_portal_search_page_id` | ID pagina ricerca |
+| `dealer_portal_fav_page_id` | ID pagina preferiti |
+| `dealer_portal_team_page_id` | ID pagina gestione collaboratori |
+| `dealer_portal_am_page_id` | ID pagina area manager |
 | `dealer_portal_notifications` | Impostazioni del modulo notifiche |
 | `dealer_portal_notification_queue` | Coda di invio email |
 | `dealer_portal_caps_revision` | Contatore di revisione della mappa capability → ruoli, per riparare le assegnazioni senza richiedere la riattivazione |
 | `dealer_portal_schema_revision` | Contatore di revisione dello schema della tabella log, stesso meccanismo delle capability |
+| `dealer_portal_pages_revision` | Contatore di revisione dell'elenco delle pagine del portale: crea quelle mancanti su un'installazione già attiva, senza richiedere la riattivazione |
 
 ### Capability
 
@@ -389,6 +423,29 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 ---
 
 ## Changelog
+
+### 1.3.2
+
+Chiusura del backend agli utenti del portale, pagina dei preferiti, e una revisione dell'intero lavoro riga per riga.
+
+**Novità**
+
+- L'**area manager lavora sul front-end**: caricamento, versioni, archivio e statistiche del perimetro nella sua area di lavoro (`[dealer_area_manager]`). Il presupposto era sbagliato: gli era stata data la capability di caricare ma l'unica interfaccia per farlo stava in wp-admin, dove non deve entrare.
+- **wp-admin chiuso** a dealer, titolari e area manager: redirect all'area di competenza, barra di amministrazione nascosta, `admin-ajax.php` e `admin-post.php` liberi perché sono endpoint e non schermate, `profile.php` consentita perché la password è dell'utente.
+- **Pagina dei preferiti** dedicata (`[dealer_favorites]`) con **etichette personali**: il dealer crea le proprie etichette, le assegna, filtra e ordina. Nessun JavaScript: form POST con nonce e pattern PRG.
+- **Ritorno alla dashboard** da ogni pagina del portale.
+- **Layout a tutta larghezza**: le pagine escono dal contenitore del tema — tarato sulla lunghezza di riga di un articolo, non su un'applicazione — e rimettono il contenuto entro 1440px. Nessuna modifica al tema. `assets/js/dealer-layout.js` misura la finestra senza la barra di scorrimento (in CSS `100vw` la include, e su Windows produrrebbe uno scorrimento orizzontale) e, se un contenitore del tema ritaglia ciò che deborda, riporta le pagine dentro invece di lasciarle tagliate.
+- Corretta l'etichetta del ruolo **"Parts Center"**, anche sulle installazioni dove il ruolo era già stato creato con il nome sbagliato.
+
+**Correzioni**
+
+- Le pagine del portale ora vengono create anche su un'installazione già attiva, non solo alla prima attivazione: chi aggiornava sostituendo i file trovava 404 sulle pagine nuove.
+- La dashboard non verificava la sospensione dell'organizzazione. Costruiva comunque le sue liste e, non trovando più accessibile nessun preferito, li cancellava tutti: una sospensione temporanea distruggeva in modo irreversibile la libreria personale del dealer.
+- Il menu "dealer" dei log download elencava nome ed email di **tutta la rete** anche a un area manager, mentre le righe di log erano correttamente filtrate. Ora segue lo stesso perimetro delle statistiche.
+- Marcare obsoleto un documento poteva promuovere a "versione corrente" un documento a sua volta obsoleto o in bozza, lasciando la catena senza nulla di visibile in ricerca. Il criterio di scelta del successore ora vive in un solo punto e vale per ogni percorso.
+- Il pulsante "Scarica i preferiti in ZIP" della dashboard confrontava il limite con i preferiti *mostrati* (al massimo 8) invece che con il totale: oltre il tetto compariva un pulsante che il download poi rifiutava.
+- Correggere l'etichetta di un ruolo azzerava il **ruolo predefinito del sito** (WordPress lo riporta a `subscriber` quando si rimuove il ruolo predefinito).
+- La risalita della gerarchia delle organizzazioni non aveva il tetto di profondità dichiarato: un ciclo in `post_parent` mandava la ricorsione in stack overflow, cioè schermata bianca su ogni pagina del portale.
 
 ### 1.3.1
 Correzioni a difetti strutturali emersi al primo collaudo su un'installazione reale. Tutte progettate per reggere senza richiedere configurazioni al server o al tema: il plugin viene consegnato a chi amministra il sito, non installato da chi lo ha scritto.

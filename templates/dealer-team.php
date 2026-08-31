@@ -33,7 +33,18 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 	.dealer-team-wrap{--dt-navy:#0a1628;--dt-blue:#1e6fa8;--dt-blue-dk:#155c91;--dt-gray:#f4f6f8;
 		--dt-border:#dce5ea;--dt-text:#1a2535;--dt-muted:#52616b;--dt-warn:#b8860b;--dt-danger:#a63232;
 		--dt-radius:8px;--dt-shadow:0 4px 14px rgba(0,0,0,.07);
-		color:var(--dt-text);max-width:1080px;margin:0 auto;}
+		color:var(--dt-text);box-sizing:border-box;
+		/* Stessa uscita dal contenitore del tema usata dalle altre pagine del
+		   portale: vedi il blocco "Wrapper globale" in assets/css/dealer.css.
+		   --dp-vw arriva da assets/js/dealer-layout.js; senza JS ricade su
+		   100vw. Il contenuto resta comunque entro 1080px. */
+		width:var(--dp-vw,100vw);max-width:var(--dp-vw,100vw);
+		margin-left:calc(50% - var(--dp-vw,100vw) / 2);
+		margin-right:calc(50% - var(--dp-vw,100vw) / 2);
+		padding:0 max(16px,calc((var(--dp-vw,100vw) - 1080px) / 2));}
+	/* Ripiego applicato da dealer-layout.js se un contenitore del tema
+	   ritaglia ciò che deborda: stretto ma integro. */
+	.dealer-team-wrap.dp-no-bleed{width:auto;max-width:1080px;margin:0 auto;padding:0;}
 	.dealer-team-head{background:var(--dt-navy);color:#fff;border-radius:var(--dt-radius);
 		padding:24px 28px;margin-bottom:24px;}
 	.dealer-team-head h2{margin:0 0 6px;color:#fff;font-size:1.5rem;line-height:1.25;}
