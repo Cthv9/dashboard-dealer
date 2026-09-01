@@ -130,6 +130,9 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 	.dealer-am-table tr:last-child td{border-bottom:0;}
 	.dealer-am-doc-title{font-weight:600;color:var(--am-navy);display:block;}
 	.dealer-am-doc-file{color:var(--am-muted);font-size:.8rem;word-break:break-all;}
+	.dealer-am-doc-view{display:inline-flex;align-items:center;margin-left:6px;color:var(--am-blue);vertical-align:middle;}
+	.dealer-am-doc-view:hover,.dealer-am-doc-view:focus{color:var(--am-blue-dk);}
+	.dealer-am-doc-view .dashicons{font-size:16px;width:16px;height:16px;line-height:16px;}
 	.dealer-am-doc-actions{display:flex;flex-wrap:wrap;gap:8px;}
 	.dealer-am-pager{display:flex;flex-wrap:wrap;gap:6px;margin-top:16px;align-items:center;}
 	.dealer-am-pager a,.dealer-am-pager span{padding:6px 12px;border-radius:6px;font-size:.86rem;

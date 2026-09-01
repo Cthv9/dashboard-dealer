@@ -18,8 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 $type_label  = (string) ( $doc_types[ $item['type'] ] ?? $item['type'] );
 $is_new      = Dealer_Search::is_new_doc( $item['id'] );
 $is_expiring = Dealer_Search::is_expiring_doc( $item['id'] );
-$download_url = Dealer_Search::get_download_url( $item['id'] );
-$icon         = Dealer_Search::get_file_icon_svg( $item['filename'] );
+$icon = Dealer_Search::get_file_icon_svg( $item['filename'] );
 
 // Estratto contestuale SearchWP quando c'è un termine di ricerca.
 $excerpt = '';
@@ -74,11 +73,10 @@ if ( '' !== $search_term && function_exists( 'searchwp_get_contextual_excerpt' )
 		<?php else : ?>
 			<span class="dealer-doc-downloads"></span>
 		<?php endif; ?>
-		<a href="<?php echo esc_url( $download_url ); ?>"
-			class="dealer-btn dealer-btn-download"
-			data-post="<?php echo esc_attr( $item['id'] ); ?>">
-			<span class="dashicons dashicons-download" aria-hidden="true"></span> Scarica
-		</a>
+		<?php
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped — markup già escapato da render_document_actions()
+		echo Dealer_Search::render_document_actions( $item['id'], $item['filename'], [ 'with_label' => true ] );
+		?>
 	</div>
 
 </article>

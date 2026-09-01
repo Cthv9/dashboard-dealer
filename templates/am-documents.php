@@ -141,6 +141,14 @@ $am_states = [
 										title="Scarica il documento">
 										<?php echo esc_html( $am_doc['filename'] ); ?>
 									</a>
+									<?php if ( Dealer_Search::is_previewable( $am_doc['filename'] ) ) : ?>
+										<a class="dealer-am-doc-view"
+											href="<?php echo esc_url( Dealer_Search::get_view_url( (int) $am_doc['id'] ) ); ?>"
+											target="_blank" rel="noopener" title="Apri nel browser">
+											<span class="dashicons dashicons-visibility" aria-hidden="true"></span>
+											<span class="screen-reader-text">Apri <?php echo esc_html( $am_doc['filename'] ); ?> nel browser</span>
+										</a>
+									<?php endif; ?>
 								<?php else : ?>
 									<span class="dealer-am-doc-file"><?php echo esc_html( $am_doc['filename'] ); ?></span>
 								<?php endif; ?>

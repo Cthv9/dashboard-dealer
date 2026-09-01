@@ -754,11 +754,15 @@ class Dealer_Search {
 				$label = 'Versione ' . Dealer_Versioning::get_sequence( $prev_id );
 			}
 
+			$prev_filename = (string) get_post_meta( $prev_id, '_doc_filename', true );
+
 			$out[] = [
-				'id'    => $prev_id,
-				'label' => $label,
-				'date'  => (string) $prev->post_date,
-				'url'   => self::get_download_url( $prev_id ),
+				'id'          => $prev_id,
+				'label'       => $label,
+				'date'        => (string) $prev->post_date,
+				'url'         => self::get_download_url( $prev_id ),
+				'view_url'    => self::get_view_url( $prev_id ),
+				'previewable' => self::is_previewable( $prev_filename ),
 			];
 		}
 
@@ -1238,7 +1242,9 @@ class Dealer_Search {
 			wp_die( esc_html__( 'Accesso al file non consentito.', 'dealer-portal' ), '', [ 'response' => 403 ] );
 		}
 
-		// Registra il download nel log.
+		// Registra il download nel log: vale anche per l'anteprima "Vedi", che
+		// trasferisce comunque il contenuto del file al browser — è un accesso
+		// al documento allo stesso titolo di un download, non un evento minore.
 		Dealer_DB::log_download( $post_id );
 
 		// Serve il file con header di sicurezza.
@@ -1246,13 +1252,23 @@ class Dealer_Search {
 		$mime_type = get_post_mime_type( $attachment_id ) ?: 'application/octet-stream';
 		$file_size = filesize( $real_file );
 
+		// "Vedi" (apertura nel browser, invece del download forzato) è concesso
+		// solo per i PDF: è l'unico formato, fra quelli ammessi dalla whitelist
+		// di caricamento (PDF/XLSX/DOCX), che ogni browser sa aprire da solo —
+		// per gli altri, "inline" produrrebbe comunque un download o un errore.
+		// Il flag arriva dal client (get_view_url()), ma la decisione resta
+		// sempre server-side sul mime type reale del file: un ?inline=1
+		// aggiunto a mano su un altro documento non cambia nulla.
+		$wants_inline = isset( $_GET['inline'] ) && '1' === $_GET['inline'];
+		$disposition  = ( $wants_inline && 'application/pdf' === $mime_type ) ? 'inline' : 'attachment';
+
 		// Svuota tutti i buffer di output prima di inviare il file.
 		while ( ob_get_level() ) {
 			ob_end_clean();
 		}
 
 		header( 'Content-Type: '        . $mime_type );
-		header( 'Content-Disposition: attachment; filename="' . rawurlencode( $filename ) . '"' );
+		header( 'Content-Disposition: ' . $disposition . '; filename="' . rawurlencode( $filename ) . '"' );
 		header( 'Content-Length: '      . $file_size );
 		header( 'X-Content-Type-Options: nosniff' );
 		header( 'Cache-Control: no-store, no-cache, must-revalidate, max-age=0' );
@@ -1784,6 +1800,70 @@ class Dealer_Search {
 			'dealer_download' => $post_id,
 			'nonce'           => wp_create_nonce( 'dealer_download_' . $post_id ),
 		], home_url( '/' ) );
+	}
+
+	/**
+	 * URL di anteprima: stesso endpoint e stesso nonce del download (stessa
+	 * risorsa, stesso permesso), con il solo flag "inline" che handle_download()
+	 * onora unicamente se il file è davvero un PDF.
+	 */
+	public static function get_view_url( int $post_id ): string {
+		return add_query_arg( [
+			'dealer_download' => $post_id,
+			'inline'          => 1,
+			'nonce'           => wp_create_nonce( 'dealer_download_' . $post_id ),
+		], home_url( '/' ) );
+	}
+
+	/** Il pulsante "Vedi" ha senso solo per i PDF: sono l'unico formato, fra
+	 * quelli caricabili, che ogni browser apre da solo senza scaricarlo. */
+	public static function is_previewable( string $filename ): bool {
+		return 'pdf' === strtolower( pathinfo( $filename, PATHINFO_EXTENSION ) );
+	}
+
+	/**
+	 * Markup dei pulsanti di azione su un documento — "Vedi" (solo se
+	 * previewable) e "Scarica" (sempre). Unico punto che li genera: gli stessi
+	 * due pulsanti compaiono nella griglia di ricerca, nella dashboard, nei
+	 * preferiti e nell'area di lavoro dell'area manager, e duplicare il
+	 * markup in ognuno significherebbe aggiornarlo in quattro posti diversi
+	 * a ogni ritocco (esattamente il tipo di divergenza che questo plugin
+	 * cerca sempre di evitare sui punti che decidono un accesso).
+	 *
+	 * @param int    $post_id
+	 * @param string $filename    Nome file originale — decide solo se mostrare
+	 *                            "Vedi"; l'idoneità reale è rivalidata server-side.
+	 * @param array  $args {
+	 *     @type string $class      Classe dimensionale aggiuntiva (es. 'dealer-btn-sm'
+	 *                              per le liste compatte della dashboard; '' per la
+	 *                              dimensione piena della card di ricerca).
+	 *     @type bool   $with_label Testo oltre all'icona (default false: solo icona).
+	 * }
+	 */
+	public static function render_document_actions( int $post_id, string $filename, array $args = [] ): string {
+		$args  = array_merge( [ 'class' => '', 'with_label' => false ], $args );
+		$extra = '' !== $args['class'] ? ' ' . sanitize_html_class( $args['class'] ) : '';
+
+		$html = '';
+
+		if ( self::is_previewable( $filename ) ) {
+			$html .= '<a href="' . esc_url( self::get_view_url( $post_id ) ) . '" class="dealer-btn dealer-btn-view' . $extra . '" target="_blank" rel="noopener" title="Apri nel browser">'
+				. '<span class="dashicons dashicons-visibility" aria-hidden="true"></span>'
+				. ( $args['with_label'] ? ' Vedi' : '' )
+				. '</a>';
+		}
+
+		$html .= '<a href="' . esc_url( self::get_download_url( $post_id ) ) . '" class="dealer-btn dealer-btn-download' . $extra . '" title="Scarica">'
+			. '<span class="dashicons dashicons-download" aria-hidden="true"></span>'
+			. ( $args['with_label'] ? ' Scarica' : '' )
+			. '</a>';
+
+		// Avvolto in un contenitore invece di restituire i due <a> come figli
+		// diretti: nei contesti con più elementi allo stesso livello (es. il
+		// contatore download in .dealer-doc-foot, spaziato con
+		// justify-content:space-between) due figli in più romperebbero quella
+		// spaziatura. Il contenitore conta come un solo figlio, sempre.
+		return '<span class="dealer-doc-actions">' . $html . '</span>';
 	}
 
 	public static function get_file_icon_svg( string $filename ): string {

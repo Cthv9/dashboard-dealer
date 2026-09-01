@@ -49,6 +49,46 @@ class Dealer_Access_Guard {
 		add_filter( 'show_admin_bar', [ $this, 'maybe_hide_admin_bar' ] );
 		add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_layout_helper' ] );
 		add_action( 'wp_footer', [ $this, 'render_floating_logout' ] );
+		add_filter( 'body_class', [ $this, 'add_body_class' ] );
+	}
+
+	/**
+	 * Riconosce le cinque pagine create da Dealer_DB::create_pages(), dall'ID
+	 * salvato in opzione — mai dallo slug o dal titolo, che chi amministra il
+	 * sito può cambiare senza che qui smetta di funzionare (stessa logica di
+	 * Dealer_DB::resolve_page_url(), letta in senso inverso: lì un ID diventa
+	 * un URL, qui un ID di pagina corrente viene confrontato con quelli
+	 * salvati).
+	 */
+	private static function is_plugin_page( int $page_id ): bool {
+		if ( ! $page_id ) {
+			return false;
+		}
+
+		static $ids = null;
+		if ( null === $ids ) {
+			$ids = array_filter( array_map( 'absint', [
+				get_option( 'dealer_portal_dashboard_page_id' ),
+				get_option( 'dealer_portal_search_page_id' ),
+				get_option( 'dealer_portal_team_page_id' ),
+				get_option( 'dealer_portal_am_page_id' ),
+				get_option( 'dealer_portal_fav_page_id' ),
+			] ) );
+		}
+
+		return in_array( $page_id, $ids, true );
+	}
+
+	/**
+	 * Classe sul <body> delle cinque pagine del portale, per agganciarci CSS
+	 * che deve valere solo lì — es. centrare il titolo di pagina del tema
+	 * (vedi dealer.css) — senza toccare il tema e senza indovinare uno slug.
+	 */
+	public function add_body_class( array $classes ): array {
+		if ( is_page() && self::is_plugin_page( get_queried_object_id() ) ) {
+			$classes[] = 'dealer-portal-page';
+		}
+		return $classes;
 	}
 
 	/** Vedi $logout_shown_elsewhere. */
