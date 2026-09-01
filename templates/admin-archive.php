@@ -17,7 +17,7 @@ $in30      = gmdate( 'Y-m-d', strtotime( '+30 days' ) );
 // ma le azioni distruttive restano dell'amministratore: eliminazione definitiva
 // e azioni di gruppo. Nasconderle qui evita pulsanti che il server rifiuta —
 // l'autorizzazione vera resta nei rispettivi handler AJAX.
-$can_manage   = current_user_can( DEALER_PORTAL_CAP );
+$can_manage   = Dealer_DB::user_can( DEALER_PORTAL_CAP );
 $current_user = wp_get_current_user();
 $colspan      = $can_manage ? 9 : 8;
 ?>

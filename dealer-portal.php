@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Dealer Portal
  * Description:       Area riservata per la distribuzione controllata di documenti a reti di utenti esterni: permessi granulari per organizzazione, versionamento, ricerca a faccette. SearchWP supportato (opzionale).
- * Version:           1.4.5
+ * Version:           1.4.6
  * Author:            DF
  * Text Domain:       dealer-portal
  * Requires PHP:      7.4
@@ -11,7 +11,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'DEALER_PORTAL_VERSION', '1.4.5' );
+define( 'DEALER_PORTAL_VERSION', '1.4.6' );
 define( 'DEALER_PORTAL_PATH',    plugin_dir_path( __FILE__ ) );
 define( 'DEALER_PORTAL_URL',     plugin_dir_url( __FILE__ ) );
 // ─── Capability ──────────────────────────────────────────────────────────────
@@ -61,7 +61,10 @@ add_action( 'plugins_loaded', [ 'Dealer_DB', 'maybe_upgrade' ] );
 // Dealer_DB::grant_admin_caps() per il caso reale che ha portato a questo.
 // Registrato qui e non in una classe istanziata su 'init': il filtro deve
 // essere attivo prima che si costruisca il menu di amministrazione.
-add_filter( 'user_has_cap', [ 'Dealer_DB', 'grant_admin_caps' ] );
+add_filter( 'user_has_cap', [ 'Dealer_DB', 'grant_admin_caps' ], PHP_INT_MAX );
+// E la mappatura 'do_not_allow' di terzi, che scavalcherebbe il filtro sopra,
+// per le nostre quattro capability viene annullata: vedi unmap_do_not_allow().
+add_filter( 'map_meta_cap', [ 'Dealer_DB', 'unmap_do_not_allow' ], PHP_INT_MAX, 2 );
 
 // ─── Login Redirect ──────────────────────────────────────────────────────────
 // Ogni utente del portale finisce nella propria area operativa, mai in

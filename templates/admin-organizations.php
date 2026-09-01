@@ -17,7 +17,7 @@
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 // Difesa in profondita': il template non viene mai reso senza capability.
-if ( ! current_user_can( DEALER_PORTAL_CAP_ORGS ) ) {
+if ( ! Dealer_DB::user_can( DEALER_PORTAL_CAP_ORGS ) ) {
 	wp_die( esc_html__( 'Accesso non consentito.', 'dealer-portal' ) );
 }
 

@@ -446,7 +446,27 @@ class Dealer_DB {
 	 * @param array $allcaps Capability risolte dell'utente.
 	 * @return array
 	 */
+	/**
+	 * "Puo' fare questa cosa?", con la regola che nel progetto e' sempre stata
+	 * implicita e che va detta a voce alta: l'amministratore di WordPress e'
+	 * sopra ogni ruolo del portale, area manager compreso.
+	 *
+	 * grant_admin_caps() gliele concede gia' a runtime, ma quel filtro puo'
+	 * essere scavalcato da terzi (e su un sito reale lo e' stato). Questo
+	 * controllo non passa da nessun filtro sulle nostre capability: chi
+	 * amministra WordPress entra, punto. Ogni schermata riservata del plugin
+	 * passa di qui invece di interrogare current_user_can() da sola.
+	 */
+	public static function user_can( string $cap ): bool {
+		return current_user_can( $cap ) || current_user_can( 'manage_options' );
+	}
+
 	public static function grant_admin_caps( $allcaps ) {
+		// Registrato a priorita' PHP_INT_MAX: la diagnostica su un sito reale ha
+		// mostrato il ruolo administrator CON le capability e l'utente
+		// administrator SENZA — cioe' un altro plugin che le nega a runtime con
+		// questo stesso filtro. Chi risponde per ultimo vince: per le capability
+		// di questo plugin l'ultima parola deve essere del plugin.
 		if ( ! is_array( $allcaps ) || empty( $allcaps['manage_options'] ) ) {
 			return $allcaps;
 		}
@@ -460,6 +480,31 @@ class Dealer_DB {
 		}
 
 		return $allcaps;
+	}
+
+	/**
+	 * Alcuni plugin mappano le capability che non conoscono su 'do_not_allow',
+	 * che in WP_User::has_cap() scavalca QUALUNQUE filtro user_has_cap: il
+	 * rifiuto e' deciso prima ancora di chiedere. Per le quattro capability di
+	 * questo plugin la mappatura la decidiamo noi: identita', come da default
+	 * di WordPress per le capability primitive.
+	 *
+	 * Limitato alle quattro del portale e non alle capability del CPT: quelle
+	 * passano dalla mappatura di WordPress per i post type, che un
+	 * 'do_not_allow' puo' usarlo legittimamente.
+	 *
+	 * @param array  $caps Capability primitive richieste.
+	 * @param string $cap  Capability richiesta in origine.
+	 * @return array
+	 */
+	public static function unmap_do_not_allow( $caps, $cap ) {
+		$ours = [ DEALER_PORTAL_CAP, DEALER_PORTAL_CAP_UPLOAD, DEALER_PORTAL_CAP_LOGS, DEALER_PORTAL_CAP_ORGS ];
+
+		if ( in_array( $cap, $ours, true ) && is_array( $caps ) && in_array( 'do_not_allow', $caps, true ) ) {
+			return [ $cap ];
+		}
+
+		return $caps;
 	}
 
 	private static function setup_capability(): void {
