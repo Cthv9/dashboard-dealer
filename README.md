@@ -435,6 +435,17 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 
 ## Changelog
 
+### 1.4.2
+
+Ripristina **Ruoli e Linee**, la schermata che nella versione in produzione elencava gli utenti del portale e che il modello a organizzazioni aveva fatto sparire senza rimpiazzarla.
+
+Il modello a organizzazioni ha spostato i diritti dall'utente all'azienda — corretto — ma ha tolto all'amministratore l'unico punto da cui guardare le **persone**: per verificare un utente bisognava già sapere in quale organizzazione cercarlo, e chi non lo sapeva restava senza risposta. È la ragione per cui ogni percorso sembrava un vicolo cieco.
+
+- Nuova voce **Dealer Portal → Ruoli e Linee**: tutti gli utenti del portale (Dealer, Top Dealer, Parts Center, Area Manager) con ruolo, organizzazione e funzione, **linee effettive già risolte** (ereditarietà e restrizioni comprese), stato attivo/sospeso. Filtro per ruolo, ricerca, paginazione.
+- Per ogni riga la colonna Linee dice cosa significano davvero: per un dealer *«vede i documenti di queste linee»*, per un area manager *«può pubblicare su queste linee»* — due cose diverse che un conteggio unico avrebbe confuso.
+- Avviso in cima quando ci sono utenti **senza nessuna linea**: dealer che non vedono niente, area manager che non possono pubblicare.
+- **Non si assegna nulla da qui**: ogni riga porta all'unico punto che scrive quel valore (Organizzazioni per i dealer, Area Manager per il perimetro, il profilo per chi non è ancora assegnato). Due strade per lo stesso dato finirebbero per divergere.
+
 ### 1.4.1
 
 - Fix: sul profilo di un area manager la sezione del plugin cambiava anche titolo (`Dealer Portal — Area Manager`), e il risultato era che sembrava **sparita** invece che sostituita — un effetto collaterale della 1.4.0 segnalato subito al primo collaudo. L'intestazione torna a essere `Impostazioni Dealer Portal`, la stessa dei dealer, con sotto la spiegazione di perché per questo ruolo il campo *Linee Prodotto Assegnate* non compare e dove si imposta invece il perimetro.

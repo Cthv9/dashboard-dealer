@@ -38,6 +38,18 @@ class Dealer_Org_Admin {
 	 */
 	const AM_MENU_SLUG = 'dealer-portal-area-managers';
 
+	/**
+	 * Slug del sottomenu "Ruoli e Linee".
+	 *
+	 * Il modello a organizzazioni ha spostato i diritti dall'utente all'azienda,
+	 * ma ha lasciato l'amministratore senza un punto da cui guardare le PERSONE:
+	 * per verificare un utente bisognava gia' sapere in quale organizzazione
+	 * cercarlo. Questa schermata risponde alla domanda che ci si pone davvero —
+	 * "chi sono i miei utenti e cosa vede ciascuno" — e da ogni riga porta al
+	 * punto giusto dove correggere.
+	 */
+	const ROLES_MENU_SLUG = 'dealer-portal-roles-lines';
+
 	/** Radici mostrate per pagina nell'albero (i sottoalberi seguono la radice). */
 	const ROOTS_PER_PAGE = 20;
 
@@ -94,6 +106,20 @@ class Dealer_Org_Admin {
 			self::AM_MENU_SLUG,
 			[ $this, 'render_am_page' ]
 		);
+
+		add_submenu_page(
+			'dealer-portal',
+			'Ruoli e Linee',
+			'Ruoli e Linee',
+			DEALER_PORTAL_CAP_ORGS,
+			self::ROLES_MENU_SLUG,
+			[ $this, 'render_roles_lines' ]
+		);
+	}
+
+	/** URL della schermata Ruoli e Linee. */
+	public static function roles_page_url(): string {
+		return admin_url( 'admin.php?page=' . self::ROLES_MENU_SLUG );
 	}
 
 	/** URL della schermata Area Manager. */
@@ -114,6 +140,110 @@ class Dealer_Org_Admin {
 		}
 
 		$this->render_area_managers();
+	}
+
+	// ─── Vista: ruoli e linee di tutti gli utenti del portale ─────────────────
+
+	/**
+	 * Elenco di TUTTI gli utenti del portale con ruolo, appartenenza e linee
+	 * effettive.
+	 *
+	 * NON introduce un secondo modo di assegnare i diritti: sarebbero due strade
+	 * per lo stesso dato, destinate a divergere — l'errore che questo plugin
+	 * evita ovunque. Mostra il RISULTATO (cosa vede davvero ciascuno, risolto da
+	 * Dealer_Identity) e da ogni riga porta all'unico punto che quel valore lo
+	 * scrive: le organizzazioni per i dealer, il perimetro per gli area manager,
+	 * il profilo per chi non e' ancora stato assegnato.
+	 */
+	public function render_roles_lines(): void {
+		$this->require_cap();
+
+		$portal_roles = array_merge( Dealer_Identity::DEALER_ROLES, [ Dealer_Identity::ROLE_AREA_MANAGER ] );
+
+		// Sola lettura: nessuna azione distruttiva, nessun nonce necessario.
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended
+		$role_filter = sanitize_key( (string) ( $_GET['ruolo'] ?? '' ) );
+		$search      = sanitize_text_field( wp_unslash( (string) ( $_GET['q'] ?? '' ) ) );
+		$paged       = max( 1, absint( $_GET['paged'] ?? 1 ) );
+		// phpcs:enable WordPress.Security.NonceVerification.Recommended
+
+		$roles_in = in_array( $role_filter, $portal_roles, true ) ? [ $role_filter ] : $portal_roles;
+		$per_page = 50;
+
+		$args = [
+			'role__in'    => $roles_in,
+			'number'      => $per_page,
+			'offset'      => ( $paged - 1 ) * $per_page,
+			'orderby'     => 'display_name',
+			'order'       => 'ASC',
+			'count_total' => true,
+		];
+		if ( '' !== $search ) {
+			$args['search']         = '*' . $search . '*';
+			$args['search_columns'] = [ 'user_login', 'user_email', 'display_name' ];
+		}
+
+		$query       = new WP_User_Query( $args );
+		$total       = (int) $query->get_total();
+		$total_pages = (int) max( 1, ceil( $total / $per_page ) );
+
+		$rows           = [];
+		$without_access = 0;
+		foreach ( (array) $query->get_results() as $user ) {
+			if ( ! $user instanceof \WP_User ) {
+				continue;
+			}
+
+			$is_am  = Dealer_Identity::is_area_manager( $user );
+			$org_id = Dealer_Identity::get_org_id( $user );
+
+			// Per un area manager le linee sono il perimetro di PUBBLICAZIONE;
+			// per un dealer sono le linee che VEDE. Due significati diversi: la
+			// colonna li tiene distinti invece di mescolarli in un numero solo.
+			$lines = $is_am
+				? Dealer_Identity::get_scope_lines( $user )
+				: Dealer_Identity::get_effective_lines( $user );
+
+			if ( empty( $lines ) ) {
+				$without_access++;
+			}
+
+			$rows[] = [
+				'id'         => (int) $user->ID,
+				'name'       => (string) $user->display_name,
+				'email'      => (string) $user->user_email,
+				'is_am'      => $is_am,
+				'role'       => $is_am
+					? 'Area Manager'
+					: ( Dealer_Roles::ROLES[ Dealer_Identity::get_effective_tier( $user ) ] ?? '—' ),
+				'org_id'     => $org_id,
+				'org_name'   => $org_id ? Dealer_Organization::get_name( $org_id ) : '',
+				'function'   => $org_id
+					? ( self::function_labels()[ Dealer_Identity::get_function( $user ) ] ?? '' )
+					: '',
+				'lines'      => $lines,
+				'active'     => Dealer_Identity::is_active( $user ),
+				'edit_url'   => $is_am
+					? add_query_arg( 'user', (int) $user->ID, self::am_page_url() )
+					: ( $org_id
+						? add_query_arg( [ 'view' => 'users', 'org' => $org_id ], self::page_url() )
+						: admin_url( 'user-edit.php?user_id=' . (int) $user->ID ) ),
+				'edit_label' => $is_am
+					? 'Perimetro'
+					: ( $org_id ? 'Organizzazione' : 'Assegna' ),
+			];
+		}
+
+		$role_options = [
+			''                                 => 'Tutti i ruoli',
+			Dealer_Identity::ROLE_AREA_MANAGER => 'Area Manager',
+		] + Dealer_Roles::ROLES;
+
+		$base_url = self::roles_page_url();
+		$orgs_url = self::page_url();
+		$am_url   = self::am_page_url();
+
+		require DEALER_PORTAL_PATH . 'templates/admin-roles-lines.php';
 	}
 
 	// ─── Router delle viste ───────────────────────────────────────────────────
