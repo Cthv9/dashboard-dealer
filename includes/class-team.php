@@ -75,12 +75,6 @@ class Dealer_Team {
 	const META_DEACTIVATED_BY = '_dealer_deactivated_by';
 	const META_DEACTIVATED_AT = '_dealer_deactivated_at';
 
-	/** Etichette dei livelli commerciali, per la tabella. */
-	const TIER_LABELS = [
-		'dealer'      => 'Dealer',
-		'top_dealer'  => 'Top Dealer',
-		'part_center' => 'Parts Center',
-	];
 
 	// ─── Constructor ──────────────────────────────────────────────────────────
 
@@ -246,7 +240,7 @@ class Dealer_Team {
 
 		$lines_by_brand = self::group_lines( $org_lines );
 		$form_action    = $this->current_url();
-		$tier_label     = self::TIER_LABELS[ $org_tier ] ?? $org_tier;
+		$tier_label     = Dealer_Roles::labels()[ $org_tier ] ?? $org_tier;
 		$max_members    = self::MAX_MEMBERS;
 
 		ob_start();
@@ -414,7 +408,7 @@ class Dealer_Team {
 		// Ruolo: deriva dal livello commerciale dell'AZIENDA, non dall'input, e
 		// passa comunque da una whitelist di tre ruoli dealer.
 		$role = Dealer_Organization::get_tier( $org_id );
-		if ( ! in_array( $role, self::ALLOWED_ROLES, true ) ) {
+		if ( ! in_array( $role, Dealer_Roles::dealer_slugs(), true ) ) {
 			$role = 'dealer';
 		}
 
@@ -562,7 +556,7 @@ class Dealer_Team {
 		// 2. Revoca dei soli ruoli dealer: l'account resta, con i suoi log.
 		//    Rimuoviamo un ruolo alla volta invece di azzerare tutto, per non
 		//    toccare eventuali ruoli non nostri presenti sull'utente.
-		foreach ( self::ALLOWED_ROLES as $role ) {
+		foreach ( Dealer_Roles::dealer_slugs() as $role ) {
 			if ( in_array( $role, (array) $target->roles, true ) ) {
 				$target->remove_role( $role );
 			}

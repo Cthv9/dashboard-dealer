@@ -837,7 +837,7 @@ class Dealer_Search {
 	// ─── Controllo accesso (statico, riusato da Dashboard) ───────────────────
 
 	public static function user_is_dealer( \WP_User $user ): bool {
-		foreach ( self::$dealer_roles as $role ) {
+		foreach ( Dealer_Roles::dealer_slugs() as $role ) {
 			if ( in_array( $role, (array) $user->roles, true ) ) {
 				return true;
 			}

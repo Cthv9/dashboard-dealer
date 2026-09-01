@@ -126,7 +126,7 @@ class Dealer_Identity {
 			return Dealer_Organization::get_tier( $org_id );
 		}
 
-		foreach ( self::DEALER_ROLES as $role ) {
+		foreach ( Dealer_Roles::dealer_slugs() as $role ) {
 			if ( in_array( $role, (array) $user->roles, true ) ) {
 				return $role;
 			}

@@ -32,10 +32,17 @@ foreach ( $page_options as $option ) {
 }
 
 // ── Rimuove i ruoli custom ────────────────────────────────────────────────────
-remove_role( 'dealer' );
-remove_role( 'top_dealer' );
-remove_role( 'part_center' );
-remove_role( 'area_manager' );
+// I tre ruoli di base piu' quelli eventualmente creati dall'amministratore
+// dalla schermata "Ruoli e Linee": l'elenco si legge dall'opzione prima di
+// cancellarla piu' sotto.
+$dealer_roles_map = get_option( 'dealer_portal_roles' );
+$dealer_role_slugs = [ 'dealer', 'top_dealer', 'part_center', 'area_manager' ];
+if ( is_array( $dealer_roles_map ) ) {
+	$dealer_role_slugs = array_unique( array_merge( $dealer_role_slugs, array_keys( $dealer_roles_map ) ) );
+}
+foreach ( $dealer_role_slugs as $role_slug ) {
+	remove_role( (string) $role_slug );
+}
 
 // ── Toglie le capability del plugin all'amministratore ────────────────────────
 // I ruoli custom se ne vanno con remove_role(); l'amministratore invece resta e
@@ -123,6 +130,9 @@ $options = [
 	'dealer_portal_schema_revision',
 	'dealer_portal_pages_revision',
 	'dealer_portal_notifications',
+	// Configurazione di ruoli e catalogo, modificabile da "Ruoli e Linee".
+	'dealer_portal_roles',
+	'dealer_portal_product_lines',
 	'dealer_portal_notification_queue',
 ];
 foreach ( $options as $option ) {

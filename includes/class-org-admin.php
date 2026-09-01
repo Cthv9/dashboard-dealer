@@ -84,6 +84,8 @@ class Dealer_Org_Admin {
 		add_action( 'admin_post_dealer_org_user_update', [ $this, 'handle_user_update' ] );
 		add_action( 'admin_post_dealer_org_user_remove', [ $this, 'handle_user_remove' ] );
 		add_action( 'admin_post_dealer_org_am_scope',    [ $this, 'handle_am_scope' ] );
+		add_action( 'admin_post_dealer_save_roles_lines', [ $this, 'handle_roles_lines' ] );
+		add_action( 'admin_post_dealer_bulk_assign',     [ $this, 'handle_bulk_assign' ] );
 	}
 
 	// ─── Menu ─────────────────────────────────────────────────────────────────
@@ -151,6 +153,135 @@ class Dealer_Org_Admin {
 		$this->render_area_managers();
 	}
 
+	/**
+	 * Salva insieme ruoli dell'area riservata e catalogo linee: sono le due
+	 * sezioni dello stesso modulo, e separarle in due submit costringerebbe a
+	 * salvare due volte una schermata che si compila una volta sola.
+	 */
+	public function handle_roles_lines(): void {
+		check_admin_referer( 'dealer_save_roles_lines' );
+		$this->require_cap();
+
+		$messages = [];
+
+		// ── Ruoli ────────────────────────────────────────────────────────────
+		$rows = [];
+		// phpcs:disable WordPress.Security.NonceVerification.Missing — nonce gia' verificato sopra
+		$posted_roles = isset( $_POST['roles'] ) ? (array) wp_unslash( $_POST['roles'] ) : [];
+		$new_slug     = Dealer_Roles::sanitize_slug( (string) ( $_POST['new_role_slug'] ?? '' ) );
+		$new_label    = sanitize_text_field( (string) ( $_POST['new_role_label'] ?? '' ) );
+		// phpcs:enable WordPress.Security.NonceVerification.Missing
+
+		foreach ( $posted_roles as $slug => $row ) {
+			$rows[ (string) $slug ] = [
+				'label'  => sanitize_text_field( (string) ( $row['label'] ?? '' ) ),
+				'active' => ! empty( $row['active'] ),
+			];
+		}
+
+		if ( '' !== $new_slug || '' !== $new_label ) {
+			if ( '' === $new_slug || '' === $new_label ) {
+				$messages[] = 'Nuovo ruolo non creato: servono sia lo slug sia l\'etichetta.';
+			} elseif ( isset( $rows[ $new_slug ] ) ) {
+				$messages[] = sprintf( 'Il ruolo "%s" esiste gia\'.', $new_slug );
+			} else {
+				$rows[ $new_slug ] = [ 'label' => $new_label, 'active' => true ];
+			}
+		}
+
+		if ( $rows ) {
+			$result = Dealer_Roles::save( $rows );
+			$messages[] = sprintf( '%d ruoli salvati, %d creati.', $result['saved'], $result['created'] );
+			$messages = array_merge( $messages, $result['errors'] );
+		}
+
+		// ── Linee ────────────────────────────────────────────────────────────
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing
+		if ( isset( $_POST['product_lines'] ) ) {
+			// phpcs:ignore WordPress.Security.NonceVerification.Missing
+			$raw = (string) wp_unslash( $_POST['product_lines'] );
+			$out = Dealer_Admin::save_product_lines( $raw );
+			if ( $out['lines'] > 0 ) {
+				$messages[] = sprintf( 'Catalogo salvato: %d linee su %d brand.', $out['lines'], $out['brands'] );
+			}
+			$messages = array_merge( $messages, $out['errors'] );
+		}
+
+		set_transient( 'dealer_roles_lines_notice_' . get_current_user_id(), $messages, 60 );
+		wp_safe_redirect( self::roles_page_url() );
+		exit;
+	}
+
+	/**
+	 * Assegnazione massiva: applica ruolo e/o linee a piu' utenti insieme.
+	 *
+	 * Le linee finiscono nel meta storico _dealer_lines, che vale per gli utenti
+	 * senza organizzazione. Per chi ne ha una i diritti li detiene l'azienda e
+	 * scriverli sull'utente non avrebbe effetto: quegli utenti vengono contati a
+	 * parte e segnalati, invece di far credere a un'assegnazione avvenuta.
+	 */
+	public function handle_bulk_assign(): void {
+		check_admin_referer( 'dealer_bulk_assign' );
+		$this->require_cap();
+
+		// phpcs:disable WordPress.Security.NonceVerification.Missing — nonce verificato sopra
+		$user_ids = self::posted_ids( 'users' );
+		$role     = Dealer_Roles::sanitize_slug( (string) ( $_POST['bulk_role'] ?? '' ) );
+		$mode     = sanitize_key( (string) ( $_POST['lines_mode'] ?? 'keep' ) );
+		// phpcs:enable WordPress.Security.NonceVerification.Missing
+		$lines    = self::posted_lines( 'bulk_lines' );
+
+		$allowed  = Dealer_Roles::dealer_slugs();
+		$changed  = 0;
+		$skipped  = 0;
+		$messages = [];
+
+		if ( empty( $user_ids ) ) {
+			$messages[] = 'Nessun utente selezionato.';
+		}
+
+		foreach ( $user_ids as $user_id ) {
+			$user = get_user_by( 'id', $user_id );
+			if ( ! $user ) {
+				continue;
+			}
+
+			// Mai su se stessi e mai su un amministratore: cambiare ruolo a un
+			// amministratore da una schermata di massa e' il modo piu' rapido per
+			// perdere l'accesso al sito.
+			if ( (int) $user_id === get_current_user_id() || user_can( $user, 'manage_options' ) ) {
+				$skipped++;
+				continue;
+			}
+
+			if ( '' !== $role && in_array( $role, $allowed, true ) ) {
+				$user->set_role( $role );
+				$changed++;
+			}
+
+			if ( 'set' === $mode ) {
+				if ( Dealer_Identity::has_org( $user ) ) {
+					$skipped++;
+					continue;
+				}
+				update_user_meta( $user_id, Dealer_Identity::META_LEGACY_LINES, $lines );
+				$changed++;
+			}
+		}
+
+		$messages[] = sprintf( '%d utenti aggiornati.', $changed );
+		if ( $skipped ) {
+			$messages[] = sprintf(
+				'%d saltati: amministratori, il tuo stesso account, oppure utenti con un\'organizzazione (per loro le linee le detiene l\'azienda, non l\'utente).',
+				$skipped
+			);
+		}
+
+		set_transient( 'dealer_roles_lines_notice_' . get_current_user_id(), $messages, 60 );
+		wp_safe_redirect( self::roles_page_url() );
+		exit;
+	}
+
 	// ─── Vista: ruoli e linee di tutti gli utenti del portale ─────────────────
 
 	/**
@@ -167,7 +298,7 @@ class Dealer_Org_Admin {
 	public function render_roles_lines(): void {
 		$this->require_cap();
 
-		$portal_roles = array_merge( Dealer_Identity::DEALER_ROLES, [ Dealer_Identity::ROLE_AREA_MANAGER ] );
+		$portal_roles = array_merge( Dealer_Roles::dealer_slugs(), [ Dealer_Identity::ROLE_AREA_MANAGER ] );
 
 		// Sola lettura: nessuna azione distruttiva, nessun nonce necessario.
 		// phpcs:disable WordPress.Security.NonceVerification.Recommended
@@ -251,6 +382,19 @@ class Dealer_Org_Admin {
 		$base_url = self::roles_page_url();
 		$orgs_url = self::page_url();
 		$am_url   = self::am_page_url();
+		$post_url = admin_url( 'admin-post.php' );
+
+		// Sezioni 1 e 2: configurazione di ruoli e catalogo.
+		$all_roles  = Dealer_Roles::all();
+		$lines_text = Dealer_Admin::lines_to_text();
+		$role_count = count( Dealer_Roles::dealer_slugs() );
+		$line_count = count( Dealer_Admin::get_valid_lines() );
+
+		$flash = get_transient( 'dealer_roles_lines_notice_' . get_current_user_id() );
+		if ( $flash ) {
+			delete_transient( 'dealer_roles_lines_notice_' . get_current_user_id() );
+		}
+		$flash = is_array( $flash ) ? $flash : [];
 
 		require DEALER_PORTAL_PATH . 'templates/admin-roles-lines.php';
 	}
@@ -455,7 +599,7 @@ class Dealer_Org_Admin {
 		// stampare una tendina con migliaia di voci.
 		$search     = sanitize_text_field( wp_unslash( (string) ( $_GET['us'] ?? '' ) ) );
 		$query_args = [
-			'role__in' => Dealer_Identity::DEALER_ROLES,
+			'role__in' => Dealer_Roles::dealer_slugs(),
 			'number'   => self::MAX_CANDIDATES,
 			'orderby'  => 'display_name',
 			'order'    => 'ASC',
@@ -695,7 +839,7 @@ class Dealer_Org_Admin {
 
 		// Whitelist: livello contro TIERS, linee contro get_valid_lines().
 		$tier = sanitize_key( (string) ( $_POST['org_tier'] ?? '' ) );
-		if ( ! in_array( $tier, Dealer_Organization::TIERS, true ) ) {
+		if ( ! in_array( $tier, Dealer_Roles::dealer_slugs(), true ) ) {
 			$this->redirect( 'err_tier', $org_id ? [ 'view' => 'edit', 'org' => $org_id ] : [ 'view' => 'edit' ] );
 		}
 
@@ -1424,11 +1568,7 @@ class Dealer_Org_Admin {
 	// ─── Etichette ────────────────────────────────────────────────────────────
 
 	public static function tier_labels(): array {
-		return [
-			'dealer'      => 'Dealer',
-			'top_dealer'  => 'Top Dealer',
-			'part_center' => 'Parts Center',
-		];
+		return Dealer_Roles::labels();
 	}
 
 	public static function tier_label( string $tier ): string {

@@ -191,7 +191,7 @@ class Dealer_Access_Guard {
 			return false;
 		}
 
-		return (bool) array_intersect( self::PORTAL_ROLES, (array) $user->roles );
+		return (bool) array_intersect( Dealer_Roles::portal_slugs(), (array) $user->roles );
 	}
 
 	/**

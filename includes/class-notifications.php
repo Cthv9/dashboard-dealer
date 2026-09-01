@@ -656,7 +656,7 @@ class Dealer_Notifications {
 	/** ID di tutti gli utenti con un ruolo dealer. */
 	private static function get_dealer_user_ids(): array {
 		$ids = get_users( [
-			'role__in' => self::DEALER_ROLES,
+			'role__in' => Dealer_Roles::dealer_slugs(),
 			'fields'   => 'ID',
 			'orderby'  => 'ID',
 			'number'   => 5000,
