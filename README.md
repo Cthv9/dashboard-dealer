@@ -435,6 +435,22 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 
 ## Changelog
 
+### 1.5.0
+
+**Ruoli e Linee torna a essere una schermata di configurazione, non solo un elenco.**
+
+La 1.4.2 aveva ricostruito "Ruoli e Linee" come tabella di sola lettura. Il confronto con la versione in produzione ha mostrato che mancava il grosso: là si **configuravano** ruoli e catalogo, qui erano costanti PHP da modificare nel codice. Le tre sezioni operative ci sono ora tutte.
+
+- **1 · Ruoli area riservata** — rinominare le etichette dei ruoli, **crearne di nuovi** (slug + etichetta) e disattivarli. Un ruolo disattivato smette di contare come dealer per dashboard, ricerca e restrizioni sui documenti, ma il ruolo WordPress non viene eliminato: cancellarlo toglierebbe l'accesso a persone reali. Slug riservati (ruoli nativi WordPress, `area_manager`) rifiutati con motivazione.
+- **2 · Linee prodotto** — editor massivo, una riga per `Brand | Linea`, incollabile da Excel o CSV (accettati anche `;` e `,`). Le righe malformate vengono **segnalate**, non ignorate in silenzio: una linea persa non si nota in un catalogo di centinaia, ma rende invisibili i documenti già pubblicati su di essa. Un catalogo vuoto viene rifiutato.
+- **3 · Assegnazione massiva utenti** — selezione multipla dalla tabella e applicazione in blocco di ruolo e linee. Amministratori e il proprio account sono sempre saltati; gli utenti con un'organizzazione vengono saltati per le linee e contati a parte, perché per loro i diritti li detiene l'azienda e scriverli sull'utente non avrebbe effetto.
+
+Sotto il cofano, il cambiamento vero è che **ruoli e catalogo non sono più cablati nel codice**:
+
+- `Dealer_Roles` legge da un'opzione con le costanti come seme, ed espone `dealer_slugs()` / `portal_slugs()` / `labels()`. L'elenco dei ruoli dealer era ripetuto a mano in **dodici punti** del codice: ora c'è un solo risolutore, e un ruolo nuovo funziona ovunque senza toccare altro.
+- `Dealer_Admin::get_product_lines()` legge il catalogo da un'opzione, sempre con la costante come seme. Tutti i consumatori passavano già dai tre getter, quindi il catalogo diventa modificabile senza altre modifiche.
+- La disinstallazione rimuove anche i ruoli creati dall'amministratore e le due nuove opzioni.
+
 ### 1.4.6
 
 **L'amministratore è sopra ogni ruolo del portale, e adesso il codice lo dice esplicitamente.**

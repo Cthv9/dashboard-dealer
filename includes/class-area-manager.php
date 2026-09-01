@@ -106,12 +106,6 @@ class Dealer_Area_Manager {
 	const INVITE_RATE_MAX    = 10;
 	const INVITE_RATE_WINDOW = HOUR_IN_SECONDS;
 
-	/** Etichette dei livelli commerciali. */
-	const TIER_LABELS = [
-		'dealer'      => 'Dealer',
-		'top_dealer'  => 'Top Dealer',
-		'part_center' => 'Parts Center',
-	];
 
 	/**
 	 * Perimetro documenti gia' risolto, per utente e per criterio.
@@ -791,7 +785,7 @@ class Dealer_Area_Manager {
 				'id'             => $org_id,
 				'name'           => Dealer_Organization::get_name( $org_id ),
 				'tier'           => $tier,
-				'tier_label'     => self::TIER_LABELS[ $tier ] ?? $tier,
+				'tier_label'     => Dealer_Roles::labels()[ $tier ] ?? $tier,
 				'active'         => $active,
 				'lines'          => $org_lines,
 				'lines_by_brand' => Dealer_Team::group_lines( $org_lines ),
@@ -975,7 +969,7 @@ class Dealer_Area_Manager {
 		// Non esiste nessun percorso che produca un titolare, un area manager
 		// o un amministratore.
 		$role = Dealer_Organization::get_tier( $org_id );
-		if ( ! in_array( $role, Dealer_Team::ALLOWED_ROLES, true ) ) {
+		if ( ! in_array( $role, Dealer_Roles::dealer_slugs(), true ) ) {
 			$role = 'dealer';
 		}
 
@@ -1104,7 +1098,7 @@ class Dealer_Area_Manager {
 
 		// 2. Revoca dei soli ruoli dealer: l'account resta, con i suoi log.
 		//    Un ruolo alla volta, per non toccare eventuali ruoli non nostri.
-		foreach ( Dealer_Team::ALLOWED_ROLES as $role ) {
+		foreach ( Dealer_Roles::dealer_slugs() as $role ) {
 			if ( in_array( $role, (array) $target->roles, true ) ) {
 				$target->remove_role( $role );
 			}

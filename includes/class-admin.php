@@ -326,7 +326,7 @@ class Dealer_Admin {
 
 			<h2>Ruoli del portale</h2>
 			<table class="widefat striped" style="max-width:760px;"><tbody>
-			<?php foreach ( [ 'dealer', 'top_dealer', 'part_center', 'area_manager' ] as $role_slug ) : ?>
+			<?php foreach ( Dealer_Roles::portal_slugs() as $role_slug ) : ?>
 				<tr>
 					<td style="width:340px;"><code><?php echo esc_html( $role_slug ); ?></code></td>
 					<td><?php echo get_role( $role_slug ) ? '<span style="color:#00a32a;">esiste</span>' : '<strong style="color:#d63638;">MANCA</strong>'; ?></td>
@@ -919,7 +919,7 @@ class Dealer_Admin {
 			$dealer_users       = self::scoped_dealer_users( $current_user );
 			$registered_dealers = count( $dealer_users );
 		} else {
-			$dealer_roles  = [ 'dealer', 'top_dealer', 'part_center' ];
+			$dealer_roles  = Dealer_Roles::dealer_slugs();
 			$dealer_query  = new WP_User_Query( [
 				'role__in' => $dealer_roles,
 				'number'   => 1000,
@@ -1074,7 +1074,7 @@ class Dealer_Admin {
 	 */
 	private static function get_filterable_dealers(): array {
 		$query = new WP_User_Query( [
-			'role__in' => [ 'dealer', 'top_dealer', 'part_center' ],
+			'role__in' => Dealer_Roles::dealer_slugs(),
 			'number'   => 500,
 			'orderby'  => 'display_name',
 			'order'    => 'ASC',
@@ -1601,7 +1601,7 @@ class Dealer_Admin {
 
 		// Valida ruoli contro lista consentita.
 		$raw_roles     = isset( $_POST['doc_roles'] ) ? (array) $_POST['doc_roles'] : [];
-		$allowed_roles = [ 'dealer', 'top_dealer', 'part_center' ];
+		$allowed_roles = Dealer_Roles::dealer_slugs();
 		$roles         = array_values( array_intersect( array_map( 'sanitize_key', $raw_roles ), $allowed_roles ) );
 
 		// Le linee ($lines) sono già state validate e autorizzate in apertura
@@ -1876,7 +1876,7 @@ class Dealer_Admin {
 
 		// Costruisce l'elenco completo "Brand|Linea" da assegnare al dealer.
 		$all_lines = [];
-		foreach ( self::PRODUCT_LINES as $brand => $lines ) {
+		foreach ( self::get_product_lines() as $brand => $lines ) {
 			foreach ( $lines as $line ) {
 				$all_lines[] = $brand . '|' . $line;
 			}
@@ -2024,11 +2024,112 @@ class Dealer_Admin {
 	// ─── Static helpers (usati dai template) ─────────────────────────────────
 
 	public static function get_brands(): array {
-		return array_keys( self::PRODUCT_LINES );
+		return array_keys( self::get_product_lines() );
 	}
 
+	/** Opzione che contiene il catalogo modificabile. */
+	const LINES_OPTION = 'dealer_portal_product_lines';
+
+	/**
+	 * Catalogo Brand => linee.
+	 *
+	 * La costante PRODUCT_LINES e' il seme della prima installazione, non un
+	 * elenco chiuso: l'amministratore lo modifica da "Ruoli e Linee" e il
+	 * risultato vive in un'opzione. Ogni punto del plugin passa da qui (e da
+	 * get_brands() / get_valid_lines(), che leggono questo), quindi cambiare il
+	 * catalogo non richiede piu' di mettere le mani nel codice.
+	 */
 	public static function get_product_lines(): array {
-		return self::PRODUCT_LINES;
+		$stored = get_option( self::LINES_OPTION );
+		if ( ! is_array( $stored ) || empty( $stored ) ) {
+			return self::PRODUCT_LINES;
+		}
+
+		$out = [];
+		foreach ( $stored as $brand => $lines ) {
+			$brand = trim( (string) $brand );
+			if ( '' === $brand || ! is_array( $lines ) ) {
+				continue;
+			}
+			$clean = [];
+			foreach ( $lines as $line ) {
+				$line = trim( (string) $line );
+				if ( '' !== $line ) {
+					$clean[] = $line;
+				}
+			}
+			if ( $clean ) {
+				$out[ $brand ] = array_values( array_unique( $clean ) );
+			}
+		}
+
+		return $out ?: self::PRODUCT_LINES;
+	}
+
+	/**
+	 * Catalogo come testo, una riga per combinazione "Brand | Linea": e' la
+	 * forma in cui si incolla da Excel e in cui si rilegge senza sorprese.
+	 */
+	public static function lines_to_text(): string {
+		$rows = [];
+		foreach ( self::get_product_lines() as $brand => $lines ) {
+			foreach ( $lines as $line ) {
+				$rows[] = $brand . ' | ' . $line;
+			}
+		}
+		return implode( "\n", $rows );
+	}
+
+	/**
+	 * Salva il catalogo dal testo incollato.
+	 *
+	 * Separatori ammessi: |, ; e , — chi incolla da un CSV non deve prima
+	 * convertirlo. Le righe senza separatore vengono segnalate, non ignorate in
+	 * silenzio: una riga persa in un catalogo di centinaia non si nota, e i
+	 * documenti gia' pubblicati su quella linea diventerebbero invisibili.
+	 *
+	 * @return array{brands:int,lines:int,errors:string[]}
+	 */
+	public static function save_product_lines( string $raw ): array {
+		$catalog = [];
+		$errors  = [];
+		$count   = 0;
+
+		foreach ( preg_split( '/\r\n|\r|\n/', $raw ) as $number => $line ) {
+			$line = trim( $line );
+			if ( '' === $line ) {
+				continue;
+			}
+
+			$parts = preg_split( '/\s*[|;,]\s*/', $line, 2 );
+			if ( count( $parts ) < 2 || '' === trim( $parts[0] ) || '' === trim( $parts[1] ) ) {
+				$errors[] = sprintf( 'Riga %d ignorata (manca il separatore fra brand e linea): %s', $number + 1, $line );
+				continue;
+			}
+
+			$brand = sanitize_text_field( trim( $parts[0] ) );
+			$name  = sanitize_text_field( trim( $parts[1] ) );
+
+			if ( ! isset( $catalog[ $brand ] ) ) {
+				$catalog[ $brand ] = [];
+			}
+			if ( ! in_array( $name, $catalog[ $brand ], true ) ) {
+				$catalog[ $brand ][] = $name;
+				$count++;
+			}
+		}
+
+		// Un catalogo vuoto renderebbe invisibile ogni documento del portale:
+		// si rifiuta invece di eseguirlo.
+		if ( empty( $catalog ) ) {
+			$errors[] = 'Nessuna linea valida: il catalogo non e\' stato modificato.';
+			return [ 'brands' => 0, 'lines' => 0, 'errors' => $errors ];
+		}
+
+		ksort( $catalog );
+		update_option( self::LINES_OPTION, $catalog );
+
+		return [ 'brands' => count( $catalog ), 'lines' => $count, 'errors' => $errors ];
 	}
 
 	public static function get_doc_types(): array {
@@ -2037,7 +2138,7 @@ class Dealer_Admin {
 
 	public static function get_valid_lines(): array {
 		$valid = [];
-		foreach ( self::PRODUCT_LINES as $brand => $brand_lines ) {
+		foreach ( self::get_product_lines() as $brand => $brand_lines ) {
 			foreach ( $brand_lines as $line ) {
 				$valid[] = $brand . '|' . $line;
 			}
@@ -2060,7 +2161,7 @@ class Dealer_Admin {
 	 */
 	public static function allowed_product_lines( \WP_User $user ): array {
 		if ( user_can( $user, 'manage_options' ) || user_can( $user, DEALER_PORTAL_CAP ) ) {
-			return self::PRODUCT_LINES;
+			return self::get_product_lines();
 		}
 
 		if ( ! Dealer_Identity::is_area_manager( $user ) ) {
@@ -2073,7 +2174,7 @@ class Dealer_Admin {
 		}
 
 		$allowed = [];
-		foreach ( self::PRODUCT_LINES as $brand => $brand_lines ) {
+		foreach ( self::get_product_lines() as $brand => $brand_lines ) {
 			$kept = [];
 			foreach ( $brand_lines as $line ) {
 				if ( in_array( $brand . '|' . $line, $scope, true ) ) {

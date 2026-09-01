@@ -76,7 +76,7 @@ class Dealer_Dashboard {
 		$user_roles = (array) $user->roles;
 
 		// Permetti anche agli admin di vedere la dashboard (per test).
-		$dealer_roles = [ 'dealer', 'top_dealer', 'part_center' ];
+		$dealer_roles = Dealer_Roles::dealer_slugs();
 		$is_dealer    = ! empty( array_intersect( $user_roles, $dealer_roles ) );
 
 		if ( ! $is_dealer && ! current_user_can( 'manage_options' ) ) {
@@ -137,11 +137,7 @@ class Dealer_Dashboard {
 			}
 		}
 
-		$role_labels = [
-			'dealer'      => 'Dealer',
-			'top_dealer'  => 'Top Dealer',
-			'part_center' => 'Parts Center',
-		];
+		$role_labels = Dealer_Roles::labels();
 
 		// Questa pagina ha già il proprio link di logout nell'header: evita
 		// che Dealer_Access_Guard ne aggiunga un secondo in fondo alla pagina.

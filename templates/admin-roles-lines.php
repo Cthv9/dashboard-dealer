@@ -16,6 +16,12 @@
  * @var string $base_url        questa schermata
  * @var string $orgs_url        Organizzazioni
  * @var string $am_url          Area Manager
+ * @var string $post_url        admin-post.php
+ * @var array  $all_roles       slug => [label, active, custom]
+ * @var string $lines_text      catalogo come testo "Brand | Linea"
+ * @var int    $role_count
+ * @var int    $line_count
+ * @var string[] $flash         esiti dell'ultimo salvataggio
  */
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
@@ -29,6 +35,151 @@ require DEALER_PORTAL_PATH . 'templates/admin-org-styles.php';
 	<h1 class="wp-heading-inline">Ruoli e Linee</h1>
 	<a href="<?php echo esc_url( admin_url( 'user-new.php' ) ); ?>" class="page-title-action">Aggiungi utente</a>
 	<hr class="wp-header-end">
+
+	<?php if ( ! empty( $flash ) ) : ?>
+		<div class="notice notice-info is-dismissible">
+			<?php foreach ( $flash as $line ) : ?>
+				<p><?php echo esc_html( $line ); ?></p>
+			<?php endforeach; ?>
+		</div>
+	<?php endif; ?>
+
+	<!-- ═══ 1. Ruoli area riservata + 2. Linee prodotto ═══════════════════ -->
+	<form method="post" action="<?php echo esc_url( $post_url ); ?>">
+		<?php wp_nonce_field( 'dealer_save_roles_lines' ); ?>
+		<input type="hidden" name="action" value="dealer_save_roles_lines">
+
+		<div class="postbox" style="margin-top:16px;">
+			<div class="postbox-header"><h2 class="hndle" style="padding:8px 12px;">
+				1 · Ruoli area riservata <span style="font-weight:400;color:#787c82;">(<?php echo esc_html( (string) $role_count ); ?> attivi)</span>
+			</h2></div>
+			<div class="inside">
+				<p class="description">
+					Da qui si modificano le etichette dei ruoli visibili nel plugin e si aggiungono nuovi ruoli dealer.
+					Un ruolo <strong>disattivato</strong> non viene più usato per dashboard, ricerca e restrizioni sui
+					documenti: gli utenti che ce l'hanno restano, ma smettono di essere trattati come dealer. Il ruolo
+					WordPress non viene eliminato — cancellarlo toglierebbe l'accesso a persone reali.
+				</p>
+				<table class="wp-list-table widefat striped" style="max-width:760px;">
+					<thead><tr><th style="width:80px;">Attivo</th><th style="width:240px;">Slug ruolo</th><th>Etichetta</th></tr></thead>
+					<tbody>
+					<?php foreach ( $all_roles as $slug => $role ) : ?>
+						<tr>
+							<td>
+								<input type="checkbox" name="roles[<?php echo esc_attr( $slug ); ?>][active]" value="1"
+									<?php checked( $role['active'] ); ?>>
+							</td>
+							<td>
+								<code><?php echo esc_html( $slug ); ?></code>
+								<?php if ( ! $role['custom'] ) : ?>
+									<span class="dorg-cell-sub">ruolo di base</span>
+								<?php endif; ?>
+							</td>
+							<td>
+								<input type="text" class="regular-text"
+									name="roles[<?php echo esc_attr( $slug ); ?>][label]"
+									value="<?php echo esc_attr( $role['label'] ); ?>">
+							</td>
+						</tr>
+					<?php endforeach; ?>
+						<tr>
+							<td><span class="dorg-muted">nuovo</span></td>
+							<td><input type="text" class="regular-text" name="new_role_slug" placeholder="es. service_center"></td>
+							<td><input type="text" class="regular-text" name="new_role_label" placeholder="es. Service Center"></td>
+						</tr>
+					</tbody>
+				</table>
+				<p class="description" style="margin-top:8px;">
+					Lo slug deve contenere solo lettere minuscole, numeri e underscore. Non sono ammessi i ruoli nativi
+					di WordPress (administrator, editor, author, contributor, subscriber) né <code>area_manager</code>:
+					darebbero a un dealer permessi che non gli competono.
+				</p>
+			</div>
+		</div>
+
+		<div class="postbox">
+			<div class="postbox-header"><h2 class="hndle" style="padding:8px 12px;">
+				2 · Linee prodotto <span style="font-weight:400;color:#787c82;">(<?php echo esc_html( (string) $line_count ); ?> linee)</span>
+			</h2></div>
+			<div class="inside">
+				<p class="description">
+					Gestione massiva: <strong>una riga per ogni combinazione <code>Brand | Linea</code></strong>.
+					Si può incollare direttamente da Excel o CSV — sono accettati anche <code>;</code> e <code>,</code>
+					come separatore. Esempio: <code>Mercury | FourStroke</code>.
+				</p>
+				<textarea name="product_lines" rows="18" style="width:100%;font-family:Consolas,Monaco,monospace;font-size:12px;"><?php echo esc_textarea( $lines_text ); ?></textarea>
+				<p class="description">
+					Le righe senza separatore vengono segnalate al salvataggio, non ignorate in silenzio: una linea
+					persa non si nota in un catalogo di centinaia, ma rende invisibili i documenti già pubblicati su
+					di essa. Un catalogo vuoto viene rifiutato.
+				</p>
+			</div>
+		</div>
+
+		<p class="submit"><button type="submit" class="button button-primary">Salva ruoli e linee</button></p>
+	</form>
+
+	<!-- ═══ 3. Assegnazione massiva utenti ═══════════════════════════════ -->
+	<div class="postbox">
+		<div class="postbox-header"><h2 class="hndle" style="padding:8px 12px;">3 · Assegnazione massiva utenti</h2></div>
+		<div class="inside">
+			<p class="description">
+				Seleziona uno o più utenti nella tabella qui sotto e applica in blocco ruolo e linee prodotto.
+				Le linee valgono per gli utenti <strong>senza organizzazione</strong> (modello storico): per chi ne ha
+				una i diritti li detiene l'azienda, e scriverli sull'utente non avrebbe effetto — quegli utenti
+				vengono saltati e contati a parte.
+			</p>
+			<form method="post" action="<?php echo esc_url( $post_url ); ?>" id="dealer-bulk-assign">
+				<?php wp_nonce_field( 'dealer_bulk_assign' ); ?>
+				<input type="hidden" name="action" value="dealer_bulk_assign">
+
+				<p>
+					<label for="bulk_role"><strong>Ruolo area riservata</strong></label><br>
+					<select id="bulk_role" name="bulk_role">
+						<option value="">Non modificare il ruolo</option>
+						<?php foreach ( Dealer_Roles::labels() as $slug => $label ) : ?>
+							<option value="<?php echo esc_attr( $slug ); ?>"><?php echo esc_html( $label ); ?></option>
+						<?php endforeach; ?>
+					</select>
+				</p>
+
+				<p>
+					<label><strong>Linee prodotto</strong></label><br>
+					<label><input type="radio" name="lines_mode" value="keep" checked> Non modificare le linee</label>
+					&nbsp;&nbsp;
+					<label><input type="radio" name="lines_mode" value="set"> Sostituisci con quelle selezionate</label>
+				</p>
+
+				<div class="dorg-lines-scroll" style="max-height:260px;">
+					<?php foreach ( Dealer_Admin::get_product_lines() as $brand => $brand_lines ) : ?>
+						<div class="dorg-brand-group">
+							<div class="dorg-brand-head"><?php echo esc_html( $brand ); ?></div>
+							<div class="dorg-brand-body">
+								<?php foreach ( $brand_lines as $line ) :
+									$value = $brand . '|' . $line;
+									?>
+									<label>
+										<input type="checkbox" name="bulk_lines[]" value="<?php echo esc_attr( $value ); ?>">
+										<?php echo esc_html( $line ); ?>
+									</label>
+								<?php endforeach; ?>
+							</div>
+						</div>
+					<?php endforeach; ?>
+				</div>
+
+				<p class="submit" style="padding-bottom:0;">
+					<button type="submit" class="button button-primary"
+						onclick="return confirm('Applicare ruolo e linee agli utenti selezionati?');">
+						Applica agli utenti selezionati
+					</button>
+					<span class="description" style="margin-left:8px;">
+						Amministratori e il tuo stesso account vengono sempre saltati.
+					</span>
+				</p>
+			</form>
+		</div>
+	</div>
 
 	<div class="notice notice-info inline" style="margin:16px 0;">
 		<p style="margin:0;">
@@ -81,6 +232,7 @@ require DEALER_PORTAL_PATH . 'templates/admin-org-styles.php';
 		<table class="wp-list-table widefat fixed striped">
 			<thead>
 				<tr>
+					<th style="width:28px;"><input type="checkbox" id="dealer-check-all" title="Seleziona tutti"></th>
 					<th style="width:22%;">Utente</th>
 					<th style="width:12%;">Ruolo</th>
 					<th style="width:22%;">Organizzazione</th>
@@ -92,6 +244,10 @@ require DEALER_PORTAL_PATH . 'templates/admin-org-styles.php';
 			<tbody>
 				<?php foreach ( $rows as $row ) : ?>
 					<tr>
+						<td>
+							<input type="checkbox" form="dealer-bulk-assign" name="users[]"
+								value="<?php echo esc_attr( (string) $row['id'] ); ?>" class="dealer-user-check">
+						</td>
 						<td>
 							<strong><?php echo esc_html( $row['name'] ); ?></strong>
 							<span class="dorg-cell-sub"><?php echo esc_html( $row['email'] ); ?></span>
@@ -173,6 +329,19 @@ require DEALER_PORTAL_PATH . 'templates/admin-org-styles.php';
 			</div></div>
 		<?php endif; ?>
 	<?php endif; ?>
+
+	<script>
+	( function () {
+		var all = document.getElementById( 'dealer-check-all' );
+		if ( ! all ) { return; }
+		all.addEventListener( 'change', function () {
+			Array.prototype.forEach.call(
+				document.querySelectorAll( '.dealer-user-check' ),
+				function ( box ) { box.checked = all.checked; }
+			);
+		} );
+	} )();
+	</script>
 
 	<p class="dorg-muted" style="margin-top:18px;">
 		Dove si cambia cosa:

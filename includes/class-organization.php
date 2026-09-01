@@ -235,7 +235,7 @@ class Dealer_Organization {
 		}
 
 		$tier = (string) get_post_meta( $org_id, self::META_TIER, true );
-		if ( in_array( $tier, self::TIERS, true ) ) {
+		if ( in_array( $tier, Dealer_Roles::dealer_slugs(), true ) ) {
 			return $tier;
 		}
 
@@ -375,7 +375,7 @@ class Dealer_Organization {
 		if ( ! self::exists( $org_id ) ) {
 			return;
 		}
-		if ( ! in_array( $tier, self::TIERS, true ) ) {
+		if ( ! in_array( $tier, Dealer_Roles::dealer_slugs(), true ) ) {
 			$tier = 'dealer';
 		}
 		update_post_meta( $org_id, self::META_TIER, $tier );
@@ -435,7 +435,7 @@ class Dealer_Organization {
 		$report = [ 'created' => 0, 'skipped' => 0, 'failed' => 0, 'details' => [] ];
 
 		$users = get_users( [
-			'role__in' => Dealer_Identity::DEALER_ROLES,
+			'role__in' => Dealer_Roles::dealer_slugs(),
 			'number'   => 1000,
 		] );
 
@@ -458,7 +458,7 @@ class Dealer_Organization {
 
 			// Livello: il primo ruolo dealer trovato, come faceva il vecchio modello.
 			$tier = 'dealer';
-			foreach ( Dealer_Identity::DEALER_ROLES as $role ) {
+			foreach ( Dealer_Roles::dealer_slugs() as $role ) {
 				if ( in_array( $role, (array) $user->roles, true ) ) {
 					$tier = $role;
 					break;
@@ -502,7 +502,7 @@ class Dealer_Organization {
 
 	/** Quanti utenti dealer non hanno ancora un'organizzazione. */
 	public static function count_unmigrated_users(): int {
-		$users   = get_users( [ 'role__in' => Dealer_Identity::DEALER_ROLES, 'number' => 1000 ] );
+		$users   = get_users( [ 'role__in' => Dealer_Roles::dealer_slugs(), 'number' => 1000 ] );
 		$pending = 0;
 
 		foreach ( $users as $user ) {

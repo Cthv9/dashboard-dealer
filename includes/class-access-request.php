@@ -634,7 +634,7 @@ class Dealer_Access_Request {
 
 		// Ruolo: solo uno dei tre consentiti. Mai fidarsi del POST.
 		$role = sanitize_key( self::post_string( 'approved_role' ) );
-		if ( ! in_array( $role, self::ALLOWED_ROLES, true ) ) {
+		if ( ! in_array( $role, Dealer_Roles::dealer_slugs(), true ) ) {
 			$this->admin_redirect( 'err_role' );
 		}
 
@@ -890,11 +890,7 @@ class Dealer_Access_Request {
 
 	/** Etichette leggibili dei ruoli assegnabili. */
 	public static function get_role_labels(): array {
-		return [
-			'dealer'      => 'Dealer',
-			'top_dealer'  => 'Top Dealer',
-			'part_center' => 'Parts Center',
-		];
+		return Dealer_Roles::labels();
 	}
 
 	/** Etichette leggibili degli stati. */

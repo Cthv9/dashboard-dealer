@@ -88,7 +88,7 @@ foreach ( $valid_lines as $line ) {
 								<th scope="row"><label for="org_tier">Livello commerciale</label></th>
 								<td>
 									<select id="org_tier" name="org_tier">
-										<?php foreach ( Dealer_Organization::TIERS as $tier ) : ?>
+										<?php foreach ( Dealer_Roles::dealer_slugs() as $tier ) : ?>
 											<option value="<?php echo esc_attr( $tier ); ?>" <?php selected( $org['tier'], $tier ); ?>>
 												<?php echo esc_html( $tier_labels[ $tier ] ?? $tier ); ?>
 											</option>
