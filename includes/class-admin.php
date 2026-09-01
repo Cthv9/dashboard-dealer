@@ -1746,7 +1746,18 @@ class Dealer_Admin {
 			? add_query_arg( 'user', $user->ID, Dealer_Org_Admin::am_page_url() )
 			: admin_url( 'admin.php?page=dealer-portal-area-managers' );
 		?>
-		<h2>Dealer Portal — Area Manager</h2>
+		<?php
+		// Stesso titolo della sezione mostrata ai dealer, di proposito: cambiare
+		// anche l'intestazione faceva sembrare che la sezione fosse sparita,
+		// invece che sostituita da quella giusta per questo ruolo.
+		?>
+		<h2>Impostazioni Dealer Portal</h2>
+		<p class="description" style="max-width:640px;">
+			Questo utente è un <strong>Area Manager</strong>: i suoi diritti non si impostano qui.
+			Il campo <em>Linee Prodotto Assegnate</em>, che compare sul profilo dei dealer, appartiene
+			al modello dealer e per un area manager non verrebbe mai letto — mostrarlo qui significherebbe
+			lasciarti configurare qualcosa che non ha alcun effetto. Il suo perimetro è questo:
+		</p>
 		<table class="form-table">
 			<tr>
 				<th>Linee di pubblicazione</th>

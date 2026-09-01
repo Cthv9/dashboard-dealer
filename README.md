@@ -435,6 +435,10 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 
 ## Changelog
 
+### 1.4.1
+
+- Fix: sul profilo di un area manager la sezione del plugin cambiava anche titolo (`Dealer Portal — Area Manager`), e il risultato era che sembrava **sparita** invece che sostituita — un effetto collaterale della 1.4.0 segnalato subito al primo collaudo. L'intestazione torna a essere `Impostazioni Dealer Portal`, la stessa dei dealer, con sotto la spiegazione di perché per questo ruolo il campo *Linee Prodotto Assegnate* non compare e dove si imposta invece il perimetro.
+
 ### 1.4.0
 
 Il flusso per mettere in piedi un area manager era un vicolo cieco: si creava l'utente e da lì non si arrivava da nessuna parte. Non mancava una funzione — mancava che il percorso fosse percorribile da chi non ha scritto il codice.
