@@ -435,6 +435,17 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 
 ## Changelog
 
+### 1.4.3
+
+**Trovata la causa del blocco: le voci di menu mancanti erano capability mancanti.**
+
+Su un'installazione di collaudo il menu Dealer Portal mostrava solo Carica Documento, Archivio Documenti, Log Download e Statistiche. Mancavano Organizzazioni, Area Manager, Ruoli e Linee, Notifiche e Richieste Accesso — cioè, esattamente, tutte e sole le schermate che richiedono `manage_dealer_portal` o `manage_dealer_orgs`. L'amministratore non aveva quelle due capability, e WordPress **nasconde** le voci di menu per cui manca la capability invece di segnalarle: nessun errore, nessun indizio, solo un menu più corto.
+
+Il difetto che rendeva lo stato definitivo era in `setup_capability()`: usciva subito se il contatore `dealer_portal_caps_revision` risultava già applicato. Ma quel contatore dice *«questa mappa è già stata applicata una volta»*, non *«le capability ci sono adesso»*. Se sparivano — ruolo ricreato, plugin di gestione ruoli, ripristino parziale del database, copia fra ambienti — non venivano più riassegnate, e con esse sparivano dal menu proprio le schermate da cui si sarebbe potuto rimediare. Un vicolo cieco autoconservante.
+
+- `setup_capability()` **riconcilia sempre**, senza uscita anticipata sul contatore. Non costa nulla: i ruoli sono già in memoria, `has_cap()` è una lettura di array e `add_cap()` tocca il database solo quando manca davvero qualcosa.
+- Quando la riparazione avviene a revisione *già* registrata — cioè qualcosa le aveva tolte — compare un **avviso in bacheca** che lo dice e invita a ricaricare, invece di far comparire le voci in silenzio.
+
 ### 1.4.2
 
 Ripristina **Ruoli e Linee**, la schermata che nella versione in produzione elencava gli utenti del portale e che il modello a organizzazioni aveva fatto sparire senza rimpiazzarla.
