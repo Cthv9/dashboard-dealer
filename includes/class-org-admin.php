@@ -60,6 +60,7 @@ class Dealer_Org_Admin {
 		add_action( 'admin_post_dealer_org_user_assign', [ $this, 'handle_user_assign' ] );
 		add_action( 'admin_post_dealer_org_user_update', [ $this, 'handle_user_update' ] );
 		add_action( 'admin_post_dealer_org_user_remove', [ $this, 'handle_user_remove' ] );
+		add_action( 'admin_post_dealer_org_am_scope',    [ $this, 'handle_am_scope' ] );
 	}
 
 	// ─── Menu ─────────────────────────────────────────────────────────────────
@@ -91,6 +92,12 @@ class Dealer_Org_Admin {
 				break;
 			case 'merge':
 				$this->render_merge();
+				break;
+			case 'area_managers':
+				$this->render_area_managers();
+				break;
+			case 'area_manager_edit':
+				$this->render_area_manager_edit();
 				break;
 			default:
 				$this->render_list();
@@ -297,6 +304,110 @@ class Dealer_Org_Admin {
 		$post_url       = admin_url( 'admin-post.php' );
 
 		require DEALER_PORTAL_PATH . 'templates/admin-org-users.php';
+	}
+
+	// ─── Vista: perimetro degli area manager ──────────────────────────────────
+	//
+	// Un area manager non appartiene a un'organizzazione (segue delle
+	// organizzazioni): il suo perimetro (_am_orgs, _am_lines) e' un asse
+	// separato da quello dei dealer e non ha mai avuto, fino ad ora, un punto
+	// dove assegnarlo — solo dove leggerlo (Dealer_Identity) e dove
+	// applicarlo (Dealer_Area_Manager). Un area manager creato dall'admin si
+	// trovava quindi bloccato per sempre su "perimetro non configurato",
+	// perche' nessuna schermata scriveva mai quel meta.
+
+	/** Elenco degli area manager con un riepilogo del loro perimetro. */
+	private function render_area_managers(): void {
+		$users = get_users( [
+			'role'    => Dealer_Identity::ROLE_AREA_MANAGER,
+			'number'  => self::MAX_ORGS,
+			'orderby' => 'display_name',
+			'order'   => 'ASC',
+		] );
+
+		$rows = [];
+		foreach ( $users as $user ) {
+			$root_ids = array_values( array_filter(
+				array_map( 'absint', (array) get_user_meta( $user->ID, Dealer_Identity::META_AM_ORGS, true ) ),
+				[ 'Dealer_Organization', 'exists' ]
+			) );
+			$root_names = array_map( [ 'Dealer_Organization', 'get_name' ], $root_ids );
+			$line_count = count( Dealer_Identity::get_scope_lines( $user ) );
+
+			$rows[] = [
+				'id'          => (int) $user->ID,
+				'name'        => (string) $user->display_name,
+				'email'       => (string) $user->user_email,
+				'root_names'  => $root_names,
+				'root_count'  => count( $root_ids ),
+				'line_count'  => $line_count,
+				'configured'  => ( $root_ids || $line_count ),
+			];
+		}
+
+		$notice   = self::notice_from_query();
+		$base_url = self::page_url();
+
+		require DEALER_PORTAL_PATH . 'templates/admin-org-area-managers.php';
+	}
+
+	/** Assegnazione del perimetro (organizzazioni radice + linee) a un area manager. */
+	private function render_area_manager_edit(): void {
+		$user_id = absint( $_GET['user'] ?? 0 );
+		$user    = $user_id ? get_user_by( 'id', $user_id ) : null;
+
+		if ( ! $user || ! Dealer_Identity::is_area_manager( $user ) ) {
+			$this->redirect( 'err_am_user', [ 'view' => 'area_managers' ] );
+		}
+
+		// Solo le radici sono selezionabili: seguirne una include gia' tutto
+		// il sottoalbero (Dealer_Identity::get_scope_orgs()). Proporre anche
+		// le figlie confonderebbe senza aggiungere nulla — sarebbero sempre
+		// gia' incluse da una radice selezionata sopra di loro.
+		$roots = [];
+		foreach ( Dealer_Organization::get_all( self::MAX_ORGS ) as $org ) {
+			$org_id = (int) $org->ID;
+			if ( Dealer_Organization::get_parent_id( $org_id ) ) {
+				continue;
+			}
+			$roots[] = [
+				'id'       => $org_id,
+				'name'     => (string) $org->post_title,
+				'children' => count( Dealer_Organization::get_subtree( $org_id ) ) - 1,
+			];
+		}
+
+		$selected_orgs = array_values( array_filter(
+			array_map( 'absint', (array) get_user_meta( $user_id, Dealer_Identity::META_AM_ORGS, true ) ),
+			[ 'Dealer_Organization', 'exists' ]
+		) );
+		$selected_lines = array_map( 'sanitize_text_field', (array) get_user_meta( $user_id, Dealer_Identity::META_AM_LINES, true ) );
+
+		$lines_by_brand = Dealer_Admin::get_product_lines();
+		$notice         = self::notice_from_query();
+		$base_url       = self::page_url();
+		$post_url       = admin_url( 'admin-post.php' );
+
+		require DEALER_PORTAL_PATH . 'templates/admin-org-area-manager-edit.php';
+	}
+
+	public function handle_am_scope(): void {
+		check_admin_referer( 'dealer_org_am_scope' );
+		$this->require_cap();
+
+		$user_id = absint( $_POST['user_id'] ?? 0 );
+		$user    = $user_id ? get_user_by( 'id', $user_id ) : null;
+
+		if ( ! $user || ! Dealer_Identity::is_area_manager( $user ) ) {
+			$this->redirect( 'err_am_user', [ 'view' => 'area_managers' ] );
+		}
+
+		$org_ids = self::posted_ids( 'am_orgs' );
+		$lines   = self::posted_lines( 'am_lines' );
+
+		Dealer_Identity::set_am_scope( $user_id, $org_ids, $lines );
+
+		$this->redirect( 'am_scope_saved', [ 'view' => 'area_manager_edit', 'user' => $user_id ] );
 	}
 
 	// ─── Vista: fusione ───────────────────────────────────────────────────────
@@ -1181,6 +1292,8 @@ class Dealer_Org_Admin {
 			'user_assigned'      => [ 'success', 'Utente assegnato all\'organizzazione.' ],
 			'user_updated'       => [ 'success', 'Utente aggiornato.' ],
 			'user_removed'       => [ 'success', 'Utente rimosso dall\'organizzazione. Torna al modello storico (meta _dealer_lines).' ],
+			'am_scope_saved'     => [ 'success', 'Perimetro salvato. Se l\'area manager e\' collegato, lo vede al prossimo caricamento della sua area di lavoro.' ],
+			'err_am_user'        => [ 'error',   'Utente non trovato o non ha il ruolo Area Manager.' ],
 			'err_org'            => [ 'error',   'Organizzazione non trovata.' ],
 			'err_name'           => [ 'error',   'Il nome dell\'organizzazione e\' obbligatorio.' ],
 			'err_tier'           => [ 'error',   'Livello commerciale non valido.' ],

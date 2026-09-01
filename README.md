@@ -53,6 +53,7 @@ I diritti di accesso appartengono all'**organizzazione** (l'azienda dealer), non
 - Linee effettive calcolate come intersezione fra quelle proprie e quelle ereditate dalla madre: una sede non può mai ottenere una linea che il gruppo non ha
 - Sospensione che si propaga automaticamente alle organizzazioni discendenti
 - Interfaccia admin per creare, modificare, assegnare utenti, fondere e sospendere organizzazioni, con l'effetto dell'ereditarietà sempre mostrato esplicitamente
+- Interfaccia admin dedicata per assegnare il perimetro di un **area manager** (organizzazioni radice seguite, linee di pubblicazione): un asse separato da quello dei dealer, che non appartiene a nessuna organizzazione
 - Migrazione idempotente degli utenti esistenti: ognuno diventa titolare di un'organizzazione che eredita esattamente le sue linee, senza cambiare cosa vede
 - Il **titolare** di un'azienda invita, limita alle linee e disattiva i propri collaboratori da un'area dedicata, senza passare dall'amministratore
 
@@ -131,9 +132,10 @@ Vale solo per gli utenti **senza** un'organizzazione assegnata: il meta storico 
 ### L'area manager
 
 1. Creare l'utente con ruolo `area_manager` (da **Utenti → Aggiungi nuovo**, oppure promuovendo un utente esistente).
-2. In **Dealer Portal → Organizzazioni → Utenti**, o direttamente sui meta utente, impostare il suo perimetro su due assi indipendenti:
-   - le **organizzazioni** che segue (`_am_orgs`) — il sottoalbero di ciascuna è incluso automaticamente;
+2. In **Dealer Portal → Organizzazioni → Area Manager**, cliccare "Assegna perimetro" accanto al suo nome e impostare i due assi indipendenti:
+   - le **organizzazioni** che segue (`_am_orgs`) — solo le radici sono selezionabili, il sottoalbero di ciascuna è incluso automaticamente;
    - le **linee prodotto** su cui può pubblicare (`_am_lines`).
+   Finché nessuno dei due è impostato, l'area manager vede solo "Il tuo perimetro non è ancora stato configurato" nella propria area di lavoro: è la condizione di partenza, non un errore da correggere altrove.
 3. Con questo può caricare, versionare e marcare obsoleti i documenti sulle sue linee, e vedere log e statistiche limitati al suo perimetro. Non può eliminare definitivamente né toccare organizzazioni, utenti o impostazioni.
 
 Tutto questo avviene **sul front-end**, nella sua area di lavoro (`[dealer_area_manager]`): caricamento, aggiornamento delle versioni, archivio e statistiche del perimetro. L'area manager non è un tecnico del sito e non entra mai in wp-admin — dopo il login viene portato direttamente lì.
@@ -251,6 +253,8 @@ dashboard-dealer/
 │   ├── admin-org-edit.php          Creazione e modifica organizzazione
 │   ├── admin-org-users.php         Assegnazione utenti a un'organizzazione
 │   ├── admin-org-merge.php         Fusione di più organizzazioni
+│   ├── admin-org-area-managers.php Elenco degli area manager con riepilogo del perimetro
+│   ├── admin-org-area-manager-edit.php  Assegnazione del perimetro a un area manager
 │   ├── dealer-dashboard.php        Dashboard front-end
 │   ├── dealer-search.php           Contenitore della ricerca
 │   ├── dealer-search-facets.php    Sidebar dei filtri
@@ -423,6 +427,18 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 ---
 
 ## Changelog
+
+### 1.3.5
+
+Fix di una falla progettuale, non di un bug isolato: **non esisteva alcuna interfaccia per assegnare il perimetro di un area manager.**
+
+Il README parlava di "Dealer Portal → Organizzazioni → Utenti, o direttamente sui meta utente" per impostare `_am_orgs`/`_am_lines`, ma quella schermata non li ha mai gestiti — è costruita per l'assegnazione dei dealer a un'organizzazione (`_dealer_org`, `_dealer_function`), un modello diverso: l'area manager non appartiene a un'organizzazione, *segue* delle organizzazioni. Il risultato: un area manager restava per sempre bloccato su "il tuo perimetro non è ancora stato configurato", perché letteralmente nessun punto del plugin scriveva mai quei due meta — solo `Dealer_Identity` (lettura) e `Dealer_Area_Manager` (applicazione) ne sapevano qualcosa.
+
+- Nuova schermata **Dealer Portal → Organizzazioni → Area Manager**: elenca gli area manager con un riepilogo del perimetro (organizzazioni seguite, numero di linee, configurato o no) e un link "Assegna perimetro" per ciascuno.
+- Nuova schermata di assegnazione: organizzazioni radice selezionabili (i sottoalberi sono inclusi da soli, come già fa `get_scope_orgs()`) e linee prodotto raggruppate per brand, con filtro e "deseleziona tutto" — stesso linguaggio visivo delle altre schermate organizzazioni.
+- `Dealer_Identity::set_am_scope()`: unico punto di scrittura per `_am_orgs`/`_am_lines`, sullo stesso principio di `set_line_limit()` — valida organizzazioni esistenti e linee dalla whitelist, non fida mai del POST.
+- Il messaggio che un amministratore vede collaudando l'area di lavoro (introdotto in 1.3.3) ora punta direttamente a questa schermata invece di suggerire una modifica manuale ai meta utente che nessuna interfaccia rendeva possibile.
+- README corretto: la sezione "L'area manager" indicava un percorso che non esisteva.
 
 ### 1.3.4
 

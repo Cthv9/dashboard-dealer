@@ -357,11 +357,13 @@ class Dealer_Area_Manager {
 				return $this->notice(
 					'Sei amministratore: questa pagina è riservata agli area manager del portale, '
 					. 'e per te non c\'è nulla da mostrare in anteprima perché il tuo account non ha un '
-					. 'perimetro assegnato. Per collaudarla, assegna temporaneamente al tuo utente il ruolo '
-					. '"Area Manager" con almeno un\'organizzazione seguita e una linea di pubblicazione '
-					. '(Utenti → il tuo profilo): restando anche amministratore, potrai comunque tornare in '
-					. 'wp-admin in qualsiasi momento — Dealer_Access_Guard lascia sempre passare chi ha '
-					. '"manage_options", anche con un ruolo del portale in più.'
+					. 'perimetro assegnato. Per collaudarla, assegna al tuo utente il ruolo "Area Manager" '
+					. '(Utenti → il tuo profilo), poi assegnagli un perimetro da Dealer Portal → Organizzazioni '
+					. '→ Area Manager. Restando anche amministratore, potrai comunque tornare in wp-admin in '
+					. 'qualsiasi momento — Dealer_Access_Guard lascia sempre passare chi ha "manage_options", '
+					. 'anche con un ruolo del portale in più.',
+					admin_url( 'admin.php?page=dealer-portal-orgs&view=area_managers' ),
+					'Vai a Organizzazioni → Area Manager'
 				);
 			}
 			return $this->notice( 'Quest’area è riservata agli area manager del portale.' );

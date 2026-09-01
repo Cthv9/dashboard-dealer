@@ -197,6 +197,32 @@ class Dealer_Identity {
 	}
 
 	/**
+	 * Scrive il perimetro di un area manager: organizzazioni radice seguite
+	 * (get_scope_orgs() ne espande da sola i sottoalberi) e linee su cui puo'
+	 * pubblicare.
+	 *
+	 * Unico punto di scrittura per META_AM_ORGS/META_AM_LINES, sullo stesso
+	 * principio di set_line_limit(): il chiamante (Dealer_Org_Admin) passa
+	 * dati grezzi dal POST, qui si valida — un'organizzazione cancellata nel
+	 * frattempo o una linea fuori whitelist non finiscono mai nel meta.
+	 *
+	 * @param int[]    $org_ids Radici seguite, grezze dal POST.
+	 * @param string[] $lines   Linee "Brand|Linea", grezze dal POST.
+	 */
+	public static function set_am_scope( int $user_id, array $org_ids, array $lines ): void {
+		$org_ids = array_values( array_unique( array_filter(
+			array_map( 'absint', $org_ids ),
+			[ 'Dealer_Organization', 'exists' ]
+		) ) );
+
+		$valid = class_exists( 'Dealer_Admin' ) ? Dealer_Admin::get_valid_lines() : [];
+		$lines = array_values( array_unique( array_intersect( array_map( 'sanitize_text_field', $lines ), $valid ) ) );
+
+		update_user_meta( $user_id, self::META_AM_ORGS, $org_ids );
+		update_user_meta( $user_id, self::META_AM_LINES, $lines );
+	}
+
+	/**
 	 * Puo' pubblicare un documento su queste linee?
 	 *
 	 * Tre condizioni, tutte necessarie per un area manager:
