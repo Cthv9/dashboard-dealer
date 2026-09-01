@@ -164,6 +164,181 @@ class Dealer_Admin {
 		add_submenu_page( 'dealer-portal', 'Archivio Documenti', 'Archivio Documenti', DEALER_PORTAL_CAP_UPLOAD, 'dealer-portal-archive', [ $this, 'render_archive' ] );
 		add_submenu_page( 'dealer-portal', 'Log Download',       'Log Download',       DEALER_PORTAL_CAP_LOGS,   'dealer-portal-logs',    [ $this, 'render_logs' ] );
 		add_submenu_page( 'dealer-portal', 'Statistiche',        'Statistiche',        DEALER_PORTAL_CAP_LOGS,   'dealer-portal-stats',   [ $this, 'render_stats' ] );
+
+		// Diagnostica. Registrata con 'manage_options' e NON con una capability
+		// del plugin, di proposito: e' la pagina che serve proprio quando le
+		// capability del plugin mancano — se dipendesse da loro sparirebbe
+		// insieme a cio' che deve diagnosticare. Registrata inoltre da questa
+		// classe, l'unica che sappiamo arrivare in fondo quando le altre non
+		// compaiono nel menu.
+		add_submenu_page( 'dealer-portal', 'Diagnostica', 'Diagnostica', 'manage_options', 'dealer-portal-diagnostics', [ $this, 'render_diagnostics' ] );
+	}
+
+	/**
+	 * Stato reale dell'installazione: cosa e' caricato, cosa e' registrato,
+	 * chi puo' cosa. Serve a rispondere con i fatti quando una voce di menu
+	 * non compare — WordPress in quel caso non segnala nulla, la nasconde e
+	 * basta, e senza questa pagina si finisce a tirare a indovinare.
+	 */
+	public function render_diagnostics(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'Accesso non consentito.', 'dealer-portal' ) );
+		}
+
+		$classes = [
+			'Dealer_CPT', 'Dealer_Roles', 'Dealer_DB', 'Dealer_Versioning',
+			'Dealer_Organization', 'Dealer_Identity', 'Dealer_Admin', 'Dealer_Search',
+			'Dealer_Dashboard', 'Dealer_SearchWP', 'Dealer_Notifications',
+			'Dealer_Access_Request', 'Dealer_Org_Admin', 'Dealer_Team',
+			'Dealer_Area_Manager', 'Dealer_Favorites', 'Dealer_Access_Guard',
+		];
+
+		$caps = [ DEALER_PORTAL_CAP, DEALER_PORTAL_CAP_UPLOAD, DEALER_PORTAL_CAP_LOGS, DEALER_PORTAL_CAP_ORGS ];
+
+		$pages = [
+			'dealer_portal_dashboard_page_id' => 'Dashboard',
+			'dealer_portal_search_page_id'    => 'Cerca Documenti',
+			'dealer_portal_fav_page_id'       => 'Preferiti',
+			'dealer_portal_team_page_id'      => 'Gestione Collaboratori',
+			'dealer_portal_am_page_id'        => 'Area Manager',
+		];
+
+		// Callback effettivamente agganciate ad admin_menu: se una classe non
+		// compare qui, non e' stata istanziata (o il suo costruttore non e'
+		// arrivato in fondo).
+		$hooked = [];
+		if ( isset( $GLOBALS['wp_filter']['admin_menu'] ) ) {
+			foreach ( $GLOBALS['wp_filter']['admin_menu']->callbacks as $priority => $callbacks ) {
+				foreach ( $callbacks as $callback ) {
+					$fn = $callback['function'] ?? null;
+					if ( is_array( $fn ) ) {
+						$name = ( is_object( $fn[0] ) ? get_class( $fn[0] ) : (string) $fn[0] ) . '::' . (string) $fn[1];
+					} elseif ( is_string( $fn ) ) {
+						$name = $fn;
+					} else {
+						$name = '(closure)';
+					}
+					if ( false !== stripos( $name, 'dealer' ) ) {
+						$hooked[] = (int) $priority . ' — ' . $name;
+					}
+				}
+			}
+		}
+
+		// Sottomenu realmente registrati sotto 'dealer-portal', con la
+		// capability con cui sono stati registrati: e' il dato che dice se una
+		// voce manca perche' non registrata o perche' nascosta dai permessi.
+		$registered = isset( $GLOBALS['submenu']['dealer-portal'] ) ? (array) $GLOBALS['submenu']['dealer-portal'] : [];
+		?>
+		<div class="wrap">
+			<h1>Dealer Portal — Diagnostica</h1>
+			<p class="description">
+				Stato reale di questa installazione. Se una voce di menu non compare, la risposta e' qui:
+				o la classe non e' stata caricata, o il sottomenu non e' stato registrato, o manca la capability.
+			</p>
+
+			<h2>Versioni</h2>
+			<table class="widefat striped" style="max-width:760px;"><tbody>
+				<tr><td style="width:340px;">Versione nel codice</td><td><code><?php echo esc_html( DEALER_PORTAL_VERSION ); ?></code></td></tr>
+				<tr><td>Versione registrata nel database</td><td><code><?php echo esc_html( (string) get_option( 'dealer_portal_version', '(assente)' ) ); ?></code></td></tr>
+				<tr><td>Revisione capability</td><td><code><?php echo esc_html( (string) get_option( 'dealer_portal_caps_revision', '(assente)' ) ); ?></code> (attesa: <code><?php echo esc_html( (string) Dealer_DB::CAPS_REVISION ); ?></code>)</td></tr>
+				<tr><td>Revisione pagine</td><td><code><?php echo esc_html( (string) get_option( 'dealer_portal_pages_revision', '(assente)' ) ); ?></code></td></tr>
+				<tr><td>Revisione schema log</td><td><code><?php echo esc_html( (string) get_option( 'dealer_portal_schema_revision', '(assente)' ) ); ?></code></td></tr>
+			</tbody></table>
+
+			<h2>Sottomenu registrati sotto "Dealer Portal"</h2>
+			<?php if ( empty( $registered ) ) : ?>
+				<p><strong>Nessuno.</strong></p>
+			<?php else : ?>
+				<table class="widefat striped" style="max-width:760px;">
+					<thead><tr><th>Voce</th><th>Capability richiesta</th><th>Tu ce l'hai?</th></tr></thead>
+					<tbody>
+					<?php foreach ( $registered as $item ) : ?>
+						<tr>
+							<td><?php echo esc_html( wp_strip_all_tags( (string) ( $item[0] ?? '' ) ) ); ?></td>
+							<td><code><?php echo esc_html( (string) ( $item[1] ?? '' ) ); ?></code></td>
+							<td><?php echo current_user_can( (string) ( $item[1] ?? '' ) ) ? '<span style="color:#00a32a;">si</span>' : '<strong style="color:#d63638;">NO</strong>'; ?></td>
+						</tr>
+					<?php endforeach; ?>
+					</tbody>
+				</table>
+			<?php endif; ?>
+
+			<h2>Callback agganciate ad <code>admin_menu</code></h2>
+			<?php if ( empty( $hooked ) ) : ?>
+				<p><strong>Nessuna del plugin.</strong></p>
+			<?php else : ?>
+				<ul style="list-style:disc;margin-left:22px;">
+					<?php foreach ( $hooked as $line ) : ?>
+						<li><code><?php echo esc_html( $line ); ?></code></li>
+					<?php endforeach; ?>
+				</ul>
+			<?php endif; ?>
+
+			<h2>Classi caricate e istanziate</h2>
+			<table class="widefat striped" style="max-width:760px;">
+				<thead><tr><th>Classe</th><th>File caricato</th></tr></thead>
+				<tbody>
+				<?php foreach ( $classes as $class ) : ?>
+					<tr>
+						<td><code><?php echo esc_html( $class ); ?></code></td>
+						<td><?php echo class_exists( $class ) ? '<span style="color:#00a32a;">si</span>' : '<strong style="color:#d63638;">NO</strong>'; ?></td>
+					</tr>
+				<?php endforeach; ?>
+				</tbody>
+			</table>
+
+			<h2>Capability del tuo utente</h2>
+			<table class="widefat striped" style="max-width:760px;">
+				<thead><tr><th>Capability</th><th>Tu</th><th>Ruolo amministratore</th></tr></thead>
+				<tbody>
+				<?php
+				$admin_role = get_role( 'administrator' );
+				foreach ( $caps as $cap ) :
+					?>
+					<tr>
+						<td><code><?php echo esc_html( $cap ); ?></code></td>
+						<td><?php echo current_user_can( $cap ) ? '<span style="color:#00a32a;">si</span>' : '<strong style="color:#d63638;">NO</strong>'; ?></td>
+						<td><?php echo ( $admin_role && $admin_role->has_cap( $cap ) ) ? '<span style="color:#00a32a;">si</span>' : '<strong style="color:#d63638;">NO</strong>'; ?></td>
+					</tr>
+				<?php endforeach; ?>
+				</tbody>
+			</table>
+			<p class="description">
+				I tuoi ruoli: <code><?php echo esc_html( implode( ', ', (array) wp_get_current_user()->roles ) ); ?></code>
+			</p>
+
+			<h2>Ruoli del portale</h2>
+			<table class="widefat striped" style="max-width:760px;"><tbody>
+			<?php foreach ( [ 'dealer', 'top_dealer', 'part_center', 'area_manager' ] as $role_slug ) : ?>
+				<tr>
+					<td style="width:340px;"><code><?php echo esc_html( $role_slug ); ?></code></td>
+					<td><?php echo get_role( $role_slug ) ? '<span style="color:#00a32a;">esiste</span>' : '<strong style="color:#d63638;">MANCA</strong>'; ?></td>
+				</tr>
+			<?php endforeach; ?>
+			</tbody></table>
+
+			<h2>Pagine del portale</h2>
+			<table class="widefat striped" style="max-width:760px;"><tbody>
+			<?php foreach ( $pages as $option => $label ) :
+				$page_id = (int) get_option( $option );
+				$status  = $page_id ? get_post_status( $page_id ) : '';
+				?>
+				<tr>
+					<td style="width:340px;"><?php echo esc_html( $label ); ?></td>
+					<td>
+						<?php if ( ! $page_id ) : ?>
+							<strong style="color:#d63638;">non creata</strong>
+						<?php else : ?>
+							ID <code><?php echo esc_html( (string) $page_id ); ?></code> —
+							<?php echo 'publish' === $status ? '<span style="color:#00a32a;">pubblicata</span>' : '<strong style="color:#d63638;">' . esc_html( $status ? $status : 'inesistente' ) . '</strong>'; ?>
+						<?php endif; ?>
+					</td>
+				</tr>
+			<?php endforeach; ?>
+			</tbody></table>
+		</div>
+		<?php
 	}
 
 	/**
