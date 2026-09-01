@@ -435,6 +435,16 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 
 ## Changelog
 
+### 1.4.4
+
+Aggiunge **Dealer Portal → Diagnostica**, per rispondere con i fatti invece che con ipotesi quando una voce di menu non compare.
+
+Quando manca la capability, WordPress non segnala nulla: nasconde la voce e basta. Dall'esterno il sintomo ("il menu è più corto") è identico che la causa sia una classe non caricata, un sottomenu mai registrato o un permesso mancante — e senza un modo di distinguerle si finisce a indovinare.
+
+La pagina mostra: versioni nel codice e nel database, contatori di revisione, **sottomenu effettivamente registrati con la capability di ciascuno e se l'utente corrente ce l'ha**, callback agganciate ad `admin_menu` (se una classe non compare, non è stata istanziata), classi caricate, capability confrontate fra utente corrente e ruolo amministratore, ruoli del portale, pagine create con il loro stato.
+
+È registrata con `manage_options` e non con una capability del plugin, di proposito: è la pagina che serve proprio quando quelle capability mancano, e se dipendesse da loro sparirebbe insieme a ciò che deve diagnosticare. È inoltre registrata da `Dealer_Admin`, l'unica classe che risulta arrivare in fondo quando le altre non compaiono.
+
 ### 1.4.3
 
 **Trovata la causa del blocco: le voci di menu mancanti erano capability mancanti.**
