@@ -29,39 +29,63 @@
    --dp-vw è la larghezza della finestra SENZA la barra di scorrimento,
    scritta da assets/js/dealer-layout.js. Il fallback 100vw la include e
    produrrebbe una barra di scorrimento orizzontale di una quindicina di pixel
-   su Windows: senza JS il layout resta corretto, solo un po' più largo. */
-.dealer-dashboard-wrap,
-.dealer-search-wrap,
-.dealer-favorites-wrap {
-	box-sizing: border-box;
-	width: var(--dp-vw, 100vw);
-	max-width: var(--dp-vw, 100vw);
+   su Windows: senza JS il layout resta corretto, solo un po' più largo.
+
+   !important e "body" davanti a ogni selettore non sono sciatteria: sono la
+   contromisura a un caso preciso, confermato su un tema a blocchi durante il
+   collaudo. I temi a blocchi (Twenty Twenty-Three/Quattro e qualunque tema
+   che usi il layout "constrained" di theme.json) applicano ai figli diretti
+   dell'area di contenuto questa regola (da wp-includes, non dal tema):
+       .is-layout-constrained > * {
+           max-width: var(--wp--style--global--content-size);
+           margin-left: auto !important;
+           margin-right: auto !important;
+       }
+   Il nostro shortcode finisce spesso proprio lì (un blocco Paragrafo o HTML
+   personalizzato è un figlio diretto). Senza contromisura, quel !important
+   annulla il nostro margine calcolato — a larghezza invariata l'elemento
+   resta semplicemente ricentrato, e i fogli di stile del tema vengono quasi
+   sempre iniettati più tardi nell'head, quindi a pari specificità vincono
+   comunque anche sulle proprietà non marcate !important. "body" prima della
+   classe alza la nostra specificità sopra quella di quel selettore (una sola
+   classe): a parità di !important vinciamo per specificità, non per fortuna
+   sull'ordine di caricamento. */
+body .dealer-dashboard-wrap,
+body .dealer-search-wrap,
+body .dealer-favorites-wrap {
+	box-sizing: border-box !important;
+	width: var(--dp-vw, 100vw) !important;
+	max-width: var(--dp-vw, 100vw) !important;
 	/* Le percentuali dei margini si riferiscono al contenitore: 50% del tema
 	   meno mezza finestra è esattamente lo scostamento che serve per centrare
 	   il wrapper sulla finestra, qualunque sia la larghezza del contenitore. */
-	margin-left: calc(50% - var(--dp-vw, 100vw) / 2);
-	margin-right: calc(50% - var(--dp-vw, 100vw) / 2);
+	margin-left: calc(50% - var(--dp-vw, 100vw) / 2) !important;
+	margin-right: calc(50% - var(--dp-vw, 100vw) / 2) !important;
 	background: var(--dp-gray);
 	min-height: 60vh;
 	/* Il padding non può usare le percentuali (si riferirebbero al contenitore
 	   del tema, non alla finestra): il tetto del contenuto si calcola su
 	   --dp-vw. max() garantisce comunque il margine minimo di 20px. */
-	padding: 40px max(20px, calc((var(--dp-vw, 100vw) - 1440px) / 2)) 60px;
+	padding: 40px max(20px, calc((var(--dp-vw, 100vw) - 1440px) / 2)) 60px !important;
 	font-family: inherit;
 }
 
 /* Ripiego applicato da dealer-layout.js quando un contenitore del tema
    ritaglia ciò che deborda: il wrapper rientra e resta stretto ma integro.
-   Vedi guardBleed() in assets/js/dealer-layout.js per il perché. */
-.dealer-dashboard-wrap.dp-no-bleed,
-.dealer-search-wrap.dp-no-bleed,
-.dealer-favorites-wrap.dp-no-bleed {
-	width: auto;
-	max-width: none;
-	margin-left: 0;
-	margin-right: 0;
-	padding-left: 20px;
-	padding-right: 20px;
+   Vedi guardBleed() in assets/js/dealer-layout.js per il perché.
+   Stesso trattamento (!important, "body" davanti): deve poter annullare la
+   regola qui sopra, che ora è essa stessa !important a specificità alzata —
+   senza gli stessi due accorgimenti resterebbe inerte esattamente come
+   accadeva alla regola del tema. */
+body .dealer-dashboard-wrap.dp-no-bleed,
+body .dealer-search-wrap.dp-no-bleed,
+body .dealer-favorites-wrap.dp-no-bleed {
+	width: auto !important;
+	max-width: none !important;
+	margin-left: 0 !important;
+	margin-right: 0 !important;
+	padding-left: 20px !important;
+	padding-right: 20px !important;
 }
 
 /* ── Link di ritorno alla dashboard ──────────────────────────────────────

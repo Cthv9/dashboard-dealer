@@ -424,6 +424,22 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 
 ## Changelog
 
+### 1.3.4
+
+Fix dallo screenshot del collaudo: sul tema in prova la larghezza a tutta pagina introdotta in 1.3.2 non aveva alcun effetto visibile — la pagina di ricerca restava esattamente larga quanto il titolo della pagina del tema.
+
+Causa: i temi a blocchi (Twenty Twenty-Tre/Quattro e qualunque tema che usi il layout "constrained" di theme.json) applicano ai figli diretti dell'area di contenuto una regola di WordPress stesso (non del tema):
+```
+.is-layout-constrained > * {
+    max-width: var(--wp--style--global--content-size);
+    margin-left: auto !important;
+    margin-right: auto !important;
+}
+```
+Il nostro shortcode finisce spesso proprio lì (un blocco Paragrafo o HTML personalizzato è un figlio diretto di quell'area). Il nostro margine calcolato, senza `!important`, perdeva sempre contro quella regola — e i fogli di stile dei temi a blocchi vengono in genere iniettati più tardi nell'head, quindi a parità di importanza avrebbero comunque vinto anche sulle proprietà non marcate `!important`.
+
+Corretto in tutte e cinque le pagine del portale: le regole di larghezza ora usano `!important` e un selettore con specificità più alta (`body .dealer-search-wrap` invece di `.dealer-search-wrap`), così battiamo quella regola sia per importanza sia per specificità, indipendentemente dall'ordine di caricamento dei fogli di stile. Lo stesso trattamento è stato applicato al ripiego "dp-no-bleed" (temi che ritagliano ciò che deborda), che deve poter annullare una regola ora essa stessa `!important`.
+
 ### 1.3.3
 
 Correzioni dal primo collaudo reale con cambi di ruolo frequenti (dealer, area manager, titolare, admin).
