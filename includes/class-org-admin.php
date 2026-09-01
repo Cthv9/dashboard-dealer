@@ -27,6 +27,29 @@ class Dealer_Org_Admin {
 	/** Slug del sottomenu sotto 'dealer-portal'. */
 	const MENU_SLUG = 'dealer-portal-orgs';
 
+	/**
+	 * Slug del sottomenu "Area Manager".
+	 *
+	 * Voce di menu propria e non una vista dentro Organizzazioni: assegnare il
+	 * perimetro a un area manager e' un compito a se', il primo che si fa dopo
+	 * aver creato l'utente, e chi lo cerca non ha motivo di andarlo a cercare
+	 * sotto "Organizzazioni" — tanto piu' che le organizzazioni, per un area
+	 * manager, sono la meta' facoltativa del perimetro.
+	 */
+	const AM_MENU_SLUG = 'dealer-portal-area-managers';
+
+	/**
+	 * Slug del sottomenu "Ruoli e Linee".
+	 *
+	 * Il modello a organizzazioni ha spostato i diritti dall'utente all'azienda,
+	 * ma ha lasciato l'amministratore senza un punto da cui guardare le PERSONE:
+	 * per verificare un utente bisognava gia' sapere in quale organizzazione
+	 * cercarlo. Questa schermata risponde alla domanda che ci si pone davvero —
+	 * "chi sono i miei utenti e cosa vede ciascuno" — e da ogni riga porta al
+	 * punto giusto dove correggere.
+	 */
+	const ROLES_MENU_SLUG = 'dealer-portal-roles-lines';
+
 	/** Radici mostrate per pagina nell'albero (i sottoalberi seguono la radice). */
 	const ROOTS_PER_PAGE = 20;
 
@@ -74,6 +97,153 @@ class Dealer_Org_Admin {
 			self::MENU_SLUG,
 			[ $this, 'render_page' ]
 		);
+
+		add_submenu_page(
+			'dealer-portal',
+			'Area Manager',
+			'Area Manager',
+			DEALER_PORTAL_CAP_ORGS,
+			self::AM_MENU_SLUG,
+			[ $this, 'render_am_page' ]
+		);
+
+		add_submenu_page(
+			'dealer-portal',
+			'Ruoli e Linee',
+			'Ruoli e Linee',
+			DEALER_PORTAL_CAP_ORGS,
+			self::ROLES_MENU_SLUG,
+			[ $this, 'render_roles_lines' ]
+		);
+	}
+
+	/** URL della schermata Ruoli e Linee. */
+	public static function roles_page_url(): string {
+		return admin_url( 'admin.php?page=' . self::ROLES_MENU_SLUG );
+	}
+
+	/** URL della schermata Area Manager. */
+	public static function am_page_url(): string {
+		return admin_url( 'admin.php?page=' . self::AM_MENU_SLUG );
+	}
+
+	/**
+	 * Router della schermata Area Manager: elenco, oppure assegnazione del
+	 * perimetro quando l'URL indica un utente.
+	 */
+	public function render_am_page(): void {
+		$this->require_cap();
+
+		if ( absint( $_GET['user'] ?? 0 ) ) {
+			$this->render_area_manager_edit();
+			return;
+		}
+
+		$this->render_area_managers();
+	}
+
+	// ─── Vista: ruoli e linee di tutti gli utenti del portale ─────────────────
+
+	/**
+	 * Elenco di TUTTI gli utenti del portale con ruolo, appartenenza e linee
+	 * effettive.
+	 *
+	 * NON introduce un secondo modo di assegnare i diritti: sarebbero due strade
+	 * per lo stesso dato, destinate a divergere — l'errore che questo plugin
+	 * evita ovunque. Mostra il RISULTATO (cosa vede davvero ciascuno, risolto da
+	 * Dealer_Identity) e da ogni riga porta all'unico punto che quel valore lo
+	 * scrive: le organizzazioni per i dealer, il perimetro per gli area manager,
+	 * il profilo per chi non e' ancora stato assegnato.
+	 */
+	public function render_roles_lines(): void {
+		$this->require_cap();
+
+		$portal_roles = array_merge( Dealer_Identity::DEALER_ROLES, [ Dealer_Identity::ROLE_AREA_MANAGER ] );
+
+		// Sola lettura: nessuna azione distruttiva, nessun nonce necessario.
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended
+		$role_filter = sanitize_key( (string) ( $_GET['ruolo'] ?? '' ) );
+		$search      = sanitize_text_field( wp_unslash( (string) ( $_GET['q'] ?? '' ) ) );
+		$paged       = max( 1, absint( $_GET['paged'] ?? 1 ) );
+		// phpcs:enable WordPress.Security.NonceVerification.Recommended
+
+		$roles_in = in_array( $role_filter, $portal_roles, true ) ? [ $role_filter ] : $portal_roles;
+		$per_page = 50;
+
+		$args = [
+			'role__in'    => $roles_in,
+			'number'      => $per_page,
+			'offset'      => ( $paged - 1 ) * $per_page,
+			'orderby'     => 'display_name',
+			'order'       => 'ASC',
+			'count_total' => true,
+		];
+		if ( '' !== $search ) {
+			$args['search']         = '*' . $search . '*';
+			$args['search_columns'] = [ 'user_login', 'user_email', 'display_name' ];
+		}
+
+		$query       = new WP_User_Query( $args );
+		$total       = (int) $query->get_total();
+		$total_pages = (int) max( 1, ceil( $total / $per_page ) );
+
+		$rows           = [];
+		$without_access = 0;
+		foreach ( (array) $query->get_results() as $user ) {
+			if ( ! $user instanceof \WP_User ) {
+				continue;
+			}
+
+			$is_am  = Dealer_Identity::is_area_manager( $user );
+			$org_id = Dealer_Identity::get_org_id( $user );
+
+			// Per un area manager le linee sono il perimetro di PUBBLICAZIONE;
+			// per un dealer sono le linee che VEDE. Due significati diversi: la
+			// colonna li tiene distinti invece di mescolarli in un numero solo.
+			$lines = $is_am
+				? Dealer_Identity::get_scope_lines( $user )
+				: Dealer_Identity::get_effective_lines( $user );
+
+			if ( empty( $lines ) ) {
+				$without_access++;
+			}
+
+			$rows[] = [
+				'id'         => (int) $user->ID,
+				'name'       => (string) $user->display_name,
+				'email'      => (string) $user->user_email,
+				'is_am'      => $is_am,
+				'role'       => $is_am
+					? 'Area Manager'
+					: ( Dealer_Roles::ROLES[ Dealer_Identity::get_effective_tier( $user ) ] ?? '—' ),
+				'org_id'     => $org_id,
+				'org_name'   => $org_id ? Dealer_Organization::get_name( $org_id ) : '',
+				'function'   => $org_id
+					? ( self::function_labels()[ Dealer_Identity::get_function( $user ) ] ?? '' )
+					: '',
+				'lines'      => $lines,
+				'active'     => Dealer_Identity::is_active( $user ),
+				'edit_url'   => $is_am
+					? add_query_arg( 'user', (int) $user->ID, self::am_page_url() )
+					: ( $org_id
+						? add_query_arg( [ 'view' => 'users', 'org' => $org_id ], self::page_url() )
+						: admin_url( 'user-edit.php?user_id=' . (int) $user->ID ) ),
+				'edit_label' => $is_am
+					? 'Perimetro'
+					: ( $org_id ? 'Organizzazione' : 'Assegna' ),
+			];
+		}
+
+		$role_options = [
+			''                                 => 'Tutti i ruoli',
+			Dealer_Identity::ROLE_AREA_MANAGER => 'Area Manager',
+		] + Dealer_Roles::ROLES;
+
+		$base_url = self::roles_page_url();
+		$orgs_url = self::page_url();
+		$am_url   = self::am_page_url();
+
+		require DEALER_PORTAL_PATH . 'templates/admin-roles-lines.php';
 	}
 
 	// ─── Router delle viste ───────────────────────────────────────────────────
@@ -92,12 +262,6 @@ class Dealer_Org_Admin {
 				break;
 			case 'merge':
 				$this->render_merge();
-				break;
-			case 'area_managers':
-				$this->render_area_managers();
-				break;
-			case 'area_manager_edit':
-				$this->render_area_manager_edit();
 				break;
 			default:
 				$this->render_list();
@@ -245,8 +409,15 @@ class Dealer_Org_Admin {
 	private function render_users(): void {
 		$org_id = absint( $_GET['org'] ?? 0 );
 		if ( ! Dealer_Organization::exists( $org_id ) ) {
-			wp_safe_redirect( add_query_arg( 'org_msg', 'err_org', self::page_url() ) );
-			exit;
+			// Stesso motivo spiegato in render_error(): qui la pagina è già
+			// cominciata, un redirect non partirebbe e l'exit lascerebbe a
+			// schermo mezza schermata di amministrazione.
+			$this->render_error(
+				'Organizzazione non trovata.',
+				self::page_url(),
+				'Torna all\'elenco delle organizzazioni'
+			);
+			return;
 		}
 
 		$org_name  = Dealer_Organization::get_name( $org_id );
@@ -335,18 +506,28 @@ class Dealer_Org_Admin {
 			$line_count = count( Dealer_Identity::get_scope_lines( $user ) );
 
 			$rows[] = [
-				'id'          => (int) $user->ID,
-				'name'        => (string) $user->display_name,
-				'email'       => (string) $user->user_email,
-				'root_names'  => $root_names,
-				'root_count'  => count( $root_ids ),
-				'line_count'  => $line_count,
-				'configured'  => ( $root_ids || $line_count ),
+				'id'         => (int) $user->ID,
+				'name'       => (string) $user->display_name,
+				'email'      => (string) $user->user_email,
+				'root_names' => $root_names,
+				'root_count' => count( $root_ids ),
+				'line_count' => $line_count,
+				// "Operativo" dipende SOLO dalle linee: can_publish_to_lines()
+				// rifiuta un perimetro di linee vuoto, quindi senza linee un
+				// area manager non puo' pubblicare nulla, per quante
+				// organizzazioni gli si assegnino. Le organizzazioni sono l'asse
+				// della supervisione (persone, log, statistiche): utili, ma non
+				// necessarie per lavorare.
+				'operational' => ( $line_count > 0 ),
 			];
 		}
 
+		$blocked  = count( array_filter( $rows, static function ( array $row ): bool {
+			return ! $row['operational'];
+		} ) );
 		$notice   = self::notice_from_query();
-		$base_url = self::page_url();
+		$base_url = self::am_page_url();
+		$new_user_url = admin_url( 'user-new.php' );
 
 		require DEALER_PORTAL_PATH . 'templates/admin-org-area-managers.php';
 	}
@@ -357,14 +538,19 @@ class Dealer_Org_Admin {
 		$user    = $user_id ? get_user_by( 'id', $user_id ) : null;
 
 		if ( ! $user || ! Dealer_Identity::is_area_manager( $user ) ) {
-			$this->redirect( 'err_am_user', [ 'view' => 'area_managers' ] );
+			$this->render_error(
+				'Utente non trovato o non ha il ruolo Area Manager.',
+				self::am_page_url(),
+				'Torna all\'elenco degli area manager'
+			);
+			return;
 		}
 
-		// Solo le radici sono selezionabili: seguirne una include gia' tutto
-		// il sottoalbero (Dealer_Identity::get_scope_orgs()). Proporre anche
-		// le figlie confonderebbe senza aggiungere nulla — sarebbero sempre
-		// gia' incluse da una radice selezionata sopra di loro.
+		// Si propongono le radici: seguirne una include gia' tutto il suo
+		// sottoalbero (Dealer_Identity::get_scope_orgs()), quindi elencare
+		// anche le figlie confonderebbe senza aggiungere nulla.
 		$roots = [];
+		$shown = [];
 		foreach ( Dealer_Organization::get_all( self::MAX_ORGS ) as $org ) {
 			$org_id = (int) $org->ID;
 			if ( Dealer_Organization::get_parent_id( $org_id ) ) {
@@ -374,18 +560,43 @@ class Dealer_Org_Admin {
 				'id'       => $org_id,
 				'name'     => (string) $org->post_title,
 				'children' => count( Dealer_Organization::get_subtree( $org_id ) ) - 1,
+				'orphan'   => false,
+				'path'     => '',
 			];
+			$shown[ $org_id ] = true;
 		}
 
 		$selected_orgs = array_values( array_filter(
 			array_map( 'absint', (array) get_user_meta( $user_id, Dealer_Identity::META_AM_ORGS, true ) ),
 			[ 'Dealer_Organization', 'exists' ]
 		) );
+
+		// Un'organizzazione gia' assegnata che fra le radici non compare — nel
+		// frattempo e' diventata figlia di un'altra, oppure sta oltre il tetto
+		// di MAX_ORGS — deve avere comunque la sua casella. Il form riscrive
+		// _am_orgs per intero: senza casella non verrebbe rispedita e sparirebbe
+		// dal perimetro al primo salvataggio, in silenzio e con un messaggio di
+		// conferma. Mostrarla la rende visibile, conservabile e rimovibile
+		// deliberatamente.
+		foreach ( $selected_orgs as $selected_id ) {
+			if ( isset( $shown[ $selected_id ] ) ) {
+				continue;
+			}
+			$roots[] = [
+				'id'       => $selected_id,
+				'name'     => Dealer_Organization::get_name( $selected_id ),
+				'children' => max( 0, count( Dealer_Organization::get_subtree( $selected_id ) ) - 1 ),
+				'orphan'   => true,
+				'path'     => self::org_path( $selected_id ),
+			];
+			$shown[ $selected_id ] = true;
+		}
 		$selected_lines = array_map( 'sanitize_text_field', (array) get_user_meta( $user_id, Dealer_Identity::META_AM_LINES, true ) );
 
 		$lines_by_brand = Dealer_Admin::get_product_lines();
 		$notice         = self::notice_from_query();
-		$base_url       = self::page_url();
+		$base_url       = self::am_page_url();
+		$orgs_url       = self::page_url();
 		$post_url       = admin_url( 'admin-post.php' );
 
 		require DEALER_PORTAL_PATH . 'templates/admin-org-area-manager-edit.php';
@@ -398,8 +609,10 @@ class Dealer_Org_Admin {
 		$user_id = absint( $_POST['user_id'] ?? 0 );
 		$user    = $user_id ? get_user_by( 'id', $user_id ) : null;
 
+		// Gli handler admin_post girano prima di qualunque output: qui il
+		// redirect funziona (a differenza dei render, vedi render_error()).
 		if ( ! $user || ! Dealer_Identity::is_area_manager( $user ) ) {
-			$this->redirect( 'err_am_user', [ 'view' => 'area_managers' ] );
+			$this->redirect_am( 'err_am_user' );
 		}
 
 		$org_ids = self::posted_ids( 'am_orgs' );
@@ -407,7 +620,18 @@ class Dealer_Org_Admin {
 
 		Dealer_Identity::set_am_scope( $user_id, $org_ids, $lines );
 
-		$this->redirect( 'am_scope_saved', [ 'view' => 'area_manager_edit', 'user' => $user_id ] );
+		// Senza linee l'area manager resta inoperativo: lo si dice subito,
+		// invece di lasciare che se ne accorga lui trovando l'area vuota.
+		$this->redirect_am( empty( $lines ) ? 'am_scope_no_lines' : 'am_scope_saved', [ 'user' => $user_id ] );
+	}
+
+	/** Come redirect(), ma verso la schermata Area Manager. */
+	private function redirect_am( string $code, array $args = [] ): void {
+		$args['page']    = self::AM_MENU_SLUG;
+		$args['org_msg'] = $code;
+
+		wp_safe_redirect( add_query_arg( $args, admin_url( 'admin.php' ) ) );
+		exit;
 	}
 
 	// ─── Vista: fusione ───────────────────────────────────────────────────────
@@ -1248,6 +1472,28 @@ class Dealer_Org_Admin {
 		}
 	}
 
+	/**
+	 * Errore mostrato DENTRO la schermata, non con un redirect.
+	 *
+	 * Il callback di una pagina di amministrazione viene invocato dopo che
+	 * admin-header.php ha gia' stampato: li' wp_safe_redirect() non
+	 * reindirizza niente (header gia' inviati) e l'exit che lo accompagna
+	 * lascia a schermo mezza pagina di amministrazione troncata. Un errore
+	 * incontrato mentre si sta gia' disegnando va rappresentato, non navigato
+	 * — i redirect restano dove funzionano, cioe' negli handler admin_post,
+	 * che girano prima di qualunque output.
+	 */
+	private function render_error( string $message, string $back_url, string $back_label ): void {
+		?>
+		<div class="wrap">
+			<h1 class="wp-heading-inline">Organizzazioni</h1>
+			<hr class="wp-header-end">
+			<div class="notice notice-error"><p><?php echo esc_html( $message ); ?></p></div>
+			<p><a class="button" href="<?php echo esc_url( $back_url ); ?>"><?php echo esc_html( $back_label ); ?></a></p>
+		</div>
+		<?php
+	}
+
 	/** Linee dal POST, ripulite e filtrate contro la whitelist Brand|Linea. */
 	private static function posted_lines( string $field ): array {
 		$raw = isset( $_POST[ $field ] ) ? (array) wp_unslash( $_POST[ $field ] ) : [];
@@ -1293,6 +1539,7 @@ class Dealer_Org_Admin {
 			'user_updated'       => [ 'success', 'Utente aggiornato.' ],
 			'user_removed'       => [ 'success', 'Utente rimosso dall\'organizzazione. Torna al modello storico (meta _dealer_lines).' ],
 			'am_scope_saved'     => [ 'success', 'Perimetro salvato. Se l\'area manager e\' collegato, lo vede al prossimo caricamento della sua area di lavoro.' ],
+			'am_scope_no_lines'  => [ 'warning', 'Perimetro salvato, ma senza nessuna linea prodotto: cosi\' l\'area manager non puo\' pubblicare ne\' aggiornare alcun documento. Assegnagli almeno una linea per renderlo operativo.' ],
 			'err_am_user'        => [ 'error',   'Utente non trovato o non ha il ruolo Area Manager.' ],
 			'err_org'            => [ 'error',   'Organizzazione non trovata.' ],
 			'err_name'           => [ 'error',   'Il nome dell\'organizzazione e\' obbligatorio.' ],

@@ -60,10 +60,16 @@ class Dealer_Dashboard {
 		// bisogno del CSS, qualunque sia il sistema che l'ha costruita.
 		self::enqueue_dashboard_assets();
 
-		// Reindirizza al login se non autenticato.
+		// Da qui in poi non si reindirizza mai: uno shortcode gira dentro
+		// the_content, quando gli header sono già partiti e mezza pagina è già
+		// stata stampata. Un wp_safe_redirect() qui non reindirizzerebbe nulla
+		// e l'exit che lo accompagna troncherebbe la pagina a metà, footer e
+		// link di logout compresi. Il redirect vero vive in
+		// Dealer_Access_Guard::route_dashboard(), su template_redirect; questi
+		// sono le reti di sicurezza per quando lo shortcode è stato messo su
+		// una pagina che il plugin non riconosce come la propria.
 		if ( ! is_user_logged_in() ) {
-			wp_safe_redirect( wp_login_url( get_permalink() ) );
-			exit;
+			return '<p class="dealer-notice"><a href="' . esc_url( wp_login_url( get_permalink() ) ) . '">Accedi</a> per entrare nella tua area riservata.</p>';
 		}
 
 		$user       = wp_get_current_user();
@@ -74,13 +80,14 @@ class Dealer_Dashboard {
 		$is_dealer    = ! empty( array_intersect( $user_roles, $dealer_roles ) );
 
 		if ( ! $is_dealer && ! current_user_can( 'manage_options' ) ) {
-			// Un area manager che finisce qui (link salvato, vecchia scheda,
-			// digitazione dell'URL) non deve sbattere contro un vicolo cieco:
-			// questa non è la sua area, ma sappiamo esattamente qual è. È lo
-			// stesso posto dove lo manda già il redirect dopo il login.
+			// Un area manager che finisce qui non deve sbattere contro un
+			// vicolo cieco: questa non è la sua area, ma sappiamo qual è.
+			// Normalmente route_dashboard() lo ha già portato lì prima che la
+			// pagina cominciasse; questo è il caso in cui lo shortcode sta su
+			// una pagina che non è quella registrata come Dashboard.
 			if ( Dealer_Identity::is_area_manager( $user ) ) {
-				wp_safe_redirect( Dealer_DB::area_manager_url() );
-				exit;
+				return '<p class="dealer-notice">Questa è l’area dei dealer. '
+					. '<a href="' . esc_url( Dealer_DB::area_manager_url() ) . '">Vai alla tua area di lavoro</a>.</p>';
 			}
 			return '<p class="dealer-notice">Accesso non autorizzato.</p>';
 		}

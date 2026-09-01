@@ -50,6 +50,48 @@ class Dealer_Access_Guard {
 		add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_layout_helper' ] );
 		add_action( 'wp_footer', [ $this, 'render_floating_logout' ] );
 		add_filter( 'body_class', [ $this, 'add_body_class' ] );
+		add_action( 'template_redirect', [ $this, 'route_dashboard' ] );
+	}
+
+	/**
+	 * Smistamento sulla pagina Dashboard, fatto PRIMA che il tema cominci a
+	 * stampare.
+	 *
+	 * Uno shortcode gira dentro il filtro the_content: a quel punto gli header
+	 * sono già partiti e mezza pagina è già stata scritta. Lì un
+	 * wp_safe_redirect() non reindirizza niente (header già inviati) e l'exit
+	 * che lo accompagna tronca la pagina a metà — senza footer e, con una certa
+	 * ironia, senza nemmeno il link di logout aggiunto apposta per non lasciare
+	 * più nessuno in un vicolo cieco. L'unico punto dove un redirect funziona
+	 * davvero è questo.
+	 *
+	 * Vale solo per la Dashboard, che è l'unica pagina del portale linkata dal
+	 * sito e quindi l'unica dove ha senso mandare al login chi non è ancora
+	 * autenticato: le altre quattro continuano a mostrare il proprio avviso con
+	 * il link "Accedi", che funziona ed è meno brusco.
+	 */
+	public function route_dashboard(): void {
+		if ( is_admin() || ! is_page() ) {
+			return;
+		}
+
+		$dashboard_id = (int) get_option( 'dealer_portal_dashboard_page_id' );
+		if ( ! $dashboard_id || get_queried_object_id() !== $dashboard_id ) {
+			return;
+		}
+
+		if ( ! is_user_logged_in() ) {
+			wp_safe_redirect( wp_login_url( get_permalink( $dashboard_id ) ) );
+			exit;
+		}
+
+		// L'area manager non ha una dashboard dealer: la sua area è un'altra,
+		// ed è la stessa dove lo manda il redirect dopo il login.
+		if ( ! current_user_can( 'manage_options' )
+			&& Dealer_Identity::is_area_manager( wp_get_current_user() ) ) {
+			wp_safe_redirect( Dealer_DB::area_manager_url() );
+			exit;
+		}
 	}
 
 	/**

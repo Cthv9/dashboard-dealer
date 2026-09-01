@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Dealer Portal
  * Description:       Area riservata per la distribuzione controllata di documenti a reti di utenti esterni: permessi granulari per organizzazione, versionamento, ricerca a faccette. SearchWP supportato (opzionale).
- * Version:           1.3.6
+ * Version:           1.4.2
  * Author:            DF
  * Text Domain:       dealer-portal
  * Requires PHP:      7.4
@@ -11,7 +11,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'DEALER_PORTAL_VERSION', '1.3.6' );
+define( 'DEALER_PORTAL_VERSION', '1.4.2' );
 define( 'DEALER_PORTAL_PATH',    plugin_dir_path( __FILE__ ) );
 define( 'DEALER_PORTAL_URL',     plugin_dir_url( __FILE__ ) );
 // ─── Capability ──────────────────────────────────────────────────────────────

@@ -27,7 +27,7 @@ require DEALER_PORTAL_PATH . 'templates/admin-org-styles.php';
 	<h1 class="wp-heading-inline">Organizzazioni</h1>
 	<a href="<?php echo esc_url( add_query_arg( 'view', 'edit', $base_url ) ); ?>" class="page-title-action">Aggiungi organizzazione</a>
 	<a href="<?php echo esc_url( add_query_arg( 'view', 'merge', $base_url ) ); ?>" class="page-title-action">Fondi organizzazioni</a>
-	<a href="<?php echo esc_url( add_query_arg( 'view', 'area_managers', $base_url ) ); ?>" class="page-title-action">Area Manager</a>
+	<a href="<?php echo esc_url( Dealer_Org_Admin::am_page_url() ); ?>" class="page-title-action">Area Manager</a>
 	<hr class="wp-header-end">
 
 	<?php if ( ! empty( $notice['message'] ) ) : ?>

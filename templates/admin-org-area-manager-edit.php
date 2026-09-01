@@ -1,16 +1,17 @@
 <?php
 /**
- * Assegnazione del perimetro (organizzazioni radice + linee) a un area manager.
- * Dealer Portal → Organizzazioni → Area Manager → Assegna perimetro (view=area_manager_edit)
+ * Assegnazione del perimetro (linee + organizzazioni) a un area manager.
+ * Dealer Portal → Area Manager → Assegna perimetro
  *
  * Variabili fornite da Dealer_Org_Admin::render_area_manager_edit():
  * @var \WP_User $user
- * @var array    $roots           Organizzazioni radice: id, name, children
- * @var int[]    $selected_orgs   Radici gia' assegnate (_am_orgs)
+ * @var array    $roots           Radici + eventuali assegnate non-radice: id, name, children, orphan, path
+ * @var int[]    $selected_orgs   Organizzazioni gia' assegnate (_am_orgs)
  * @var string[] $selected_lines  Linee gia' assegnate (_am_lines)
  * @var array    $lines_by_brand
  * @var array    $notice
- * @var string   $base_url
+ * @var string   $base_url        Elenco area manager
+ * @var string   $orgs_url        Schermata Organizzazioni
  * @var string   $post_url
  */
 if ( ! defined( 'ABSPATH' ) ) { exit; }
@@ -20,12 +21,10 @@ if ( ! current_user_can( DEALER_PORTAL_CAP_ORGS ) ) {
 }
 
 require DEALER_PORTAL_PATH . 'templates/admin-org-styles.php';
-
-$list_url = add_query_arg( 'view', 'area_managers', $base_url );
 ?>
 <div class="wrap">
 	<h1 class="wp-heading-inline">Perimetro · <?php echo esc_html( $user->display_name ); ?></h1>
-	<a href="<?php echo esc_url( $list_url ); ?>" class="page-title-action">Torna all'elenco</a>
+	<a href="<?php echo esc_url( $base_url ); ?>" class="page-title-action">Torna all'elenco</a>
 	<hr class="wp-header-end">
 
 	<?php if ( ! empty( $notice['message'] ) ) : ?>
@@ -34,11 +33,12 @@ $list_url = add_query_arg( 'view', 'area_managers', $base_url );
 		</div>
 	<?php endif; ?>
 
-	<?php if ( empty( $selected_orgs ) && empty( $selected_lines ) ) : ?>
+	<?php if ( empty( $selected_lines ) ) : ?>
 		<div class="notice notice-warning inline"><p>
-			<strong>Perimetro non ancora configurato.</strong>
-			Finche' resta cosi', l'area manager vede solo l'avviso "Il tuo perimetro non e' ancora stato configurato"
-			nella propria area di lavoro: nessun documento, nessun collaboratore.
+			<strong>Questo area manager non è ancora operativo.</strong>
+			Senza almeno una linea prodotto non può pubblicare né aggiornare alcun documento, e trova
+			la propria area di lavoro vuota. Le organizzazioni, invece, sono facoltative: servono solo
+			se deve anche seguire dei dealer (persone, log, statistiche).
 		</p></div>
 	<?php endif; ?>
 
@@ -49,41 +49,15 @@ $list_url = add_query_arg( 'view', 'area_managers', $base_url );
 
 		<div style="display:flex; gap:20px; flex-wrap:wrap;">
 			<div class="postbox" style="flex:1; min-width:320px;">
-				<div class="postbox-header"><h2 class="hndle" style="padding:8px 12px;">Organizzazioni seguite</h2></div>
+				<div class="postbox-header"><h2 class="hndle" style="padding:8px 12px;">
+					1 · Linee di pubblicazione <span style="font-weight:400;color:#d63638;">— necessarie</span>
+				</h2></div>
 				<div class="inside">
 					<p class="description" style="margin-bottom:10px;">
-						Solo le <strong>radici</strong> sono selezionabili: seguirne una include automaticamente
-						tutto il suo sottoalbero (concessionarie, filiali). Non serve selezionare anche le figlie.
-					</p>
-					<?php if ( empty( $roots ) ) : ?>
-						<p class="dorg-muted">Nessuna organizzazione creata. Vai su <a href="<?php echo esc_url( $base_url ); ?>">Organizzazioni</a> per crearne una prima di assegnare un perimetro.</p>
-					<?php else : ?>
-						<p>
-							<input type="search" id="dam-org-filter" class="regular-text" placeholder="Filtra per nome…">
-						</p>
-						<div class="dorg-lines-scroll">
-							<?php foreach ( $roots as $root ) : ?>
-								<label data-search="<?php echo esc_attr( strtolower( $root['name'] ) ); ?>" style="display:block; padding:4px 2px;">
-									<input type="checkbox" name="am_orgs[]" value="<?php echo esc_attr( (string) $root['id'] ); ?>"
-										<?php checked( in_array( $root['id'], $selected_orgs, true ) ); ?>>
-									<?php echo esc_html( $root['name'] ); ?>
-									<?php if ( $root['children'] > 0 ) : ?>
-										<span class="dorg-cell-sub" style="display:inline;">(+<?php echo esc_html( (string) $root['children'] ); ?> nel sottoalbero)</span>
-									<?php endif; ?>
-								</label>
-							<?php endforeach; ?>
-						</div>
-					<?php endif; ?>
-				</div>
-			</div>
-
-			<div class="postbox" style="flex:1; min-width:320px;">
-				<div class="postbox-header"><h2 class="hndle" style="padding:8px 12px;">Linee di pubblicazione</h2></div>
-				<div class="inside">
-					<p class="description" style="margin-bottom:10px;">
-						Le linee su cui l'area manager puo' caricare, versionare e marcare obsoleti i documenti.
-						Senza almeno una linea non puo' pubblicare nulla — un documento senza restrizione di linea
-						sarebbe visibile a tutta la rete, quindi non e' un'opzione concessa a questo ruolo.
+						Le linee su cui l'area manager può caricare, versionare e marcare obsoleti i documenti.
+						<strong>Sono ciò che lo rende operativo</strong>: senza almeno una non può pubblicare nulla.
+						Un documento senza restrizione di linea sarebbe visibile a tutta la rete, quindi pubblicarne
+						uno non è un'opzione concessa a questo ruolo — o si sceglie una linea, o non si pubblica.
 					</p>
 					<p>
 						<input type="search" id="dam-line-filter" class="regular-text" placeholder="Filtra brand o linea…">
@@ -115,6 +89,53 @@ $list_url = add_query_arg( 'view', 'area_managers', $base_url );
 							</div>
 						<?php endforeach; ?>
 					</div>
+				</div>
+			</div>
+
+			<div class="postbox" style="flex:1; min-width:320px;">
+				<div class="postbox-header"><h2 class="hndle" style="padding:8px 12px;">
+					2 · Organizzazioni seguite <span style="font-weight:400;color:#787c82;">— facoltative</span>
+				</h2></div>
+				<div class="inside">
+					<p class="description" style="margin-bottom:10px;">
+						Servono solo se l'area manager deve anche <strong>seguire dei dealer</strong>: gestirne i
+						collaboratori e vedere log e statistiche del proprio giro. Un area manager che si occupa
+						soltanto di pubblicare documenti funziona benissimo senza nessuna organizzazione.
+					</p>
+					<p class="description" style="margin-bottom:10px;">
+						Si elencano le <strong>radici</strong>: seguirne una include automaticamente tutto il suo
+						sottoalbero (concessionarie, filiali), quindi non serve selezionare anche le figlie.
+						Un'organizzazione già assegnata che nel frattempo è diventata figlia di un'altra resta
+						comunque in elenco, segnalata come <em>sotto-organizzazione</em>: così non sparisce dal
+						perimetro senza che tu lo abbia deciso.
+					</p>
+					<?php if ( empty( $roots ) ) : ?>
+						<p class="dorg-muted">
+							Non è ancora stata creata nessuna organizzazione. Non è un problema per pubblicare:
+							le linee qui a fianco bastano a rendere operativo l'area manager. Se e quando servirà
+							anche la supervisione dei dealer, le organizzazioni si creano da
+							<a href="<?php echo esc_url( $orgs_url ); ?>">Dealer Portal → Organizzazioni</a>.
+						</p>
+					<?php else : ?>
+						<p>
+							<input type="search" id="dam-org-filter" class="regular-text" placeholder="Filtra per nome…">
+						</p>
+						<div class="dorg-lines-scroll">
+							<?php foreach ( $roots as $root ) : ?>
+								<label data-search="<?php echo esc_attr( strtolower( $root['name'] ) ); ?>" style="display:block; padding:4px 2px;">
+									<input type="checkbox" name="am_orgs[]" value="<?php echo esc_attr( (string) $root['id'] ); ?>"
+										<?php checked( in_array( $root['id'], $selected_orgs, true ) ); ?>>
+									<?php echo esc_html( $root['name'] ); ?>
+									<?php if ( $root['children'] > 0 ) : ?>
+										<span class="dorg-cell-sub" style="display:inline;">(+<?php echo esc_html( (string) $root['children'] ); ?> nel sottoalbero)</span>
+									<?php endif; ?>
+									<?php if ( ! empty( $root['orphan'] ) ) : ?>
+										<span class="dorg-badge is-mixed" title="<?php echo esc_attr( $root['path'] ); ?>">sotto-organizzazione</span>
+									<?php endif; ?>
+								</label>
+							<?php endforeach; ?>
+						</div>
+					<?php endif; ?>
 				</div>
 			</div>
 		</div>

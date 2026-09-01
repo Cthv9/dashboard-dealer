@@ -1502,10 +1502,14 @@ html.dealer-js .dealer-nojs-only {
 }
 
 @media (max-width: 480px) {
-	.dealer-dashboard-wrap,
-	.dealer-search-wrap,
-	.dealer-favorites-wrap {
-		padding: 20px 12px 40px;
+	/* !important e "body" davanti come nella regola base del blocco "Wrapper
+	   globale": una media query non aggiunge né specificità né importanza,
+	   quindi senza gli stessi due accorgimenti questo padding perderebbe
+	   contro quello — e sul telefono resterebbe la spaziatura da desktop. */
+	body .dealer-dashboard-wrap,
+	body .dealer-search-wrap,
+	body .dealer-favorites-wrap {
+		padding: 20px 12px 40px !important;
 	}
 
 	.dealer-card-grid {
@@ -1836,8 +1840,6 @@ html.dealer-js .dealer-nojs-only {
 	}
 }
 
-@media (max-width: 480px) {
-	.dealer-favorites-wrap {
-		padding: 20px 12px 40px;
-	}
-}
+/* Il padding della pagina Preferiti sotto i 480px non si ridichiara qui:
+   dalla 1.3.2 .dealer-favorites-wrap fa parte del gruppo condiviso, e la
+   regola vive con le altre nella media query in cima al foglio. */

@@ -132,12 +132,18 @@ Vale solo per gli utenti **senza** un'organizzazione assegnata: il meta storico 
 
 ### L'area manager
 
-1. Creare l'utente con ruolo `area_manager` (da **Utenti → Aggiungi nuovo**, oppure promuovendo un utente esistente).
-2. In **Dealer Portal → Organizzazioni → Area Manager**, cliccare "Assegna perimetro" accanto al suo nome e impostare i due assi indipendenti:
-   - le **organizzazioni** che segue (`_am_orgs`) — solo le radici sono selezionabili, il sottoalbero di ciascuna è incluso automaticamente;
-   - le **linee prodotto** su cui può pubblicare (`_am_lines`).
-   Finché nessuno dei due è impostato, l'area manager vede solo "Il tuo perimetro non è ancora stato configurato" nella propria area di lavoro: è la condizione di partenza, non un errore da correggere altrove.
-3. Con questo può caricare, versionare e marcare obsoleti i documenti sulle sue linee, e vedere log e statistiche limitati al suo perimetro. Non può eliminare definitivamente né toccare organizzazioni, utenti o impostazioni.
+Sono **due passaggi**, e il secondo non è opzionale: un utente con il solo ruolo non può fare niente.
+
+1. **Creare l'utente** con ruolo `area_manager`, da **Utenti → Aggiungi nuovo** (il ruolo si sceglie nel menu a tendina in fondo al modulo), oppure cambiando il ruolo di un utente esistente. Appena creato compare in **Dealer Portal → Area Manager**.
+2. **Assegnargli il perimetro** da **Dealer Portal → Area Manager → Assegna perimetro**. I due assi non pesano uguale:
+   - le **linee prodotto** (`_am_lines`) sono ciò che lo rende operativo: senza almeno una, `can_publish_to_lines()` rifiuta sempre e non può pubblicare né aggiornare alcun documento;
+   - le **organizzazioni** seguite (`_am_orgs`) sono la supervisione (collaboratori, log, statistiche dei dealer che segue) e sono **facoltative**: chi si occupa solo di pubblicare documenti funziona benissimo senza nessuna organizzazione. Solo le radici sono selezionabili, il sottoalbero di ciascuna è incluso automaticamente.
+
+Finché non ha nessuna linea, l'area manager vede "Il tuo perimetro non è ancora stato configurato" nella propria area di lavoro, e l'elenco lo segnala come **non operativo**.
+
+> **Attenzione al campo sbagliato.** Nel profilo WordPress di un utente esiste una sezione *Impostazioni Dealer Portal → Linee Prodotto Assegnate*: appartiene al modello **dealer** (`_dealer_lines`) e per un area manager non viene mai letta. Per questo, sul profilo di un area manager, quella sezione **non compare**: al suo posto c'è il riepilogo del perimetro reale e il pulsante per assegnarlo.
+
+Con il perimetro assegnato può caricare, versionare e marcare obsoleti i documenti sulle sue linee, e vedere log e statistiche limitati al proprio giro. Non può eliminare definitivamente né toccare organizzazioni, utenti o impostazioni.
 
 Tutto questo avviene **sul front-end**, nella sua area di lavoro (`[dealer_area_manager]`): caricamento, aggiornamento delle versioni, archivio e statistiche del perimetro. L'area manager non è un tecnico del sito e non entra mai in wp-admin — dopo il login viene portato direttamente lì.
 
@@ -428,6 +434,44 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 ---
 
 ## Changelog
+
+### 1.4.2
+
+Ripristina **Ruoli e Linee**, la schermata che nella versione in produzione elencava gli utenti del portale e che il modello a organizzazioni aveva fatto sparire senza rimpiazzarla.
+
+Il modello a organizzazioni ha spostato i diritti dall'utente all'azienda — corretto — ma ha tolto all'amministratore l'unico punto da cui guardare le **persone**: per verificare un utente bisognava già sapere in quale organizzazione cercarlo, e chi non lo sapeva restava senza risposta. È la ragione per cui ogni percorso sembrava un vicolo cieco.
+
+- Nuova voce **Dealer Portal → Ruoli e Linee**: tutti gli utenti del portale (Dealer, Top Dealer, Parts Center, Area Manager) con ruolo, organizzazione e funzione, **linee effettive già risolte** (ereditarietà e restrizioni comprese), stato attivo/sospeso. Filtro per ruolo, ricerca, paginazione.
+- Per ogni riga la colonna Linee dice cosa significano davvero: per un dealer *«vede i documenti di queste linee»*, per un area manager *«può pubblicare su queste linee»* — due cose diverse che un conteggio unico avrebbe confuso.
+- Avviso in cima quando ci sono utenti **senza nessuna linea**: dealer che non vedono niente, area manager che non possono pubblicare.
+- **Non si assegna nulla da qui**: ogni riga porta all'unico punto che scrive quel valore (Organizzazioni per i dealer, Area Manager per il perimetro, il profilo per chi non è ancora assegnato). Due strade per lo stesso dato finirebbero per divergere.
+
+### 1.4.1
+
+- Fix: sul profilo di un area manager la sezione del plugin cambiava anche titolo (`Dealer Portal — Area Manager`), e il risultato era che sembrava **sparita** invece che sostituita — un effetto collaterale della 1.4.0 segnalato subito al primo collaudo. L'intestazione torna a essere `Impostazioni Dealer Portal`, la stessa dei dealer, con sotto la spiegazione di perché per questo ruolo il campo *Linee Prodotto Assegnate* non compare e dove si imposta invece il perimetro.
+
+### 1.4.0
+
+Il flusso per mettere in piedi un area manager era un vicolo cieco: si creava l'utente e da lì non si arrivava da nessuna parte. Non mancava una funzione — mancava che il percorso fosse percorribile da chi non ha scritto il codice.
+
+**Il difetto peggiore era un campo che dava ragione e non faceva niente.** Aprendo un area manager in **Utenti**, WordPress mostrava la sezione *Impostazioni Dealer Portal → Linee Prodotto Assegnate*: il posto più ovvio dove cercare, che accettava la selezione, la salvava senza errori e non produceva alcun effetto — perché scrive `_dealer_lines`, il meta del modello dealer, che per un area manager non viene **mai** letto (il suo perimetro vive in `_am_lines`/`_am_orgs`). Ora, sul profilo di un area manager, quella sezione non compare: al suo posto c'è il riepilogo del perimetro reale e il pulsante che porta dove si assegna.
+
+- **Voce di menu propria**: `Dealer Portal → Area Manager`, non più una vista nascosta dietro un pulsante nella schermata Organizzazioni. Assegnare il perimetro è il primo compito dopo aver creato l'utente, e chi lo cerca non ha motivo di cercarlo sotto "Organizzazioni".
+- **Il percorso è scritto nella pagina**: l'elenco spiega i due passaggi (crea l'utente → assegna il perimetro), ha il pulsante per creare l'utente, e quando non c'è ancora nessun area manager lo dice invece di mostrare una tabella vuota.
+- **Linee e organizzazioni non pesano uguale, e ora si vede.** Le **linee** rendono operativo l'area manager: senza almeno una non pubblica niente. Le **organizzazioni** sono la supervisione dei dealer e sono **facoltative**. Prima la schermata le trattava alla pari e, senza organizzazioni create, diceva «creane una prima di assegnare un perimetro» — falso, e mandava a costruire l'intero modello organizzativo per niente.
+- **Lo stato è visibile**: ogni area manager è marcato *Operativo* o *Non operativo*, con l'avviso in cima che conta quanti non lo sono; salvare un perimetro senza linee avvisa subito invece di lasciarlo scoprire all'interessato.
+- Corretto anche il controllo lato area manager: era `nessuna linea E nessuna organizzazione`, quindi chi aveva solo organizzazioni entrava in un'area dove non poteva fare nulla. Ora la condizione guarda le linee, che sono ciò che serve davvero.
+
+### 1.3.7
+
+Revisione del lavoro dalla 1.3.2 alla 1.3.6: sei difetti, tre dei quali introdotti proprio dalle correzioni precedenti.
+
+- Fix: **il redirect dell'area manager dalla dashboard troncava la pagina** invece di reindirizzare. Uno shortcode gira dentro `the_content`, quando gli header sono già partiti e mezza pagina è già stata stampata: lì `wp_safe_redirect()` non reindirizza nulla e l'`exit` che lo accompagna interrompe la pagina a metà — senza footer e senza il link di logout aggiunto in 1.3.3 proprio per non lasciare nessuno bloccato. Cioè esattamente il vicolo cieco che quella versione doveva chiudere. Il redirect vive ora su `template_redirect` (`Dealer_Access_Guard::route_dashboard()`), prima di qualunque output; lo shortcode restituisce solo avvisi, mai un `exit`. Stesso difetto, preesistente, sul redirect al login della dashboard: corretto insieme. Tutti gli altri moduli del plugin già facevano i propri redirect da `template_redirect`, la dashboard era l'unica fuori schema.
+- Fix: **la schermata del perimetro cancellava in silenzio le organizzazioni non-radice.** Elencava come caselle solo le radici, ma il form riscrive `_am_orgs` per intero: un'organizzazione assegnata che nel frattempo era diventata figlia di un'altra (operazione normale mentre si costruisce la gerarchia) spariva dal perimetro al primo salvataggio, con tanto di messaggio "Perimetro salvato". Ora resta in elenco, segnalata come sotto-organizzazione, e si toglie solo deselezionandola.
+- Fix: il pulsante "Vedi" nell'area di lavoro dell'area manager usava una dashicon, ma quel modulo non carica dashicons (per scelta: il suo CSS è autonomo) e agli utenti del portale la barra di amministrazione — che sul front-end le porterebbe con sé — è nascosta. Era un quadratino vuoto: ora è un link di testo.
+- Fix: dopo aver reso più severa la scelta del successore (1.3.2), eliminare un documento poteva annunciare "la versione precedente è tornata corrente" quando la catena era rimasta senza nessuna versione corrente — le altre erano tutte in bozza o obsolete. `Dealer_Versioning::detach()` restituisce ora la versione promossa e il messaggio segue quello che è successo davvero, invece di prevederlo. Corretto sia nell'eliminazione singola sia in quella di gruppo.
+- Fix: l'`!important` introdotto in 1.3.4 sulla larghezza rendeva inerti le regole di spaziatura sotto i 480px — una media query non aggiunge né specificità né importanza — e sul telefono restava la spaziatura da desktop.
+- Fix: un errore nelle schermate di amministrazione (organizzazione o area manager inesistente, da un link vecchio) veniva gestito con un redirect che non può funzionare, per lo stesso motivo del primo punto: il callback di una pagina admin gira dopo `admin-header.php`. Al posto della mezza schermata troncata c'è ora un avviso con il link per tornare indietro.
 
 ### 1.3.6
 
