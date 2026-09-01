@@ -418,6 +418,50 @@ class Dealer_DB {
 	 * corrente è già stata applicata. Richiamata sia all'attivazione sia da
 	 * maybe_upgrade() a ogni caricamento.
 	 */
+	/**
+	 * Un amministratore di WordPress ha SEMPRE le capability del plugin, a
+	 * runtime, senza dipendere da cosa c'e' scritto nel ruolo sul database.
+	 *
+	 * Perche' non basta assegnarle al ruolo: assegnarle e' una scrittura una
+	 * tantum, e qualunque cosa le tolga dopo (un plugin di gestione ruoli che
+	 * riscrive il ruolo administrator a ogni caricamento, un ripristino
+	 * parziale, una copia fra ambienti, una sincronizzazione) le fa sparire
+	 * senza lasciare traccia. Il sintomo e' spietato: add_submenu_page()
+	 * restituisce false quando la capability non passa, quindi le voci di menu
+	 * spariscono in silenzio — e spariscono proprio quelle da cui si
+	 * rimedierebbe. E' successo davvero, su un'installazione di collaudo, e
+	 * riassegnare le capability al ruolo non e' bastato: venivano tolte di
+	 * nuovo prima che il menu si costruisse.
+	 *
+	 * Questo filtro non scrive niente da nessuna parte: risponde alla domanda
+	 * "questo utente puo'?" nel momento in cui viene posta. Chi e'
+	 * amministratore di WordPress (manage_options) e' per definizione titolare
+	 * di tutte le capability di questo plugin — lo dice gia' capability_map() —
+	 * quindi qui non si concede nulla di nuovo, si rende solo la stessa regola
+	 * indipendente dallo stato del database.
+	 *
+	 * Il ruolo area_manager continua invece ad avere le proprie capability
+	 * scritte davvero: non e' amministratore e non passa da qui.
+	 *
+	 * @param array $allcaps Capability risolte dell'utente.
+	 * @return array
+	 */
+	public static function grant_admin_caps( $allcaps ) {
+		if ( ! is_array( $allcaps ) || empty( $allcaps['manage_options'] ) ) {
+			return $allcaps;
+		}
+
+		foreach ( [ DEALER_PORTAL_CAP, DEALER_PORTAL_CAP_UPLOAD, DEALER_PORTAL_CAP_LOGS, DEALER_PORTAL_CAP_ORGS ] as $cap ) {
+			$allcaps[ $cap ] = true;
+		}
+
+		foreach ( Dealer_CPT::primitive_caps() as $cap ) {
+			$allcaps[ $cap ] = true;
+		}
+
+		return $allcaps;
+	}
+
 	private static function setup_capability(): void {
 		// NESSUNA uscita anticipata sul contatore di revisione.
 		//

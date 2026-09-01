@@ -435,6 +435,17 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 
 ## Changelog
 
+### 1.4.5
+
+**Risolto: metà del menu spariva perché l'amministratore perdeva le capability del plugin.**
+
+La pagina Diagnostica ha dato i due dati decisivi: le classi erano tutte agganciate ad `admin_menu` e i loro `register_menu()` giravano, ma i sottomenu non finivano nel menu. `add_submenu_page()` restituisce `false` in un solo caso — la capability non passa — e non segnala nulla. Sparivano quindi in silenzio Organizzazioni, Area Manager, Ruoli e Linee, Notifiche e Richieste Accesso: esattamente le schermate da cui si sarebbe rimediato.
+
+La 1.4.3 aveva provato a riassegnarle al ruolo. Non è bastato: qualcosa continuava a toglierle prima che il menu si costruisse (un plugin di gestione ruoli che riscrive il ruolo `administrator`, un ripristino parziale, una copia fra ambienti — dal codice del plugin non è distinguibile, e non serve saperlo).
+
+- Un amministratore WordPress (`manage_options`) ha ora le capability del plugin **a runtime**, via filtro `user_has_cap`, senza dipendere da cosa risulta scritto nel ruolo sul database. Non concede niente di nuovo — `capability_map()` diceva già che l'amministratore le ha tutte — ma rende quella regola indipendente dallo stato del database e quindi non più cancellabile.
+- Il ruolo `area_manager` continua ad avere le proprie capability scritte davvero: non è amministratore e non passa dal filtro.
+
 ### 1.4.4
 
 Aggiunge **Dealer Portal → Diagnostica**, per rispondere con i fatti invece che con ipotesi quando una voce di menu non compare.
