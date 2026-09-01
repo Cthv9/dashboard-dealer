@@ -358,12 +358,12 @@ class Dealer_Area_Manager {
 					'Sei amministratore: questa pagina è riservata agli area manager del portale, '
 					. 'e per te non c\'è nulla da mostrare in anteprima perché il tuo account non ha un '
 					. 'perimetro assegnato. Per collaudarla, assegna al tuo utente il ruolo "Area Manager" '
-					. '(Utenti → il tuo profilo), poi assegnagli un perimetro da Dealer Portal → Organizzazioni '
+					. '(Utenti → il tuo profilo), poi assegnagli almeno una linea prodotto da Dealer Portal '
 					. '→ Area Manager. Restando anche amministratore, potrai comunque tornare in wp-admin in '
 					. 'qualsiasi momento — Dealer_Access_Guard lascia sempre passare chi ha "manage_options", '
 					. 'anche con un ruolo del portale in più.',
-					admin_url( 'admin.php?page=dealer-portal-orgs&view=area_managers' ),
-					'Vai a Organizzazioni → Area Manager'
+					Dealer_Org_Admin::am_page_url(),
+					'Vai a Dealer Portal → Area Manager'
 				);
 			}
 			return $this->notice( 'Quest’area è riservata agli area manager del portale.' );
@@ -373,12 +373,18 @@ class Dealer_Area_Manager {
 		$scope_orgs  = $context['orgs'];
 		$scope_lines = $context['lines'];
 
-		// Perimetro vuoto: l'area manager esiste ma non gli e' stato assegnato
-		// nulla. Meglio dirlo che mostrargli schermate vuote senza spiegazione.
-		if ( empty( $scope_lines ) && empty( $scope_orgs ) ) {
+		// Senza linee non c'e' niente da mostrare: can_publish_to_lines()
+		// rifiuta sempre un perimetro di linee vuoto, quindi non potrebbe
+		// caricare, versionare o marcare obsoleto alcun documento. Le
+		// organizzazioni invece sono facoltative — chi pubblica soltanto non
+		// ne ha bisogno — percio' la condizione guarda solo le linee: prima
+		// era un AND, e un area manager con sole organizzazioni entrava in
+		// un'area in cui non poteva fare nulla.
+		if ( empty( $scope_lines ) ) {
 			return $this->notice(
-				'Il tuo perimetro non è ancora stato configurato: non ti risultano assegnate '
-				. 'né linee prodotto né organizzazioni. Contatta l’amministratore del portale.'
+				'Il tuo perimetro non è ancora stato configurato: non ti risulta assegnata nessuna '
+				. 'linea prodotto, quindi non puoi ancora pubblicare né aggiornare documenti. '
+				. 'Contatta l’amministratore del portale.'
 			);
 		}
 

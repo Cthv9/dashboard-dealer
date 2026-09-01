@@ -1662,6 +1662,20 @@ class Dealer_Admin {
 			return;
 		}
 
+		// ── Area manager: qui NON si configura niente ────────────────────────
+		//
+		// Il campo "Linee Prodotto Assegnate" qui sotto scrive _dealer_lines,
+		// il meta del modello dealer, che per un area manager non viene mai
+		// letto: il suo perimetro vive in _am_lines/_am_orgs. Mostrarglielo
+		// comunque sarebbe la trappola peggiore possibile — il posto più ovvio
+		// dove cercarlo, che accetta la modifica, la salva, non dà errori e non
+		// produce alcun effetto. Al suo posto va detto qual è il perimetro
+		// reale e dove si imposta.
+		if ( Dealer_Identity::is_area_manager( $user ) ) {
+			$this->render_area_manager_profile_panel( $user );
+			return;
+		}
+
 		$dealer_lines = get_user_meta( $user->ID, '_dealer_lines', true );
 		if ( ! is_array( $dealer_lines ) ) { $dealer_lines = []; }
 
@@ -1706,6 +1720,74 @@ class Dealer_Admin {
 			<tr>
 				<th><label for="referente_telefono">Referente – Telefono</label></th>
 				<td><input type="tel" id="referente_telefono" name="referente_telefono" value="<?php echo esc_attr( $ref_telefono ); ?>" class="regular-text"></td>
+			</tr>
+		</table>
+		<?php
+	}
+
+	/**
+	 * Pannello mostrato al posto dei campi dealer quando l'utente e' un area
+	 * manager: cosa gli risulta assegnato adesso, e il collegamento all'unica
+	 * schermata che lo puo' cambiare.
+	 *
+	 * In sola lettura di proposito: il perimetro si scrive da un solo punto
+	 * (Dealer_Identity::set_am_scope(), chiamato da Dealer_Org_Admin), che
+	 * valida organizzazioni e linee. Un secondo modulo di modifica qui
+	 * significherebbe due strade per lo stesso dato, destinate a divergere.
+	 */
+	private function render_area_manager_profile_panel( \WP_User $user ): void {
+		$lines = Dealer_Identity::get_scope_lines( $user );
+		$roots = array_values( array_filter(
+			array_map( 'absint', (array) get_user_meta( $user->ID, Dealer_Identity::META_AM_ORGS, true ) ),
+			[ 'Dealer_Organization', 'exists' ]
+		) );
+
+		$scope_url = class_exists( 'Dealer_Org_Admin' )
+			? add_query_arg( 'user', $user->ID, Dealer_Org_Admin::am_page_url() )
+			: admin_url( 'admin.php?page=dealer-portal-area-managers' );
+		?>
+		<h2>Dealer Portal — Area Manager</h2>
+		<table class="form-table">
+			<tr>
+				<th>Linee di pubblicazione</th>
+				<td>
+					<?php if ( empty( $lines ) ) : ?>
+						<p style="margin:0 0 6px;">
+							<strong style="color:#d63638;">Nessuna linea assegnata: non è operativo.</strong>
+							Non può pubblicare né aggiornare documenti, e trova la propria area di lavoro vuota.
+						</p>
+					<?php else : ?>
+						<p style="margin:0 0 6px;">
+							<strong><?php echo esc_html( (string) count( $lines ) ); ?></strong> linee assegnate:
+							<?php echo esc_html( implode( ', ', array_map( static function ( string $line ): string {
+								return str_replace( '|', ' › ', $line );
+							}, array_slice( $lines, 0, 12 ) ) ) ); ?><?php echo count( $lines ) > 12 ? ' …' : ''; ?>
+						</p>
+					<?php endif; ?>
+				</td>
+			</tr>
+			<tr>
+				<th>Organizzazioni seguite</th>
+				<td>
+					<p style="margin:0 0 6px;">
+						<?php if ( empty( $roots ) ) : ?>
+							Nessuna — facoltative: servono solo per seguire dei dealer (persone, log, statistiche).
+						<?php else : ?>
+							<?php echo esc_html( implode( ', ', array_map( [ 'Dealer_Organization', 'get_name' ], $roots ) ) ); ?>
+						<?php endif; ?>
+					</p>
+				</td>
+			</tr>
+			<tr>
+				<th></th>
+				<td>
+					<a class="button button-primary" href="<?php echo esc_url( $scope_url ); ?>">Assegna il perimetro</a>
+					<p class="description" style="margin-top:8px;">
+						Il perimetro di un area manager si imposta solo da lì. I campi
+						<em>Linee Prodotto Assegnate</em> del modello dealer non compaiono in questa pagina
+						proprio perché, per questo ruolo, non avrebbero alcun effetto.
+					</p>
+				</td>
 			</tr>
 		</table>
 		<?php

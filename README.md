@@ -132,12 +132,18 @@ Vale solo per gli utenti **senza** un'organizzazione assegnata: il meta storico 
 
 ### L'area manager
 
-1. Creare l'utente con ruolo `area_manager` (da **Utenti → Aggiungi nuovo**, oppure promuovendo un utente esistente).
-2. In **Dealer Portal → Organizzazioni → Area Manager**, cliccare "Assegna perimetro" accanto al suo nome e impostare i due assi indipendenti:
-   - le **organizzazioni** che segue (`_am_orgs`) — solo le radici sono selezionabili, il sottoalbero di ciascuna è incluso automaticamente;
-   - le **linee prodotto** su cui può pubblicare (`_am_lines`).
-   Finché nessuno dei due è impostato, l'area manager vede solo "Il tuo perimetro non è ancora stato configurato" nella propria area di lavoro: è la condizione di partenza, non un errore da correggere altrove.
-3. Con questo può caricare, versionare e marcare obsoleti i documenti sulle sue linee, e vedere log e statistiche limitati al suo perimetro. Non può eliminare definitivamente né toccare organizzazioni, utenti o impostazioni.
+Sono **due passaggi**, e il secondo non è opzionale: un utente con il solo ruolo non può fare niente.
+
+1. **Creare l'utente** con ruolo `area_manager`, da **Utenti → Aggiungi nuovo** (il ruolo si sceglie nel menu a tendina in fondo al modulo), oppure cambiando il ruolo di un utente esistente. Appena creato compare in **Dealer Portal → Area Manager**.
+2. **Assegnargli il perimetro** da **Dealer Portal → Area Manager → Assegna perimetro**. I due assi non pesano uguale:
+   - le **linee prodotto** (`_am_lines`) sono ciò che lo rende operativo: senza almeno una, `can_publish_to_lines()` rifiuta sempre e non può pubblicare né aggiornare alcun documento;
+   - le **organizzazioni** seguite (`_am_orgs`) sono la supervisione (collaboratori, log, statistiche dei dealer che segue) e sono **facoltative**: chi si occupa solo di pubblicare documenti funziona benissimo senza nessuna organizzazione. Solo le radici sono selezionabili, il sottoalbero di ciascuna è incluso automaticamente.
+
+Finché non ha nessuna linea, l'area manager vede "Il tuo perimetro non è ancora stato configurato" nella propria area di lavoro, e l'elenco lo segnala come **non operativo**.
+
+> **Attenzione al campo sbagliato.** Nel profilo WordPress di un utente esiste una sezione *Impostazioni Dealer Portal → Linee Prodotto Assegnate*: appartiene al modello **dealer** (`_dealer_lines`) e per un area manager non viene mai letta. Per questo, sul profilo di un area manager, quella sezione **non compare**: al suo posto c'è il riepilogo del perimetro reale e il pulsante per assegnarlo.
+
+Con il perimetro assegnato può caricare, versionare e marcare obsoleti i documenti sulle sue linee, e vedere log e statistiche limitati al proprio giro. Non può eliminare definitivamente né toccare organizzazioni, utenti o impostazioni.
 
 Tutto questo avviene **sul front-end**, nella sua area di lavoro (`[dealer_area_manager]`): caricamento, aggiornamento delle versioni, archivio e statistiche del perimetro. L'area manager non è un tecnico del sito e non entra mai in wp-admin — dopo il login viene portato direttamente lì.
 
@@ -428,6 +434,18 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 ---
 
 ## Changelog
+
+### 1.4.0
+
+Il flusso per mettere in piedi un area manager era un vicolo cieco: si creava l'utente e da lì non si arrivava da nessuna parte. Non mancava una funzione — mancava che il percorso fosse percorribile da chi non ha scritto il codice.
+
+**Il difetto peggiore era un campo che dava ragione e non faceva niente.** Aprendo un area manager in **Utenti**, WordPress mostrava la sezione *Impostazioni Dealer Portal → Linee Prodotto Assegnate*: il posto più ovvio dove cercare, che accettava la selezione, la salvava senza errori e non produceva alcun effetto — perché scrive `_dealer_lines`, il meta del modello dealer, che per un area manager non viene **mai** letto (il suo perimetro vive in `_am_lines`/`_am_orgs`). Ora, sul profilo di un area manager, quella sezione non compare: al suo posto c'è il riepilogo del perimetro reale e il pulsante che porta dove si assegna.
+
+- **Voce di menu propria**: `Dealer Portal → Area Manager`, non più una vista nascosta dietro un pulsante nella schermata Organizzazioni. Assegnare il perimetro è il primo compito dopo aver creato l'utente, e chi lo cerca non ha motivo di cercarlo sotto "Organizzazioni".
+- **Il percorso è scritto nella pagina**: l'elenco spiega i due passaggi (crea l'utente → assegna il perimetro), ha il pulsante per creare l'utente, e quando non c'è ancora nessun area manager lo dice invece di mostrare una tabella vuota.
+- **Linee e organizzazioni non pesano uguale, e ora si vede.** Le **linee** rendono operativo l'area manager: senza almeno una non pubblica niente. Le **organizzazioni** sono la supervisione dei dealer e sono **facoltative**. Prima la schermata le trattava alla pari e, senza organizzazioni create, diceva «creane una prima di assegnare un perimetro» — falso, e mandava a costruire l'intero modello organizzativo per niente.
+- **Lo stato è visibile**: ogni area manager è marcato *Operativo* o *Non operativo*, con l'avviso in cima che conta quanti non lo sono; salvare un perimetro senza linee avvisa subito invece di lasciarlo scoprire all'interessato.
+- Corretto anche il controllo lato area manager: era `nessuna linea E nessuna organizzazione`, quindi chi aveva solo organizzazioni entrava in un'area dove non poteva fare nulla. Ora la condizione guarda le linee, che sono ciò che serve davvero.
 
 ### 1.3.7
 

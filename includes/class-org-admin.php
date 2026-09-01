@@ -27,6 +27,17 @@ class Dealer_Org_Admin {
 	/** Slug del sottomenu sotto 'dealer-portal'. */
 	const MENU_SLUG = 'dealer-portal-orgs';
 
+	/**
+	 * Slug del sottomenu "Area Manager".
+	 *
+	 * Voce di menu propria e non una vista dentro Organizzazioni: assegnare il
+	 * perimetro a un area manager e' un compito a se', il primo che si fa dopo
+	 * aver creato l'utente, e chi lo cerca non ha motivo di andarlo a cercare
+	 * sotto "Organizzazioni" — tanto piu' che le organizzazioni, per un area
+	 * manager, sono la meta' facoltativa del perimetro.
+	 */
+	const AM_MENU_SLUG = 'dealer-portal-area-managers';
+
 	/** Radici mostrate per pagina nell'albero (i sottoalberi seguono la radice). */
 	const ROOTS_PER_PAGE = 20;
 
@@ -74,6 +85,35 @@ class Dealer_Org_Admin {
 			self::MENU_SLUG,
 			[ $this, 'render_page' ]
 		);
+
+		add_submenu_page(
+			'dealer-portal',
+			'Area Manager',
+			'Area Manager',
+			DEALER_PORTAL_CAP_ORGS,
+			self::AM_MENU_SLUG,
+			[ $this, 'render_am_page' ]
+		);
+	}
+
+	/** URL della schermata Area Manager. */
+	public static function am_page_url(): string {
+		return admin_url( 'admin.php?page=' . self::AM_MENU_SLUG );
+	}
+
+	/**
+	 * Router della schermata Area Manager: elenco, oppure assegnazione del
+	 * perimetro quando l'URL indica un utente.
+	 */
+	public function render_am_page(): void {
+		$this->require_cap();
+
+		if ( absint( $_GET['user'] ?? 0 ) ) {
+			$this->render_area_manager_edit();
+			return;
+		}
+
+		$this->render_area_managers();
 	}
 
 	// ─── Router delle viste ───────────────────────────────────────────────────
@@ -92,12 +132,6 @@ class Dealer_Org_Admin {
 				break;
 			case 'merge':
 				$this->render_merge();
-				break;
-			case 'area_managers':
-				$this->render_area_managers();
-				break;
-			case 'area_manager_edit':
-				$this->render_area_manager_edit();
 				break;
 			default:
 				$this->render_list();
@@ -342,18 +376,28 @@ class Dealer_Org_Admin {
 			$line_count = count( Dealer_Identity::get_scope_lines( $user ) );
 
 			$rows[] = [
-				'id'          => (int) $user->ID,
-				'name'        => (string) $user->display_name,
-				'email'       => (string) $user->user_email,
-				'root_names'  => $root_names,
-				'root_count'  => count( $root_ids ),
-				'line_count'  => $line_count,
-				'configured'  => ( $root_ids || $line_count ),
+				'id'         => (int) $user->ID,
+				'name'       => (string) $user->display_name,
+				'email'      => (string) $user->user_email,
+				'root_names' => $root_names,
+				'root_count' => count( $root_ids ),
+				'line_count' => $line_count,
+				// "Operativo" dipende SOLO dalle linee: can_publish_to_lines()
+				// rifiuta un perimetro di linee vuoto, quindi senza linee un
+				// area manager non puo' pubblicare nulla, per quante
+				// organizzazioni gli si assegnino. Le organizzazioni sono l'asse
+				// della supervisione (persone, log, statistiche): utili, ma non
+				// necessarie per lavorare.
+				'operational' => ( $line_count > 0 ),
 			];
 		}
 
+		$blocked  = count( array_filter( $rows, static function ( array $row ): bool {
+			return ! $row['operational'];
+		} ) );
 		$notice   = self::notice_from_query();
-		$base_url = self::page_url();
+		$base_url = self::am_page_url();
+		$new_user_url = admin_url( 'user-new.php' );
 
 		require DEALER_PORTAL_PATH . 'templates/admin-org-area-managers.php';
 	}
@@ -366,7 +410,7 @@ class Dealer_Org_Admin {
 		if ( ! $user || ! Dealer_Identity::is_area_manager( $user ) ) {
 			$this->render_error(
 				'Utente non trovato o non ha il ruolo Area Manager.',
-				add_query_arg( 'view', 'area_managers', self::page_url() ),
+				self::am_page_url(),
 				'Torna all\'elenco degli area manager'
 			);
 			return;
@@ -421,7 +465,8 @@ class Dealer_Org_Admin {
 
 		$lines_by_brand = Dealer_Admin::get_product_lines();
 		$notice         = self::notice_from_query();
-		$base_url       = self::page_url();
+		$base_url       = self::am_page_url();
+		$orgs_url       = self::page_url();
 		$post_url       = admin_url( 'admin-post.php' );
 
 		require DEALER_PORTAL_PATH . 'templates/admin-org-area-manager-edit.php';
@@ -434,8 +479,10 @@ class Dealer_Org_Admin {
 		$user_id = absint( $_POST['user_id'] ?? 0 );
 		$user    = $user_id ? get_user_by( 'id', $user_id ) : null;
 
+		// Gli handler admin_post girano prima di qualunque output: qui il
+		// redirect funziona (a differenza dei render, vedi render_error()).
 		if ( ! $user || ! Dealer_Identity::is_area_manager( $user ) ) {
-			$this->redirect( 'err_am_user', [ 'view' => 'area_managers' ] );
+			$this->redirect_am( 'err_am_user' );
 		}
 
 		$org_ids = self::posted_ids( 'am_orgs' );
@@ -443,7 +490,18 @@ class Dealer_Org_Admin {
 
 		Dealer_Identity::set_am_scope( $user_id, $org_ids, $lines );
 
-		$this->redirect( 'am_scope_saved', [ 'view' => 'area_manager_edit', 'user' => $user_id ] );
+		// Senza linee l'area manager resta inoperativo: lo si dice subito,
+		// invece di lasciare che se ne accorga lui trovando l'area vuota.
+		$this->redirect_am( empty( $lines ) ? 'am_scope_no_lines' : 'am_scope_saved', [ 'user' => $user_id ] );
+	}
+
+	/** Come redirect(), ma verso la schermata Area Manager. */
+	private function redirect_am( string $code, array $args = [] ): void {
+		$args['page']    = self::AM_MENU_SLUG;
+		$args['org_msg'] = $code;
+
+		wp_safe_redirect( add_query_arg( $args, admin_url( 'admin.php' ) ) );
+		exit;
 	}
 
 	// ─── Vista: fusione ───────────────────────────────────────────────────────
@@ -1351,6 +1409,7 @@ class Dealer_Org_Admin {
 			'user_updated'       => [ 'success', 'Utente aggiornato.' ],
 			'user_removed'       => [ 'success', 'Utente rimosso dall\'organizzazione. Torna al modello storico (meta _dealer_lines).' ],
 			'am_scope_saved'     => [ 'success', 'Perimetro salvato. Se l\'area manager e\' collegato, lo vede al prossimo caricamento della sua area di lavoro.' ],
+			'am_scope_no_lines'  => [ 'warning', 'Perimetro salvato, ma senza nessuna linea prodotto: cosi\' l\'area manager non puo\' pubblicare ne\' aggiornare alcun documento. Assegnagli almeno una linea per renderlo operativo.' ],
 			'err_am_user'        => [ 'error',   'Utente non trovato o non ha il ruolo Area Manager.' ],
 			'err_org'            => [ 'error',   'Organizzazione non trovata.' ],
 			'err_name'           => [ 'error',   'Il nome dell\'organizzazione e\' obbligatorio.' ],
