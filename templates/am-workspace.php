@@ -36,18 +36,25 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 	.dealer-am-wrap{--am-navy:#0a1628;--am-blue:#1e6fa8;--am-blue-dk:#155c91;--am-gray:#f4f6f8;
 		--am-border:#dce5ea;--am-text:#1a2535;--am-muted:#52616b;--am-warn:#b8860b;--am-danger:#a63232;
 		--am-ok:#2e7d4f;--am-radius:8px;--am-shadow:0 4px 14px rgba(0,0,0,.07);
-		color:var(--am-text);box-sizing:border-box;
-		/* Stessa uscita dal contenitore del tema usata dalle altre pagine del
-		   portale: vedi il blocco "Wrapper globale" in assets/css/dealer.css.
-		   --dp-vw arriva da assets/js/dealer-layout.js; senza JS ricade su
-		   100vw. Il contenuto resta comunque entro 1180px. */
-		width:var(--dp-vw,100vw);max-width:var(--dp-vw,100vw);
-		margin-left:calc(50% - var(--dp-vw,100vw) / 2);
-		margin-right:calc(50% - var(--dp-vw,100vw) / 2);
-		padding:0 max(16px,calc((var(--dp-vw,100vw) - 1180px) / 2));}
+		color:var(--am-text);box-sizing:border-box;}
+	/* Larghezza in una regola a parte, con "body" davanti e !important: vedi
+	   il blocco "Wrapper globale" in assets/css/dealer.css per il perché
+	   (spiegato lì per non ripeterlo in ogni template) — un tema a blocchi
+	   applica ai figli diretti del contenuto un margin:auto !important che
+	   altrimenti annulla silenziosamente questa uscita dal contenitore.
+	   --dp-vw arriva da assets/js/dealer-layout.js; senza JS ricade su 100vw.
+	   Il contenuto resta comunque entro 1180px. */
+	body .dealer-am-wrap{
+		width:var(--dp-vw,100vw) !important;max-width:var(--dp-vw,100vw) !important;
+		margin-left:calc(50% - var(--dp-vw,100vw) / 2) !important;
+		margin-right:calc(50% - var(--dp-vw,100vw) / 2) !important;
+		padding:0 max(16px,calc((var(--dp-vw,100vw) - 1180px) / 2)) !important;}
 	/* Ripiego applicato da dealer-layout.js se un contenitore del tema
-	   ritaglia ciò che deborda: stretto ma integro. */
-	.dealer-am-wrap.dp-no-bleed{width:auto;max-width:1180px;margin:0 auto;padding:0;}
+	   ritaglia ciò che deborda: stretto ma integro. Stesso !important della
+	   regola sopra: deve poterla annullare. */
+	body .dealer-am-wrap.dp-no-bleed{
+		width:auto !important;max-width:1180px !important;
+		margin-left:auto !important;margin-right:auto !important;padding:0 !important;}
 	.dealer-am-head{background:var(--am-navy);color:#fff;border-radius:var(--am-radius);
 		padding:24px 28px;margin-bottom:20px;}
 	.dealer-am-head h2{margin:0 0 6px;color:#fff;font-size:1.5rem;line-height:1.25;}
