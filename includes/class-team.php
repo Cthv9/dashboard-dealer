@@ -214,6 +214,20 @@ class Dealer_Team {
 		// un messaggio comprensibile invece di un muro.
 		$context = $this->titolare_context( false );
 		if ( null === $context ) {
+			// L'amministratore non è mai titolare di un'organizzazione: a
+			// differenza della dashboard dealer, qui non c'è un'anteprima
+			// sensata da mostrargli (non esiste un'azienda su cui appoggiarla).
+			// Un muro generico però non gli direbbe come verificare davvero
+			// questa pagina prima di consegnare il plugin: glielo si dice.
+			if ( current_user_can( 'manage_options' ) ) {
+				return $this->notice(
+					'Sei amministratore: questa pagina è riservata al titolare di un\'azienda dealer, '
+					. 'e per te non c\'è nulla da mostrare in anteprima perché il tuo account non appartiene '
+					. 'a nessuna organizzazione. Per collaudarla, assegna temporaneamente al tuo utente la '
+					. 'funzione "titolare" su un\'organizzazione (Dealer Portal → Organizzazioni → Utenti): '
+					. 'restando amministratore, potrai comunque tornare in wp-admin in qualsiasi momento.'
+				);
+			}
 			return $this->notice( 'Quest’area è riservata al titolare dell’azienda.' );
 		}
 

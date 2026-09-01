@@ -349,6 +349,21 @@ class Dealer_Area_Manager {
 
 		$context = $this->manager_context();
 		if ( null === $context ) {
+			// Stesso ragionamento di Dealer_Team::render(): l'amministratore
+			// non ha di per sé un perimetro (organizzazioni seguite, linee),
+			// quindi non c'è un'anteprima sensata da costruirgli al volo. Un
+			// muro generico non gli direbbe come arrivarci davvero.
+			if ( current_user_can( 'manage_options' ) ) {
+				return $this->notice(
+					'Sei amministratore: questa pagina è riservata agli area manager del portale, '
+					. 'e per te non c\'è nulla da mostrare in anteprima perché il tuo account non ha un '
+					. 'perimetro assegnato. Per collaudarla, assegna temporaneamente al tuo utente il ruolo '
+					. '"Area Manager" con almeno un\'organizzazione seguita e una linea di pubblicazione '
+					. '(Utenti → il tuo profilo): restando anche amministratore, potrai comunque tornare in '
+					. 'wp-admin in qualsiasi momento — Dealer_Access_Guard lascia sempre passare chi ha '
+					. '"manage_options", anche con un ruolo del portale in più.'
+				);
+			}
 			return $this->notice( 'Quest’area è riservata agli area manager del portale.' );
 		}
 

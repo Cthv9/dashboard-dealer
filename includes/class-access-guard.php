@@ -15,7 +15,9 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  * Questa classe applica quel principio in modo uniforme:
  *  - accesso a wp-admin negato e reindirizzato all'area di competenza;
  *  - barra di amministrazione nascosta sul front-end;
- *  - redirect dopo il login verso la propria area.
+ *  - redirect dopo il login verso la propria area;
+ *  - un link di logout sempre raggiungibile, per compensare la barra che
+ *    nascondiamo (vedi render_floating_logout()).
  *
  * Eccezioni deliberate:
  *  - `admin-ajax.php` e `admin-post.php`, che non sono interfaccia ma endpoint:
@@ -34,10 +36,24 @@ class Dealer_Access_Guard {
 	/** Pagine di wp-admin comunque raggiungibili. */
 	const ALLOWED_SCREENS = [ 'profile.php' ];
 
+	/**
+	 * True quando la pagina corrente ha già un proprio link di logout in vista
+	 * (la dashboard, nell'header). Impostato da Dealer_Dashboard::render()
+	 * prima di includere il proprio template, per evitare due link identici
+	 * sulla stessa pagina.
+	 */
+	private static $logout_shown_elsewhere = false;
+
 	public function __construct() {
 		add_action( 'admin_init', [ $this, 'block_admin_access' ], 1 );
 		add_filter( 'show_admin_bar', [ $this, 'maybe_hide_admin_bar' ] );
 		add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_layout_helper' ] );
+		add_action( 'wp_footer', [ $this, 'render_floating_logout' ] );
+	}
+
+	/** Vedi $logout_shown_elsewhere. */
+	public static function suppress_floating_logout(): void {
+		self::$logout_shown_elsewhere = true;
 	}
 
 	/**
@@ -138,5 +154,42 @@ class Dealer_Access_Guard {
 
 	public function maybe_hide_admin_bar( $show ) {
 		return self::is_portal_user() ? false : $show;
+	}
+
+	// ─── Via d'uscita ─────────────────────────────────────────────────────────
+
+	/**
+	 * Link di logout sempre raggiungibile per chi non ha la barra di
+	 * amministrazione.
+	 *
+	 * Nascondere la barra (sopra) toglie anche l'unico logout che WordPress
+	 * offre di default sul front-end. L'unico rimpiazzo nel plugin era il
+	 * link nell'header della dashboard: bastava cambiare ruolo durante un
+	 * collaudo, finire su "quest'area è riservata a..." o su una qualunque
+	 * delle altre quattro pagine del portale, e non c'era più modo di uscire
+	 * se non con il tasto "indietro" del browser o cancellando i cookie —
+	 * esattamente il vicolo cieco segnalato durante il collaudo reale.
+	 *
+	 * Un solo hook per tutte le pagine e per ogni schermata di cortesia
+	 * (ruolo sbagliato, perimetro non configurato, organizzazione sospesa),
+	 * invece di aggiungere il link a mano in ogni notice() e in ogni
+	 * template: la condizione è la stessa della barra nascosta, quindi vive
+	 * accanto ad essa. wp_footer gira dopo che lo shortcode ha già prodotto
+	 * il contenuto — Dealer_Dashboard::render() ha quindi già avuto modo di
+	 * chiamare suppress_floating_logout() se sta per mostrare il proprio link.
+	 */
+	public function render_floating_logout(): void {
+		if ( is_admin() || self::$logout_shown_elsewhere || ! self::is_portal_user() ) {
+			return;
+		}
+
+		printf(
+			'<a href="%s" class="dealer-floating-logout">Esci</a>'
+			. '<style>.dealer-floating-logout{position:fixed;bottom:16px;right:16px;z-index:99999;'
+			. 'padding:8px 16px;background:#0a1628;color:#fff;border-radius:999px;font:600 13px/1.4 -apple-system,'
+			. 'BlinkMacSystemFont,"Segoe UI",sans-serif;text-decoration:none;box-shadow:0 4px 14px rgba(0,0,0,.18);}'
+			. '.dealer-floating-logout:hover,.dealer-floating-logout:focus{background:#155c91;color:#fff;}</style>',
+			esc_url( wp_logout_url( home_url( '/' ) ) )
+		);
 	}
 }
