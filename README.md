@@ -424,6 +424,15 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 
 ## Changelog
 
+### 1.3.3
+
+Correzioni dal primo collaudo reale con cambi di ruolo frequenti (dealer, area manager, titolare, admin).
+
+- Fix: **nessun modo di disconnettersi** su qualunque pagina del portale diversa dalla dashboard, incluse tutte le schermate di cortesia ("quest'area è riservata a...", perimetro non configurato, organizzazione sospesa). wp-admin è bloccato e la barra di amministrazione nascosta a ogni utente del portale: l'unico logout esistente era il link nell'header della dashboard. Cambiare ruolo durante un collaudo e finire su una qualunque altra pagina significava restare bloccati, senza alternativa al tasto "indietro" del browser o alla cancellazione dei cookie. Un link di logout è ora sempre visibile ovunque manchi la barra di amministrazione — un solo punto (`Dealer_Access_Guard`), non uno per pagina.
+- Fix: un **area manager** che finiva sulla dashboard dealer (link salvato, vecchia scheda) vedeva un vicolo cieco ("Accesso non autorizzato"). Ora viene rimandato alla propria area di lavoro, lo stesso posto dove lo manda già il login.
+- Fix: un **amministratore** che visitava le pagine di Gestione Collaboratori o Area Manager per collaudarle (come già poteva fare con la dashboard) trovava lo stesso muro riservato ai dealer, senza indicazioni. Ora gli viene spiegato perché non c'è nulla da mostrargli in anteprima (non appartiene a un'organizzazione né ha un perimetro) e come assegnarsi temporaneamente il ruolo giusto per collaudare davvero la pagina, restando amministratore.
+- Descrizione del plugin resa più generica (adatta anche a una futura pubblicazione pubblica) e campo Autore valorizzato.
+
 ### 1.3.2
 
 Chiusura del backend agli utenti del portale, pagina dei preferiti, e una revisione dell'intero lavoro riga per riga.

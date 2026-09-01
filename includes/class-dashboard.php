@@ -74,6 +74,14 @@ class Dealer_Dashboard {
 		$is_dealer    = ! empty( array_intersect( $user_roles, $dealer_roles ) );
 
 		if ( ! $is_dealer && ! current_user_can( 'manage_options' ) ) {
+			// Un area manager che finisce qui (link salvato, vecchia scheda,
+			// digitazione dell'URL) non deve sbattere contro un vicolo cieco:
+			// questa non è la sua area, ma sappiamo esattamente qual è. È lo
+			// stesso posto dove lo manda già il redirect dopo il login.
+			if ( Dealer_Identity::is_area_manager( $user ) ) {
+				wp_safe_redirect( Dealer_DB::area_manager_url() );
+				exit;
+			}
 			return '<p class="dealer-notice">Accesso non autorizzato.</p>';
 		}
 
@@ -127,6 +135,10 @@ class Dealer_Dashboard {
 			'top_dealer'  => 'Top Dealer',
 			'part_center' => 'Parts Center',
 		];
+
+		// Questa pagina ha già il proprio link di logout nell'header: evita
+		// che Dealer_Access_Guard ne aggiunga un secondo in fondo alla pagina.
+		Dealer_Access_Guard::suppress_floating_logout();
 
 		ob_start();
 		require DEALER_PORTAL_PATH . 'templates/dealer-dashboard.php';
