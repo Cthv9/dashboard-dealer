@@ -435,6 +435,19 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 
 ## Changelog
 
+### 1.4.6
+
+**L'amministratore è sopra ogni ruolo del portale, e adesso il codice lo dice esplicitamente.**
+
+La Diagnostica su un'installazione reale ha dato il quadro esatto: il ruolo `administrator` **aveva** `manage_dealer_portal` e `manage_dealer_orgs`, ma l'utente amministratore **no**. Non è il database: qualcosa nega quelle capability *a runtime*. E quando succede, `add_submenu_page()` non registra la voce e non segnala nulla — il menu si accorcia in silenzio, e sparisce proprio ciò che serve per rimediare (Organizzazioni, Area Manager, Ruoli e Linee, Notifiche, Richieste Accesso).
+
+Quattro difese, indipendenti l'una dall'altra, perché nessuna singola può essere garantita contro un plugin terzo:
+
+- Il filtro `user_has_cap` che concede le capability all'amministratore è ora registrato a **priorità massima**: fra due filtri che si contraddicono vince l'ultimo, e sulle capability di questo plugin l'ultima parola deve essere del plugin.
+- Neutralizzata la mappatura `do_not_allow` sulle nostre quattro capability: è la strada con cui un plugin terzo può negare un permesso *prima* che qualunque filtro venga interrogato, e scavalcherebbe la difesa precedente.
+- Le voci di menu riservate all'amministratore sono registrate con `manage_options` invece che con una capability del plugin: esprime la stessa regola (sono schermate da amministratore) senza dipendere da un permesso che un terzo può negare. Le voci dell'area manager continuano a usare le proprie.
+- Tutti i controlli di accesso del plugin passano ora da `Dealer_DB::user_can()`, che ammette esplicitamente chi amministra WordPress. Era la regola implicita del progetto fin dall'inizio; adesso è scritta in un punto solo e vale ovunque.
+
 ### 1.4.5
 
 **Risolto: metà del menu spariva perché l'amministratore perdeva le capability del plugin.**

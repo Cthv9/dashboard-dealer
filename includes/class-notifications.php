@@ -1040,18 +1040,27 @@ class Dealer_Notifications {
 	// ─── Pagina impostazioni ─────────────────────────────────────────────────
 
 	public function register_menu(): void {
+// Registrata con 'manage_options' e non con una capability del plugin: la
+		// diagnostica su un sito reale ha mostrato il ruolo administrator CON le
+		// nostre capability e l'utente administrator SENZA — qualcosa le nega a
+		// runtime. Quando succede add_submenu_page() non registra la voce e non
+		// segnala nulla: il menu si accorcia in silenzio, e sparisce proprio cio'
+		// che serve per rimediare. Queste schermate sono comunque riservate
+		// all'amministratore, quindi 'manage_options' esprime la stessa regola
+		// senza dipendere da capability che un terzo puo' negare. Il controllo
+		// vero resta dentro la pagina.
 		add_submenu_page(
 			'dealer-portal',
 			'Notifiche',
 			'Notifiche',
-			DEALER_PORTAL_CAP,
+			'manage_options',
 			self::MENU_SLUG,
 			[ $this, 'render_settings_page' ]
 		);
 	}
 
 	public function render_settings_page(): void {
-		if ( ! current_user_can( DEALER_PORTAL_CAP ) ) {
+		if ( ! Dealer_DB::user_can( DEALER_PORTAL_CAP ) ) {
 			wp_die( esc_html__( 'Accesso non consentito.', 'dealer-portal' ) );
 		}
 
@@ -1197,7 +1206,7 @@ class Dealer_Notifications {
 	}
 
 	public function handle_save_settings(): void {
-		if ( ! current_user_can( DEALER_PORTAL_CAP ) ) {
+		if ( ! Dealer_DB::user_can( DEALER_PORTAL_CAP ) ) {
 			wp_die( esc_html__( 'Accesso non consentito.', 'dealer-portal' ), '', [ 'response' => 403 ] );
 		}
 		check_admin_referer( self::NONCE_SETTINGS );
@@ -1228,7 +1237,7 @@ class Dealer_Notifications {
 	}
 
 	public function handle_test_email(): void {
-		if ( ! current_user_can( DEALER_PORTAL_CAP ) ) {
+		if ( ! Dealer_DB::user_can( DEALER_PORTAL_CAP ) ) {
 			wp_die( esc_html__( 'Accesso non consentito.', 'dealer-portal' ), '', [ 'response' => 403 ] );
 		}
 		check_admin_referer( self::NONCE_TEST );

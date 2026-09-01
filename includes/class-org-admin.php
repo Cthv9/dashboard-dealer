@@ -89,11 +89,20 @@ class Dealer_Org_Admin {
 	// ─── Menu ─────────────────────────────────────────────────────────────────
 
 	public function register_menu(): void {
+// Registrata con 'manage_options' e non con una capability del plugin: la
+		// diagnostica su un sito reale ha mostrato il ruolo administrator CON le
+		// nostre capability e l'utente administrator SENZA — qualcosa le nega a
+		// runtime. Quando succede add_submenu_page() non registra la voce e non
+		// segnala nulla: il menu si accorcia in silenzio, e sparisce proprio cio'
+		// che serve per rimediare. Queste schermate sono comunque riservate
+		// all'amministratore, quindi 'manage_options' esprime la stessa regola
+		// senza dipendere da capability che un terzo puo' negare. Il controllo
+		// vero resta dentro la pagina.
 		add_submenu_page(
 			'dealer-portal',
 			'Organizzazioni',
 			'Organizzazioni',
-			DEALER_PORTAL_CAP_ORGS,
+			'manage_options',
 			self::MENU_SLUG,
 			[ $this, 'render_page' ]
 		);
@@ -102,7 +111,7 @@ class Dealer_Org_Admin {
 			'dealer-portal',
 			'Area Manager',
 			'Area Manager',
-			DEALER_PORTAL_CAP_ORGS,
+			'manage_options',
 			self::AM_MENU_SLUG,
 			[ $this, 'render_am_page' ]
 		);
@@ -111,7 +120,7 @@ class Dealer_Org_Admin {
 			'dealer-portal',
 			'Ruoli e Linee',
 			'Ruoli e Linee',
-			DEALER_PORTAL_CAP_ORGS,
+			'manage_options',
 			self::ROLES_MENU_SLUG,
 			[ $this, 'render_roles_lines' ]
 		);
@@ -1467,7 +1476,7 @@ class Dealer_Org_Admin {
 	}
 
 	private function require_cap(): void {
-		if ( ! current_user_can( DEALER_PORTAL_CAP_ORGS ) ) {
+		if ( ! Dealer_DB::user_can( DEALER_PORTAL_CAP_ORGS ) ) {
 			wp_die( esc_html__( 'Accesso non consentito.', 'dealer-portal' ), '', [ 'response' => 403 ] );
 		}
 	}

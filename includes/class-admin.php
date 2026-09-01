@@ -86,7 +86,7 @@ class Dealer_Admin {
 	 * conosciamo, quindi l'informazione deve arrivargli da sola.
 	 */
 	public function render_server_notice(): void {
-		if ( ! current_user_can( DEALER_PORTAL_CAP ) ) {
+		if ( ! Dealer_DB::user_can( DEALER_PORTAL_CAP ) ) {
 			return;
 		}
 		if ( Dealer_DB::server_honours_htaccess() ) {
@@ -129,15 +129,24 @@ class Dealer_Admin {
 	 * non la possiede, quindi all'area manager non compaiono.
 	 */
 	public function register_menus(): void {
-		$can_upload = current_user_can( DEALER_PORTAL_CAP_UPLOAD );
-		$can_logs   = current_user_can( DEALER_PORTAL_CAP_LOGS );
+		$can_upload = Dealer_DB::user_can( DEALER_PORTAL_CAP_UPLOAD );
+		$can_logs   = Dealer_DB::user_can( DEALER_PORTAL_CAP_LOGS );
 
 		// Nessuna capability del portale: nessun menu.
-		if ( ! $can_upload && ! $can_logs && ! current_user_can( DEALER_PORTAL_CAP ) ) {
+		if ( ! $can_upload && ! $can_logs && ! Dealer_DB::user_can( DEALER_PORTAL_CAP ) ) {
 			return;
 		}
 
-		if ( $can_upload ) {
+		// La capability qui va passata a WordPress come stringa, e WordPress la
+		// verifica per conto suo: se una capability del plugin viene negata a
+		// runtime da terzi, il menu sparirebbe comunque, per quanto i controlli
+		// qui sopra siano gia' passati. Per l'amministratore si usa quindi
+		// 'manage_options', che nessuno gli puo' togliere senza togliergli
+		// l'amministrazione del sito; per gli altri la capability che hanno
+		// davvero.
+		if ( current_user_can( 'manage_options' ) ) {
+			$top_cap = 'manage_options';
+		} elseif ( $can_upload ) {
 			$top_cap = DEALER_PORTAL_CAP_UPLOAD;
 		} elseif ( $can_logs ) {
 			$top_cap = DEALER_PORTAL_CAP_LOGS;
@@ -158,12 +167,19 @@ class Dealer_Admin {
 		// La voce omonima del primo livello ha senso solo se l'utente può
 		// caricare: altrimenti il contenitore resta con la sola etichetta
 		// "Dealer Portal" e render_landing() lo porta sulla prima pagina utile.
+		// Stesso motivo del menu di primo livello: per l'amministratore la
+		// capability dichiarata a WordPress e' 'manage_options', cosi' le voci
+		// non possono sparire per una capability del plugin negata a runtime.
+		// L'area manager continua a vederle tramite le proprie.
+		$upload_cap = current_user_can( 'manage_options' ) ? 'manage_options' : DEALER_PORTAL_CAP_UPLOAD;
+		$logs_cap   = current_user_can( 'manage_options' ) ? 'manage_options' : DEALER_PORTAL_CAP_LOGS;
+
 		if ( $can_upload ) {
-			add_submenu_page( 'dealer-portal', 'Carica Documento',   'Carica Documento',   DEALER_PORTAL_CAP_UPLOAD, 'dealer-portal',         [ $this, 'render_landing' ] );
+			add_submenu_page( 'dealer-portal', 'Carica Documento',   'Carica Documento',   $upload_cap, 'dealer-portal',         [ $this, 'render_landing' ] );
 		}
-		add_submenu_page( 'dealer-portal', 'Archivio Documenti', 'Archivio Documenti', DEALER_PORTAL_CAP_UPLOAD, 'dealer-portal-archive', [ $this, 'render_archive' ] );
-		add_submenu_page( 'dealer-portal', 'Log Download',       'Log Download',       DEALER_PORTAL_CAP_LOGS,   'dealer-portal-logs',    [ $this, 'render_logs' ] );
-		add_submenu_page( 'dealer-portal', 'Statistiche',        'Statistiche',        DEALER_PORTAL_CAP_LOGS,   'dealer-portal-stats',   [ $this, 'render_stats' ] );
+		add_submenu_page( 'dealer-portal', 'Archivio Documenti', 'Archivio Documenti', $upload_cap, 'dealer-portal-archive', [ $this, 'render_archive' ] );
+		add_submenu_page( 'dealer-portal', 'Log Download',       'Log Download',       $logs_cap,   'dealer-portal-logs',    [ $this, 'render_logs' ] );
+		add_submenu_page( 'dealer-portal', 'Statistiche',        'Statistiche',        $logs_cap,   'dealer-portal-stats',   [ $this, 'render_stats' ] );
 
 		// Diagnostica. Registrata con 'manage_options' e NON con una capability
 		// del plugin, di proposito: e' la pagina che serve proprio quando le
@@ -347,11 +363,11 @@ class Dealer_Admin {
 	 * documenti e chi ha solo la lettura dei log.
 	 */
 	public function render_landing(): void {
-		if ( current_user_can( DEALER_PORTAL_CAP_UPLOAD ) ) {
+		if ( Dealer_DB::user_can( DEALER_PORTAL_CAP_UPLOAD ) ) {
 			$this->render_upload();
 			return;
 		}
-		if ( current_user_can( DEALER_PORTAL_CAP_LOGS ) ) {
+		if ( Dealer_DB::user_can( DEALER_PORTAL_CAP_LOGS ) ) {
 			$this->render_logs();
 			return;
 		}
@@ -407,7 +423,7 @@ class Dealer_Admin {
 			'docTypes'     => self::DOC_TYPES,
 			// L'eliminazione definitiva resta dell'amministratore: senza questo
 			// flag l'area manager vedrebbe pulsanti che il server rifiuta.
-			'canDelete'    => current_user_can( DEALER_PORTAL_CAP ),
+			'canDelete'    => Dealer_DB::user_can( DEALER_PORTAL_CAP ),
 			'i18n'         => [
 				'confirmDelete'   => 'Eliminare definitivamente questo documento? Il file verrà cancellato dal server.',
 				'confirmObsolete' => 'Segnare questo documento come obsoleto? Non sarà più visibile ai dealer.',
@@ -559,7 +575,7 @@ class Dealer_Admin {
 	// ─── Page renderers ──────────────────────────────────────────────────────
 
 	public function render_upload(): void {
-		if ( ! current_user_can( DEALER_PORTAL_CAP_UPLOAD ) ) {
+		if ( ! Dealer_DB::user_can( DEALER_PORTAL_CAP_UPLOAD ) ) {
 			wp_die( esc_html__( 'Accesso non consentito.', 'dealer-portal' ) );
 		}
 
@@ -630,7 +646,7 @@ class Dealer_Admin {
 	}
 
 	public function render_archive(): void {
-		if ( ! current_user_can( DEALER_PORTAL_CAP_UPLOAD ) ) {
+		if ( ! Dealer_DB::user_can( DEALER_PORTAL_CAP_UPLOAD ) ) {
 			wp_die( esc_html__( 'Accesso non consentito.', 'dealer-portal' ) );
 		}
 
@@ -787,7 +803,7 @@ class Dealer_Admin {
 	}
 
 	public function render_logs(): void {
-		if ( ! current_user_can( DEALER_PORTAL_CAP_LOGS ) ) {
+		if ( ! Dealer_DB::user_can( DEALER_PORTAL_CAP_LOGS ) ) {
 			wp_die( esc_html__( 'Accesso non consentito.', 'dealer-portal' ) );
 		}
 
@@ -834,7 +850,7 @@ class Dealer_Admin {
 	}
 
 	public function render_stats(): void {
-		if ( ! current_user_can( DEALER_PORTAL_CAP_LOGS ) ) {
+		if ( ! Dealer_DB::user_can( DEALER_PORTAL_CAP_LOGS ) ) {
 			wp_die( esc_html__( 'Accesso non consentito.', 'dealer-portal' ) );
 		}
 
@@ -1090,7 +1106,7 @@ class Dealer_Admin {
 	 * memoria un archivio di log arbitrariamente grande.
 	 */
 	public function handle_export_logs(): void {
-		if ( ! current_user_can( DEALER_PORTAL_CAP_LOGS ) ) {
+		if ( ! Dealer_DB::user_can( DEALER_PORTAL_CAP_LOGS ) ) {
 			wp_die( esc_html__( 'Accesso non consentito.', 'dealer-portal' ), '', [ 'response' => 403 ] );
 		}
 
@@ -1218,7 +1234,7 @@ class Dealer_Admin {
 		// Azione di gruppo: opera su elenchi arbitrari di ID senza verifica di
 		// perimetro documento per documento, e una delle due azioni è
 		// l'eliminazione definitiva. Resta interamente all'amministratore.
-		if ( ! current_user_can( DEALER_PORTAL_CAP ) ) {
+		if ( ! Dealer_DB::user_can( DEALER_PORTAL_CAP ) ) {
 			wp_send_json_error( [ 'message' => 'Unauthorized' ], 403 );
 		}
 
@@ -1395,7 +1411,7 @@ class Dealer_Admin {
 	public function ajax_get_lines(): void {
 		check_ajax_referer( 'dealer_upload_nonce', 'nonce' );
 
-		if ( ! current_user_can( DEALER_PORTAL_CAP_UPLOAD ) ) {
+		if ( ! Dealer_DB::user_can( DEALER_PORTAL_CAP_UPLOAD ) ) {
 			wp_send_json_error( [ 'message' => 'Unauthorized' ], 403 );
 		}
 
@@ -1415,7 +1431,7 @@ class Dealer_Admin {
 	public function ajax_save_document(): void {
 		check_ajax_referer( 'dealer_upload_nonce', 'nonce' );
 
-		if ( ! current_user_can( DEALER_PORTAL_CAP_UPLOAD ) ) {
+		if ( ! Dealer_DB::user_can( DEALER_PORTAL_CAP_UPLOAD ) ) {
 			wp_send_json_error( [ 'message' => 'Unauthorized' ], 403 );
 		}
 
@@ -1699,7 +1715,7 @@ class Dealer_Admin {
 	public function ajax_mark_obsolete(): void {
 		check_ajax_referer( 'dealer_archive_nonce', 'nonce' );
 
-		if ( ! current_user_can( DEALER_PORTAL_CAP_UPLOAD ) ) {
+		if ( ! Dealer_DB::user_can( DEALER_PORTAL_CAP_UPLOAD ) ) {
 			wp_send_json_error( [ 'message' => 'Unauthorized' ], 403 );
 		}
 
@@ -1785,7 +1801,7 @@ class Dealer_Admin {
 		// irreversibile. Resta all'amministratore, anche per chi può caricare.
 		// All'area manager basta marcare obsoleto e pubblicare una nuova
 		// versione, che è reversibile e lascia traccia.
-		if ( ! current_user_can( DEALER_PORTAL_CAP ) ) {
+		if ( ! Dealer_DB::user_can( DEALER_PORTAL_CAP ) ) {
 			wp_send_json_error( [ 'message' => 'Unauthorized' ], 403 );
 		}
 
