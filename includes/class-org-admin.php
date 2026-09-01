@@ -245,8 +245,15 @@ class Dealer_Org_Admin {
 	private function render_users(): void {
 		$org_id = absint( $_GET['org'] ?? 0 );
 		if ( ! Dealer_Organization::exists( $org_id ) ) {
-			wp_safe_redirect( add_query_arg( 'org_msg', 'err_org', self::page_url() ) );
-			exit;
+			// Stesso motivo spiegato in render_error(): qui la pagina è già
+			// cominciata, un redirect non partirebbe e l'exit lascerebbe a
+			// schermo mezza schermata di amministrazione.
+			$this->render_error(
+				'Organizzazione non trovata.',
+				self::page_url(),
+				'Torna all\'elenco delle organizzazioni'
+			);
+			return;
 		}
 
 		$org_name  = Dealer_Organization::get_name( $org_id );
@@ -357,14 +364,19 @@ class Dealer_Org_Admin {
 		$user    = $user_id ? get_user_by( 'id', $user_id ) : null;
 
 		if ( ! $user || ! Dealer_Identity::is_area_manager( $user ) ) {
-			$this->redirect( 'err_am_user', [ 'view' => 'area_managers' ] );
+			$this->render_error(
+				'Utente non trovato o non ha il ruolo Area Manager.',
+				add_query_arg( 'view', 'area_managers', self::page_url() ),
+				'Torna all\'elenco degli area manager'
+			);
+			return;
 		}
 
-		// Solo le radici sono selezionabili: seguirne una include gia' tutto
-		// il sottoalbero (Dealer_Identity::get_scope_orgs()). Proporre anche
-		// le figlie confonderebbe senza aggiungere nulla — sarebbero sempre
-		// gia' incluse da una radice selezionata sopra di loro.
+		// Si propongono le radici: seguirne una include gia' tutto il suo
+		// sottoalbero (Dealer_Identity::get_scope_orgs()), quindi elencare
+		// anche le figlie confonderebbe senza aggiungere nulla.
 		$roots = [];
+		$shown = [];
 		foreach ( Dealer_Organization::get_all( self::MAX_ORGS ) as $org ) {
 			$org_id = (int) $org->ID;
 			if ( Dealer_Organization::get_parent_id( $org_id ) ) {
@@ -374,13 +386,37 @@ class Dealer_Org_Admin {
 				'id'       => $org_id,
 				'name'     => (string) $org->post_title,
 				'children' => count( Dealer_Organization::get_subtree( $org_id ) ) - 1,
+				'orphan'   => false,
+				'path'     => '',
 			];
+			$shown[ $org_id ] = true;
 		}
 
 		$selected_orgs = array_values( array_filter(
 			array_map( 'absint', (array) get_user_meta( $user_id, Dealer_Identity::META_AM_ORGS, true ) ),
 			[ 'Dealer_Organization', 'exists' ]
 		) );
+
+		// Un'organizzazione gia' assegnata che fra le radici non compare — nel
+		// frattempo e' diventata figlia di un'altra, oppure sta oltre il tetto
+		// di MAX_ORGS — deve avere comunque la sua casella. Il form riscrive
+		// _am_orgs per intero: senza casella non verrebbe rispedita e sparirebbe
+		// dal perimetro al primo salvataggio, in silenzio e con un messaggio di
+		// conferma. Mostrarla la rende visibile, conservabile e rimovibile
+		// deliberatamente.
+		foreach ( $selected_orgs as $selected_id ) {
+			if ( isset( $shown[ $selected_id ] ) ) {
+				continue;
+			}
+			$roots[] = [
+				'id'       => $selected_id,
+				'name'     => Dealer_Organization::get_name( $selected_id ),
+				'children' => max( 0, count( Dealer_Organization::get_subtree( $selected_id ) ) - 1 ),
+				'orphan'   => true,
+				'path'     => self::org_path( $selected_id ),
+			];
+			$shown[ $selected_id ] = true;
+		}
 		$selected_lines = array_map( 'sanitize_text_field', (array) get_user_meta( $user_id, Dealer_Identity::META_AM_LINES, true ) );
 
 		$lines_by_brand = Dealer_Admin::get_product_lines();
@@ -1246,6 +1282,28 @@ class Dealer_Org_Admin {
 		if ( ! current_user_can( DEALER_PORTAL_CAP_ORGS ) ) {
 			wp_die( esc_html__( 'Accesso non consentito.', 'dealer-portal' ), '', [ 'response' => 403 ] );
 		}
+	}
+
+	/**
+	 * Errore mostrato DENTRO la schermata, non con un redirect.
+	 *
+	 * Il callback di una pagina di amministrazione viene invocato dopo che
+	 * admin-header.php ha gia' stampato: li' wp_safe_redirect() non
+	 * reindirizza niente (header gia' inviati) e l'exit che lo accompagna
+	 * lascia a schermo mezza pagina di amministrazione troncata. Un errore
+	 * incontrato mentre si sta gia' disegnando va rappresentato, non navigato
+	 * — i redirect restano dove funzionano, cioe' negli handler admin_post,
+	 * che girano prima di qualunque output.
+	 */
+	private function render_error( string $message, string $back_url, string $back_label ): void {
+		?>
+		<div class="wrap">
+			<h1 class="wp-heading-inline">Organizzazioni</h1>
+			<hr class="wp-header-end">
+			<div class="notice notice-error"><p><?php echo esc_html( $message ); ?></p></div>
+			<p><a class="button" href="<?php echo esc_url( $back_url ); ?>"><?php echo esc_html( $back_label ); ?></a></p>
+		</div>
+		<?php
 	}
 
 	/** Linee dal POST, ripulite e filtrate contro la whitelist Brand|Linea. */

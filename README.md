@@ -429,6 +429,17 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 
 ## Changelog
 
+### 1.3.7
+
+Revisione del lavoro dalla 1.3.2 alla 1.3.6: sei difetti, tre dei quali introdotti proprio dalle correzioni precedenti.
+
+- Fix: **il redirect dell'area manager dalla dashboard troncava la pagina** invece di reindirizzare. Uno shortcode gira dentro `the_content`, quando gli header sono già partiti e mezza pagina è già stata stampata: lì `wp_safe_redirect()` non reindirizza nulla e l'`exit` che lo accompagna interrompe la pagina a metà — senza footer e senza il link di logout aggiunto in 1.3.3 proprio per non lasciare nessuno bloccato. Cioè esattamente il vicolo cieco che quella versione doveva chiudere. Il redirect vive ora su `template_redirect` (`Dealer_Access_Guard::route_dashboard()`), prima di qualunque output; lo shortcode restituisce solo avvisi, mai un `exit`. Stesso difetto, preesistente, sul redirect al login della dashboard: corretto insieme. Tutti gli altri moduli del plugin già facevano i propri redirect da `template_redirect`, la dashboard era l'unica fuori schema.
+- Fix: **la schermata del perimetro cancellava in silenzio le organizzazioni non-radice.** Elencava come caselle solo le radici, ma il form riscrive `_am_orgs` per intero: un'organizzazione assegnata che nel frattempo era diventata figlia di un'altra (operazione normale mentre si costruisce la gerarchia) spariva dal perimetro al primo salvataggio, con tanto di messaggio "Perimetro salvato". Ora resta in elenco, segnalata come sotto-organizzazione, e si toglie solo deselezionandola.
+- Fix: il pulsante "Vedi" nell'area di lavoro dell'area manager usava una dashicon, ma quel modulo non carica dashicons (per scelta: il suo CSS è autonomo) e agli utenti del portale la barra di amministrazione — che sul front-end le porterebbe con sé — è nascosta. Era un quadratino vuoto: ora è un link di testo.
+- Fix: dopo aver reso più severa la scelta del successore (1.3.2), eliminare un documento poteva annunciare "la versione precedente è tornata corrente" quando la catena era rimasta senza nessuna versione corrente — le altre erano tutte in bozza o obsolete. `Dealer_Versioning::detach()` restituisce ora la versione promossa e il messaggio segue quello che è successo davvero, invece di prevederlo. Corretto sia nell'eliminazione singola sia in quella di gruppo.
+- Fix: l'`!important` introdotto in 1.3.4 sulla larghezza rendeva inerti le regole di spaziatura sotto i 480px — una media query non aggiunge né specificità né importanza — e sul telefono restava la spaziatura da desktop.
+- Fix: un errore nelle schermate di amministrazione (organizzazione o area manager inesistente, da un link vecchio) veniva gestito con un redirect che non può funzionare, per lo stesso motivo del primo punto: il callback di una pagina admin gira dopo `admin-header.php`. Al posto della mezza schermata troncata c'è ora un avviso con il link per tornare indietro.
+
 ### 1.3.6
 
 Due richieste dal collaudo, entrambe sulla coerenza visiva dell'area riservata: la dashboard è l'unica pagina con un link visibile sul sito (chi lo apre fa login e finisce sulla propria area, in base al ruolo), quindi le cinque pagine del portale devono leggersi come un'unica vista, non come pagine scollegate.

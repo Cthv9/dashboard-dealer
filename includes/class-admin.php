@@ -1163,11 +1163,17 @@ class Dealer_Admin {
 		foreach ( $ids as $id ) {
 			$chain    = Dealer_Versioning::get_chain( $id );
 			$in_chain = count( $chain ) > 1;
-			$promotes = $in_chain && Dealer_Versioning::is_current( $id );
 
 			// Sempre PRIMA di wp_delete_post(): sgancia dalla catena e, se era
 			// la versione corrente, promuove la più recente fra le rimaste.
-			Dealer_Versioning::detach( $id );
+			//
+			// Il conteggio viene da quello che detach() ha davvero fatto, non
+			// da una previsione: "era corrente e la catena aveva altri
+			// elementi" non basta più a garantire una promozione, perché il
+			// successore dev'essere anche pubblicato e non obsoleto. Dedurlo
+			// significava annunciare all'amministratore N versioni tornate
+			// correnti quando la catena era rimasta senza nessuna.
+			$promotes = (bool) Dealer_Versioning::detach( $id );
 
 			$attachment_id = (int) get_post_meta( $id, '_doc_file_id', true );
 			if ( $attachment_id ) {
@@ -1616,10 +1622,14 @@ class Dealer_Admin {
 		// Sgancia dalla catena PRIMA di eliminare: se era la versione corrente,
 		// promuove la precedente. Altrimenti la catena resterebbe senza nessun
 		// documento visibile in ricerca.
+		//
+		// Come in bulk_delete(): l'esito arriva dal valore restituito da
+		// detach(), non da una previsione. Una catena le cui altre versioni
+		// sono tutte in bozza o obsolete non ha un successore promuovibile, e
+		// annunciare "la versione precedente è tornata corrente" sarebbe falso.
 		$chain    = Dealer_Versioning::get_chain( $post_id );
 		$in_chain = count( $chain ) > 1;
-		$promotes = $in_chain && Dealer_Versioning::is_current( $post_id );
-		Dealer_Versioning::detach( $post_id );
+		$promotes = (bool) Dealer_Versioning::detach( $post_id );
 
 		$attachment_id = (int) get_post_meta( $post_id, '_doc_file_id', true );
 		if ( $attachment_id ) {

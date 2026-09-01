@@ -284,8 +284,15 @@ class Dealer_Versioning {
 	 * Rimuove un documento dalla catena mantenendola coerente: se era la
 	 * versione corrente, promuove la più recente tra quelle rimaste.
 	 * Da chiamare prima di eliminare definitivamente un documento.
+	 *
+	 * @return int ID della versione promossa, 0 se non è stato promosso nulla
+	 *             (documento non corrente, catena di un solo elemento, o
+	 *             nessun candidato promuovibile secondo find_best_successor()).
+	 *             Il chiamante non può dedurlo da solo: "era corrente e la
+	 *             catena aveva altri elementi" non implica che uno di quelli
+	 *             fosse pubblicato e non obsoleto.
 	 */
-	public static function detach( int $post_id ): void {
+	public static function detach( int $post_id ): int {
 		// Il successore va individuato prima di cancellare i meta: dopo, il
 		// documento non appartiene più a nessuna catena.
 		$was_current = self::is_current( $post_id );
@@ -299,5 +306,7 @@ class Dealer_Versioning {
 		if ( $successor ) {
 			update_post_meta( $successor, self::META_IS_CURRENT, '1' );
 		}
+
+		return $successor;
 	}
 }

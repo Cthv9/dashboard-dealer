@@ -52,8 +52,11 @@ $list_url = add_query_arg( 'view', 'area_managers', $base_url );
 				<div class="postbox-header"><h2 class="hndle" style="padding:8px 12px;">Organizzazioni seguite</h2></div>
 				<div class="inside">
 					<p class="description" style="margin-bottom:10px;">
-						Solo le <strong>radici</strong> sono selezionabili: seguirne una include automaticamente
-						tutto il suo sottoalbero (concessionarie, filiali). Non serve selezionare anche le figlie.
+						Si elencano le <strong>radici</strong>: seguirne una include automaticamente tutto il suo
+						sottoalbero (concessionarie, filiali), quindi non serve selezionare anche le figlie.
+						Un'organizzazione già assegnata che nel frattempo è diventata figlia di un'altra resta
+						comunque in elenco, segnalata come <em>sotto-organizzazione</em>: così non sparisce dal
+						perimetro senza che tu lo abbia deciso.
 					</p>
 					<?php if ( empty( $roots ) ) : ?>
 						<p class="dorg-muted">Nessuna organizzazione creata. Vai su <a href="<?php echo esc_url( $base_url ); ?>">Organizzazioni</a> per crearne una prima di assegnare un perimetro.</p>
@@ -69,6 +72,9 @@ $list_url = add_query_arg( 'view', 'area_managers', $base_url );
 									<?php echo esc_html( $root['name'] ); ?>
 									<?php if ( $root['children'] > 0 ) : ?>
 										<span class="dorg-cell-sub" style="display:inline;">(+<?php echo esc_html( (string) $root['children'] ); ?> nel sottoalbero)</span>
+									<?php endif; ?>
+									<?php if ( ! empty( $root['orphan'] ) ) : ?>
+										<span class="dorg-badge is-mixed" title="<?php echo esc_attr( $root['path'] ); ?>">sotto-organizzazione</span>
 									<?php endif; ?>
 								</label>
 							<?php endforeach; ?>

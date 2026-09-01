@@ -142,11 +142,18 @@ $am_states = [
 										<?php echo esc_html( $am_doc['filename'] ); ?>
 									</a>
 									<?php if ( Dealer_Search::is_previewable( $am_doc['filename'] ) ) : ?>
+										<?php
+										// Testo e non un'icona: questo modulo non carica dashicons
+										// (il suo CSS vive tutto nel <style> di am-workspace.php e
+										// non dipende da font esterni), e la barra di
+										// amministrazione — che sul front-end le porterebbe con sé —
+										// all'area manager è nascosta. Una dashicon qui sarebbe un
+										// quadratino vuoto.
+										?>
 										<a class="dealer-am-doc-view"
 											href="<?php echo esc_url( Dealer_Search::get_view_url( (int) $am_doc['id'] ) ); ?>"
-											target="_blank" rel="noopener" title="Apri nel browser">
-											<span class="dashicons dashicons-visibility" aria-hidden="true"></span>
-											<span class="screen-reader-text">Apri <?php echo esc_html( $am_doc['filename'] ); ?> nel browser</span>
+											target="_blank" rel="noopener">
+											Vedi<span class="screen-reader-text"> <?php echo esc_html( $am_doc['filename'] ); ?> nel browser</span>
 										</a>
 									<?php endif; ?>
 								<?php else : ?>
