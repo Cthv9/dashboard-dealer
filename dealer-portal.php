@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Dealer Portal
  * Description:       Area riservata per la distribuzione controllata di documenti a reti di utenti esterni: permessi granulari per organizzazione, versionamento, ricerca a faccette. SearchWP supportato (opzionale).
- * Version:           1.4.4
+ * Version:           1.4.5
  * Author:            DF
  * Text Domain:       dealer-portal
  * Requires PHP:      7.4
@@ -11,7 +11,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'DEALER_PORTAL_VERSION', '1.4.4' );
+define( 'DEALER_PORTAL_VERSION', '1.4.5' );
 define( 'DEALER_PORTAL_PATH',    plugin_dir_path( __FILE__ ) );
 define( 'DEALER_PORTAL_URL',     plugin_dir_url( __FILE__ ) );
 // ─── Capability ──────────────────────────────────────────────────────────────
@@ -54,6 +54,14 @@ register_deactivation_hook( __FILE__, [ 'Dealer_Notifications', 'clear_scheduled
 
 // Re-apply idempotent upgrade steps (capability, protected dir) on updates without reactivation.
 add_action( 'plugins_loaded', [ 'Dealer_DB', 'maybe_upgrade' ] );
+
+// L'amministratore ha le capability del plugin a runtime, senza dipendere da
+// cosa risulta scritto nel ruolo: se qualcosa gliele toglie, add_submenu_page()
+// smette di registrare le voci e mezzo menu sparisce in silenzio. Vedi
+// Dealer_DB::grant_admin_caps() per il caso reale che ha portato a questo.
+// Registrato qui e non in una classe istanziata su 'init': il filtro deve
+// essere attivo prima che si costruisca il menu di amministrazione.
+add_filter( 'user_has_cap', [ 'Dealer_DB', 'grant_admin_caps' ] );
 
 // ─── Login Redirect ──────────────────────────────────────────────────────────
 // Ogni utente del portale finisce nella propria area operativa, mai in
