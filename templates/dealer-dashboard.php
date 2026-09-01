@@ -108,7 +108,6 @@ $last_login_fmt = $last_login ? gmdate( 'd/m/Y \a\l\l\e H:i', strtotime( $last_l
 			$filename = get_post_meta( $doc->ID, '_doc_filename',    true );
 			$type_lbl = Dealer_Admin::get_doc_types()[ $type_key ] ?? $type_key;
 			$is_new   = Dealer_Search::is_new_doc( $doc->ID );
-			$dl_url   = Dealer_Search::get_download_url( $doc->ID );
 			$icon     = Dealer_Search::get_file_icon_svg( $filename ?: '' );
 			?>
 			<div class="dealer-feed-item">
@@ -124,9 +123,10 @@ $last_login_fmt = $last_login ? gmdate( 'd/m/Y \a\l\l\e H:i', strtotime( $last_l
 					<?php if ( $is_new ) : ?>
 						<span class="dealer-badge dealer-badge-new">NUOVO</span>
 					<?php endif; ?>
-					<a href="<?php echo esc_url( $dl_url ); ?>" class="dealer-btn dealer-btn-sm">
-						<span class="dashicons dashicons-download"></span>
-					</a>
+					<?php
+					// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped — markup già escapato da render_document_actions()
+					echo Dealer_Search::render_document_actions( $doc->ID, $filename ?: '', [ 'class' => 'dealer-btn-sm' ] );
+					?>
 				</div>
 			</div>
 		<?php endforeach; ?>
@@ -143,7 +143,6 @@ $last_login_fmt = $last_login ? gmdate( 'd/m/Y \a\l\l\e H:i', strtotime( $last_l
 			$expiry   = get_post_meta( $doc->ID, '_doc_expiry',   true );
 			$brand    = get_post_meta( $doc->ID, '_doc_brand',    true );
 			$filename = get_post_meta( $doc->ID, '_doc_filename', true );
-			$dl_url   = Dealer_Search::get_download_url( $doc->ID );
 			$icon     = Dealer_Search::get_file_icon_svg( $filename ?: '' );
 			?>
 			<div class="dealer-feed-item dealer-feed-expiring">
@@ -157,9 +156,10 @@ $last_login_fmt = $last_login ? gmdate( 'd/m/Y \a\l\l\e H:i', strtotime( $last_l
 				</div>
 				<div class="dealer-feed-actions">
 					<span class="dealer-badge dealer-badge-expiring">IN SCADENZA</span>
-					<a href="<?php echo esc_url( $dl_url ); ?>" class="dealer-btn dealer-btn-sm">
-						<span class="dashicons dashicons-download"></span>
-					</a>
+					<?php
+					// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped — markup già escapato da render_document_actions()
+					echo Dealer_Search::render_document_actions( $doc->ID, $filename ?: '', [ 'class' => 'dealer-btn-sm' ] );
+					?>
 				</div>
 			</div>
 		<?php endforeach; ?>
@@ -205,7 +205,6 @@ $last_login_fmt = $last_login ? gmdate( 'd/m/Y \a\l\l\e H:i', strtotime( $last_l
 			$type_key = get_post_meta( $doc->ID, '_doc_type',         true );
 			$filename = get_post_meta( $doc->ID, '_doc_filename',     true );
 			$type_lbl = Dealer_Admin::get_doc_types()[ $type_key ] ?? $type_key;
-			$dl_url   = Dealer_Search::get_download_url( $doc->ID );
 			$rm_url   = Dealer_Search::get_favorite_url( $doc->ID, false );
 			$icon     = Dealer_Search::get_file_icon_svg( $filename ?: '' );
 			?>
@@ -223,9 +222,10 @@ $last_login_fmt = $last_login ? gmdate( 'd/m/Y \a\l\l\e H:i', strtotime( $last_l
 						<span class="dashicons dashicons-star-filled" aria-hidden="true"></span>
 						<span class="screen-reader-text">Rimuovi <?php echo esc_html( $doc->post_title ); ?> dai preferiti</span>
 					</a>
-					<a href="<?php echo esc_url( $dl_url ); ?>" class="dealer-btn dealer-btn-sm">
-						<span class="dashicons dashicons-download"></span>
-					</a>
+					<?php
+					// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped — markup già escapato da render_document_actions()
+					echo Dealer_Search::render_document_actions( $doc->ID, $filename ?: '', [ 'class' => 'dealer-btn-sm' ] );
+					?>
 				</div>
 			</div>
 		<?php endforeach; ?>
@@ -243,7 +243,6 @@ $last_login_fmt = $last_login ? gmdate( 'd/m/Y \a\l\l\e H:i', strtotime( $last_l
 			$brand    = get_post_meta( $doc->ID, '_doc_brand',        true );
 			$line     = get_post_meta( $doc->ID, '_doc_product_line', true );
 			$filename = get_post_meta( $doc->ID, '_doc_filename',     true );
-			$dl_url   = Dealer_Search::get_download_url( $doc->ID );
 			$icon     = Dealer_Search::get_file_icon_svg( $filename ?: '' );
 			$last     = $entry['last_download'] ? gmdate( 'd/m/Y \a\l\l\e H:i', strtotime( $entry['last_download'] ) ) : '';
 			$times    = (int) $entry['download_count'];
@@ -265,9 +264,10 @@ $last_login_fmt = $last_login ? gmdate( 'd/m/Y \a\l\l\e H:i', strtotime( $last_l
 					</span>
 				</div>
 				<div class="dealer-feed-actions">
-					<a href="<?php echo esc_url( $dl_url ); ?>" class="dealer-btn dealer-btn-sm">
-						<span class="dashicons dashicons-download"></span>
-					</a>
+					<?php
+					// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped — markup già escapato da render_document_actions()
+					echo Dealer_Search::render_document_actions( $doc->ID, $filename ?: '', [ 'class' => 'dealer-btn-sm' ] );
+					?>
 				</div>
 			</div>
 		<?php endforeach; ?>

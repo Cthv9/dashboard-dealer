@@ -25,6 +25,7 @@ I diritti di accesso appartengono all'**organizzazione** (l'azienda dealer), non
 ### Ricerca (dealer)
 - Ricerca a faccette: sidebar con filtri a selezione multipla e conteggi live, aggiornamento AJAX senza reload
 - Griglia di card con icona per tipo file, badge **NUOVO** e **IN SCADENZA**
+- Pulsante **Vedi** (apre il PDF nel browser, senza scaricarlo) accanto a **Scarica**, ovunque compaia un documento
 - Ordinamento per pertinenza, data, titolo o numero di download
 - Chip dei filtri attivi rimovibili singolarmente, URL condivisibile e bookmarkabile
 - Funziona **anche senza JavaScript** (fallback a form GET)
@@ -427,6 +428,13 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 ---
 
 ## Changelog
+
+### 1.3.6
+
+Due richieste dal collaudo, entrambe sulla coerenza visiva dell'area riservata: la dashboard è l'unica pagina con un link visibile sul sito (chi lo apre fa login e finisce sulla propria area, in base al ruolo), quindi le cinque pagine del portale devono leggersi come un'unica vista, non come pagine scollegate.
+
+- **Titolo di pagina centrato.** Con il layout a tutta larghezza (1.3.4) il titolo reso dal tema sopra il nostro box — "Cerca Documenti", "Preferiti", … — restava allineato a sinistra come in un articolo, mentre il contenuto sotto è ora largo quanto lo schermo: il risultato sembrava due viste scollegate. Le cinque pagine ricevono ora una classe `dealer-portal-page` sul `<body>` (riconosciute dall'ID pagina salvato in opzione, mai da slug o titolo) e il titolo viene centrato lì — copre sia i temi a blocchi (`.wp-block-post-title`, il blocco "Titolo Articolo" nativo di WordPress) sia i temi classici (`.entry-title`, `.page-title`). Il tema non viene toccato.
+- **Pulsante "Vedi" accanto a "Scarica".** Apre il documento nel browser (nuova scheda) invece di forzarne il download. Compare solo per i PDF — l'unico formato, fra quelli caricabili (whitelist PDF/XLSX/DOCX), che ogni browser sa aprire da solo; per gli altri l'anteprima non avrebbe funzionato comunque. La decisione resta sempre server-side sul mime type reale del file, mai sul solo parametro in URL. Presente ovunque compaia "Scarica": griglia di ricerca, dashboard, preferiti, storico versioni, area di lavoro dell'area manager. `Dealer_Search::render_document_actions()` è l'unico punto che genera la coppia di pulsanti, per non dover aggiornare il markup in sei posti diversi a ogni ritocco. L'apertura resta comunque un accesso al documento: finisce nel log dei download come un download vero e proprio.
 
 ### 1.3.5
 

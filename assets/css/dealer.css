@@ -88,6 +88,30 @@ body .dealer-favorites-wrap.dp-no-bleed {
 	padding-right: 20px !important;
 }
 
+/* ── Titolo di pagina del tema ────────────────────────────────────────────
+   Le cinque pagine del portale escono dal contenitore del tema e occupano
+   la finestra (blocco sopra), ma il TITOLO della pagina — reso dal tema
+   stesso sopra il nostro wrapper, non da questo plugin — resta allineato a
+   sinistra come in un articolo normale: sopra un box ora largo quanto lo
+   schermo, un titolo a sinistra sembra fuori posto, non più parte della
+   stessa vista.
+   Riconosciamo le nostre pagine da "dealer-portal-page" sul <body>
+   (Dealer_Access_Guard::add_body_class(), dall'ID pagina salvato in
+   opzione — mai da slug o titolo) e centriamo lì il titolo, con selettori
+   che coprono sia i temi a blocchi (.wp-block-post-title, il blocco
+   "Titolo Articolo" nativo di WordPress: non è una convenzione del singolo
+   tema, la usa chiunque costruisca il proprio template di pagina con quel
+   blocco) sia i temi classici (.entry-title, .page-title). !important per
+   lo stesso motivo del blocco sopra: un tema a blocchi può scrivere
+   l'allineamento come stile inline sul blocco stesso, che altrimenti
+   vincerebbe su una regola esterna non marcata. Il tema non viene toccato:
+   la regola vive solo su queste cinque pagine. */
+body.dealer-portal-page .wp-block-post-title,
+body.dealer-portal-page .entry-title,
+body.dealer-portal-page .page-title {
+	text-align: center !important;
+}
+
 /* ── Link di ritorno alla dashboard ──────────────────────────────────────
    La dashboard è la home dell'area riservata: ogni altra pagina (ricerca,
    gestione collaboratori, area manager) ne è un ramo, e senza questo link
@@ -453,6 +477,22 @@ body .dealer-favorites-wrap.dp-no-bleed {
 .dealer-btn-sm:hover {
 	background: var(--dp-border);
 	color: var(--dp-navy);
+	text-decoration: none;
+}
+
+/* "Vedi" apre il PDF nel browser (nuova scheda) invece di scaricarlo: stile
+   secondario/outline per restare distinto da "Scarica", che è l'azione
+   primaria. Stesso trattamento di .dealer-btn-reset, per coerenza. */
+.dealer-btn-view {
+	background: transparent;
+	color: var(--dp-blue);
+	border: 1px solid var(--dp-blue);
+}
+
+.dealer-btn-view:hover,
+.dealer-btn-view:focus {
+	background: var(--dp-blue);
+	color: var(--dp-white);
 	text-decoration: none;
 }
 
@@ -1022,7 +1062,18 @@ html.dealer-js .dealer-nojs-only {
 	opacity: .6;
 }
 
-.dealer-doc-foot .dealer-btn-download {
+/* Contenitore di render_document_actions(): "Vedi" + "Scarica" contano come
+   un solo figlio negli spazi che usano justify-content:space-between (il
+   piede della card), e restano semplicemente due figli in più dove il
+   contenitore usa un gap semplice (le liste compatte della dashboard). */
+.dealer-doc-actions {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.dealer-doc-foot .dealer-btn-download,
+.dealer-doc-foot .dealer-btn-view {
 	padding: 7px 14px;
 	font-size: 13px;
 }
@@ -1475,7 +1526,8 @@ html.dealer-js .dealer-nojs-only {
 		gap: 8px;
 	}
 
-	.dealer-doc-foot .dealer-btn-download {
+	.dealer-doc-foot .dealer-btn-download,
+	.dealer-doc-foot .dealer-btn-view {
 		justify-content: center;
 	}
 

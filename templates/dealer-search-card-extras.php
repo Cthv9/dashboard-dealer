@@ -43,6 +43,14 @@ $fav_title = Dealer_Search::favorite_title( $is_favorite );
 							<span class="dealer-version-label"><?php echo esc_html( $version['label'] ); ?></span>
 							<span class="dealer-version-date"><?php echo esc_html( gmdate( 'd/m/Y', strtotime( $version['date'] ) ) ); ?></span>
 						</span>
+						<?php if ( ! empty( $version['previewable'] ) ) : ?>
+							<a href="<?php echo esc_url( $version['view_url'] ); ?>"
+								class="dealer-btn dealer-btn-sm dealer-btn-view"
+								target="_blank" rel="noopener">
+								<span class="dashicons dashicons-visibility" aria-hidden="true"></span>
+								<span class="screen-reader-text">Apri <?php echo esc_html( $version['label'] ); ?> nel browser</span>
+							</a>
+						<?php endif; ?>
 						<a href="<?php echo esc_url( $version['url'] ); ?>"
 							class="dealer-btn dealer-btn-sm dealer-btn-download-version"
 							data-post="<?php echo esc_attr( $version['id'] ); ?>">

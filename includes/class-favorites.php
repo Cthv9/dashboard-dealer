@@ -241,6 +241,7 @@ class Dealer_Favorites {
 			'line'         => $line,
 			'type'         => $type_lbl,
 			'icon'         => Dealer_Search::get_file_icon_svg( $filename ),
+			'filename'     => $filename,
 			'download_url' => Dealer_Search::get_download_url( (int) $doc->ID ),
 			'remove_url'   => Dealer_Search::get_favorite_url( (int) $doc->ID, false ),
 			'tag_ids'      => [],

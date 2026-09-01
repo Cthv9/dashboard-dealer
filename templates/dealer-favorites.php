@@ -176,10 +176,10 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 								<span class="dashicons dashicons-star-filled" aria-hidden="true"></span>
 								<span class="screen-reader-text">Rimuovi <?php echo esc_html( $item['title'] ); ?> dai preferiti</span>
 							</a>
-							<a href="<?php echo esc_url( $item['download_url'] ); ?>" class="dealer-btn dealer-btn-sm">
-								<span class="dashicons dashicons-download" aria-hidden="true"></span>
-								<span class="screen-reader-text">Scarica <?php echo esc_html( $item['title'] ); ?></span>
-							</a>
+							<?php
+							// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped — markup già escapato da render_document_actions()
+							echo Dealer_Search::render_document_actions( $item['id'], $item['filename'], [ 'class' => 'dealer-btn-sm' ] );
+							?>
 						</div>
 					</div>
 
