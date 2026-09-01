@@ -82,8 +82,16 @@ class Dealer_DB {
 		// Le capability hanno un contatore di revisione proprio (CAPS_REVISION):
 		// vanno riparate anche quando la versione del plugin non cambia, perché
 		// aggiungerne una nuova al codice non basta a darla ai ruoli esistenti.
-		// La chiamata esce subito se la mappa corrente è già stata applicata.
+		// Non esce mai sul solo contatore: riconcilia davvero, perché se le
+		// capability spariscono l'amministratore perde le schermate con cui
+		// potrebbe rimediare (vedi il commento in setup_capability()).
 		self::setup_capability();
+
+		// L'avviso vive qui perché setup_capability() gira su 'plugins_loaded',
+		// prima di 'admin_notices'.
+		if ( is_admin() ) {
+			add_action( 'admin_notices', [ __CLASS__, 'maybe_notice_caps_repaired' ] );
+		}
 
 		// Stessa logica per lo schema della tabella di log: create_log_table()
 		// gira solo all'attivazione, quindi un'installazione che si limita ad
@@ -411,11 +419,27 @@ class Dealer_DB {
 	 * maybe_upgrade() a ogni caricamento.
 	 */
 	private static function setup_capability(): void {
-		if ( (int) get_option( 'dealer_portal_caps_revision' ) === self::CAPS_REVISION ) {
-			return;
-		}
+		// NESSUNA uscita anticipata sul contatore di revisione.
+		//
+		// Il contatore dice "questa mappa e' gia' stata applicata una volta",
+		// non "le capability ci sono adesso". Se per qualunque ragione
+		// spariscono — un ruolo ricreato, un plugin di gestione ruoli, un
+		// ripristino parziale del database, una copia fra ambienti — succede
+		// questo: l'amministratore perde manage_dealer_portal e
+		// manage_dealer_orgs, e con esse spariscono dal menu proprio le
+		// schermate da cui si potrebbe rimediare (Organizzazioni, Area Manager,
+		// Ruoli e Linee). Un vicolo cieco perfetto, per giunta silenzioso:
+		// WordPress nasconde le voci di menu per cui manca la capability, non
+		// le segnala. Uscire qui sul contatore rendeva quello stato definitivo.
+		//
+		// Riconciliare a ogni caricamento non costa nulla: i ruoli sono gia' in
+		// memoria (wp_roles() li carica una volta per richiesta), has_cap() e'
+		// una lettura di array, e add_cap() tocca il database solo quando manca
+		// davvero qualcosa.
+		$already_applied = ( (int) get_option( 'dealer_portal_caps_revision' ) === self::CAPS_REVISION );
 
 		$complete = true;
+		$repaired = [];
 
 		foreach ( self::capability_map() as $role_name => $caps ) {
 			$role = get_role( $role_name );
@@ -431,6 +455,7 @@ class Dealer_DB {
 			foreach ( $caps as $cap ) {
 				if ( ! $role->has_cap( $cap ) ) {
 					$role->add_cap( $cap );
+					$repaired[] = $role_name . ' -> ' . $cap;
 				}
 			}
 		}
@@ -438,6 +463,39 @@ class Dealer_DB {
 		if ( $complete ) {
 			update_option( 'dealer_portal_caps_revision', self::CAPS_REVISION );
 		}
+
+		// Riparare al primo giro e' la normalita' (installazione o
+		// aggiornamento). Riparare quando la revisione risultava GIA' applicata
+		// significa che qualcosa le aveva tolte: l'amministratore ha appena
+		// riavuto voci di menu che non vedeva, e va detto invece di lasciarlo
+		// pensare che siano comparse da sole.
+		if ( $repaired && $already_applied ) {
+			set_transient( 'dealer_portal_caps_repaired', $repaired, 5 * MINUTE_IN_SECONDS );
+		}
+	}
+
+	/**
+	 * Avviso quando le capability sono state ripristinate a posteriori.
+	 * Vedi setup_capability() per il perche' non basta il contatore.
+	 */
+	public static function maybe_notice_caps_repaired(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		$repaired = get_transient( 'dealer_portal_caps_repaired' );
+		if ( ! is_array( $repaired ) || empty( $repaired ) ) {
+			return;
+		}
+		delete_transient( 'dealer_portal_caps_repaired' );
+
+		printf(
+			'<div class="notice notice-warning is-dismissible"><p><strong>Dealer Portal:</strong> '
+			. 'mancavano %d permessi del plugin e sono stati ripristinati automaticamente. '
+			. 'Se nel menu non vedevi <em>Organizzazioni</em>, <em>Area Manager</em>, <em>Ruoli e Linee</em>, '
+			. '<em>Notifiche</em> o <em>Richieste Accesso</em>, ricarica la pagina: adesso ci sono.</p></div>',
+			(int) count( $repaired )
+		);
 	}
 
 	// ─── Write ───────────────────────────────────────────────────────────────
