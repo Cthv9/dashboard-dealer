@@ -463,6 +463,17 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 
 ## Changelog
 
+### 1.6.2
+
+Correzioni grafiche dalle schermate del collaudo.
+
+- **Archivio Documenti: la colonna Azioni finiva stampata fuori dal riquadro.** Due cause sommate: le larghezze delle colonne dichiaravano il 110% (la tabella è `table-layout: fixed` e la colonna delle spunte occupa il resto), e `white-space: nowrap` sulla cella delle azioni, che in una tabella "fixed" non allarga la colonna ma stampa il contenuto oltre il bordo. Le larghezze ora sommano al 97% e i bottoni vanno a capo dentro la loro colonna.
+- **Archivio Documenti: le linee prodotto erano una sola stringa separata da virgole**, che andava a capo in mezzo ai nomi e non lasciava capire dove finisse una linea e cominciasse l'altra. Ora è un'etichetta per linea, con il brand in grassetto.
+- **Il titolo di pagina raggiungeva solo tre pagine su cinque.** La regola che lo centra viveva in `dealer.css`, che non è caricato sull'area del titolare né su quella dell'area manager (hanno un proprio blocco `<style>`): là il titolo restava com'era. Ora vive nella barra di navigazione, cioè esattamente dove vive la barra: su tutte le pagine del portale.
+- **Il titolo era dimensionato per un articolo**, dove è l'unica intestazione. Con sopra la barra e sotto un hero con il proprio titolo, prendeva mezzo schermo: ora scala con `clamp()` restando il primo livello della gerarchia.
+- **Area manager: la barra mostrava un solo pulsante, verso la pagina che stava già guardando.** Ha una sola destinazione: quel pulsante non porta da nessuna parte e lascia la barra per il resto vuota. Restano il nome e l'uscita.
+- **Statistiche dell'area manager al singolare quando il numero è uno**: si leggeva "1 DOCUMENTI SEGUITI".
+
 ### 1.6.1
 
 Difetti trovati rivedendo la 1.4.0-1.6.0.
@@ -585,7 +596,7 @@ Revisione del lavoro dalla 1.3.2 alla 1.3.6: sei difetti, tre dei quali introdot
 
 Due richieste dal collaudo, entrambe sulla coerenza visiva dell'area riservata: la dashboard è l'unica pagina con un link visibile sul sito (chi lo apre fa login e finisce sulla propria area, in base al ruolo), quindi le cinque pagine del portale devono leggersi come un'unica vista, non come pagine scollegate.
 
-- **Titolo di pagina centrato.** Con il layout a tutta larghezza (1.3.4) il titolo reso dal tema sopra il nostro box — "Cerca Documenti", "Preferiti", … — restava allineato a sinistra come in un articolo, mentre il contenuto sotto è ora largo quanto lo schermo: il risultato sembrava due viste scollegate. Le cinque pagine ricevono ora una classe `dealer-portal-page` sul `<body>` (riconosciute dall'ID pagina salvato in opzione, mai da slug o titolo) e il titolo viene centrato lì — copre sia i temi a blocchi (`.wp-block-post-title`, il blocco "Titolo Articolo" nativo di WordPress) sia i temi classici (`.entry-title`, `.page-title`). Il tema non viene toccato.
+- **Titolo di pagina centrato.** Con il layout a tutta larghezza (1.3.4) il titolo reso dal tema sopra il nostro box — "Cerca Documenti", "Preferiti", … — restava allineato a sinistra come in un articolo, mentre il contenuto sotto è ora largo quanto lo schermo: il risultato sembrava due viste scollegate. Le cinque pagine ricevono ora una classe `dealer-portal-page` sul `<body>` (riconosciute dall'ID pagina salvato in opzione, mai da slug o titolo) e il titolo viene centrato lì — copre sia i temi a blocchi (`.wp-block-post-title`, il blocco "Titolo Articolo" nativo di WordPress) sia i temi classici (`.entry-title`, `.page-title`). Il tema non viene toccato. *(La regola stava in `dealer.css` e raggiungeva solo tre pagine su cinque: dalla 1.6.2 vive nella barra di navigazione.)*
 - **Pulsante "Vedi" accanto a "Scarica".** Apre il documento nel browser (nuova scheda) invece di forzarne il download. Compare solo per i PDF — l'unico formato, fra quelli caricabili (whitelist PDF/XLSX/DOCX), che ogni browser sa aprire da solo; per gli altri l'anteprima non avrebbe funzionato comunque. La decisione resta sempre server-side sul mime type reale del file, mai sul solo parametro in URL. Presente ovunque compaia "Scarica": griglia di ricerca, dashboard, preferiti, storico versioni, area di lavoro dell'area manager. `Dealer_Search::render_document_actions()` è l'unico punto che genera la coppia di pulsanti, per non dover aggiornare il markup in sei posti diversi a ogni ritocco. L'apertura resta comunque un accesso al documento: finisce nel log dei download come un download vero e proprio.
 
 ### 1.3.5

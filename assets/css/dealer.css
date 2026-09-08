@@ -88,30 +88,6 @@ body .dealer-favorites-wrap.dp-no-bleed {
 	padding-right: 20px !important;
 }
 
-/* ── Titolo di pagina del tema ────────────────────────────────────────────
-   Le cinque pagine del portale escono dal contenitore del tema e occupano
-   la finestra (blocco sopra), ma il TITOLO della pagina — reso dal tema
-   stesso sopra il nostro wrapper, non da questo plugin — resta allineato a
-   sinistra come in un articolo normale: sopra un box ora largo quanto lo
-   schermo, un titolo a sinistra sembra fuori posto, non più parte della
-   stessa vista.
-   Riconosciamo le nostre pagine da "dealer-portal-page" sul <body>
-   (Dealer_Access_Guard::add_body_class(), dall'ID pagina salvato in
-   opzione — mai da slug o titolo) e centriamo lì il titolo, con selettori
-   che coprono sia i temi a blocchi (.wp-block-post-title, il blocco
-   "Titolo Articolo" nativo di WordPress: non è una convenzione del singolo
-   tema, la usa chiunque costruisca il proprio template di pagina con quel
-   blocco) sia i temi classici (.entry-title, .page-title). !important per
-   lo stesso motivo del blocco sopra: un tema a blocchi può scrivere
-   l'allineamento come stile inline sul blocco stesso, che altrimenti
-   vincerebbe su una regola esterna non marcata. Il tema non viene toccato:
-   la regola vive solo su queste cinque pagine. */
-body.dealer-portal-page .wp-block-post-title,
-body.dealer-portal-page .entry-title,
-body.dealer-portal-page .page-title {
-	text-align: center !important;
-}
-
 /* ── Hero ────────────────────────────────────────────────────────────────── */
 .dealer-hero {
 	background: linear-gradient(135deg, var(--dp-navy) 0%, var(--dp-blue) 100%);

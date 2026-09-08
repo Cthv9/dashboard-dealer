@@ -184,27 +184,24 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 		<p class="dealer-am-who">
 			<?php echo esc_html( $user->display_name ); ?> — Area Manager
 		</p>
+		<?php
+		// Le etichette erano al plurale in ogni caso: con un solo documento si
+		// leggeva "1 DOCUMENTI SEGUITI". La forma segue il numero.
+		$am_tiles = [
+			[ $summary['documents'], 'Documento seguito',  'Documenti seguiti' ],
+			[ $summary['editable'],  'Modificabile',       'Modificabili' ],
+			[ $summary['lines'],     'Linea prodotto',     'Linee prodotto' ],
+			[ $summary['orgs'],      'Organizzazione',     'Organizzazioni' ],
+			[ $summary['people'],    'Persona seguita',    'Persone seguite' ],
+		];
+		?>
 		<div class="dealer-am-stats">
-			<div class="dealer-am-stat">
-				<b><?php echo esc_html( (string) $summary['documents'] ); ?></b>
-				<span>Documenti seguiti</span>
-			</div>
-			<div class="dealer-am-stat">
-				<b><?php echo esc_html( (string) $summary['editable'] ); ?></b>
-				<span>Modificabili</span>
-			</div>
-			<div class="dealer-am-stat">
-				<b><?php echo esc_html( (string) $summary['lines'] ); ?></b>
-				<span>Linee prodotto</span>
-			</div>
-			<div class="dealer-am-stat">
-				<b><?php echo esc_html( (string) $summary['orgs'] ); ?></b>
-				<span>Organizzazioni</span>
-			</div>
-			<div class="dealer-am-stat">
-				<b><?php echo esc_html( (string) $summary['people'] ); ?></b>
-				<span>Persone seguite</span>
-			</div>
+			<?php foreach ( $am_tiles as $tile ) : ?>
+				<div class="dealer-am-stat">
+					<b><?php echo esc_html( (string) $tile[0] ); ?></b>
+					<span><?php echo esc_html( 1 === (int) $tile[0] ? $tile[1] : $tile[2] ); ?></span>
+				</div>
+			<?php endforeach; ?>
 		</div>
 	</div>
 

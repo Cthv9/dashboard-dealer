@@ -160,14 +160,19 @@ $colspan      = $can_manage ? 9 : 8;
 					<input type="checkbox" id="dealer-cb-select-all">
 				</td>
 				<?php endif; ?>
-				<th scope="col" style="width:28%">Documento</th>
-				<th scope="col" style="width:12%">Brand</th>
-				<th scope="col" style="width:10%">Tipo</th>
-				<th scope="col" style="width:8%">Anno</th>
-				<th scope="col" style="width:14%">Ruoli</th>
-				<th scope="col" style="width:14%">Linee</th>
-				<th scope="col" style="width:10%">Scadenza</th>
-				<th scope="col" style="width:14%">Azioni</th>
+				<?php
+				// Le larghezze devono sommare a meno del 100%: la tabella e'
+				// "fixed" e la colonna delle spunte occupa il resto. Sommavano
+				// 110% e la colonna Azioni finiva stampata fuori dal riquadro.
+				?>
+				<th scope="col" style="width:25%">Documento</th>
+				<th scope="col" style="width:9%">Brand</th>
+				<th scope="col" style="width:9%">Tipo</th>
+				<th scope="col" style="width:5%">Anno</th>
+				<th scope="col" style="width:8%">Ruoli</th>
+				<th scope="col" style="width:17%">Linee</th>
+				<th scope="col" style="width:8%">Scadenza</th>
+				<th scope="col" style="width:16%">Azioni</th>
 			</tr>
 		</thead>
 		<tbody>
@@ -237,7 +242,21 @@ $colspan      = $can_manage ? 9 : 8;
 				</td>
 				<td>
 					<?php if ( ! empty( $lines ) && $lines[0] ) : ?>
-						<small><?php echo esc_html( implode( ', ', array_map( static fn( $l ) => str_replace( '|', ' › ', $l ), $lines ) ) ); ?></small>
+						<?php
+						// Una sola stringa separata da virgole andava a capo in
+						// mezzo ai nomi e non si capiva dove finisse una linea e
+						// cominciasse l'altra: una etichetta per linea.
+						foreach ( $lines as $l ) :
+							$parts = explode( '|', (string) $l );
+							?>
+							<span class="dealer-line-chip">
+								<?php if ( isset( $parts[1] ) ) : ?>
+									<b><?php echo esc_html( $parts[0] ); ?></b> <?php echo esc_html( $parts[1] ); ?>
+								<?php else : ?>
+									<?php echo esc_html( $parts[0] ); ?>
+								<?php endif; ?>
+							</span>
+						<?php endforeach; ?>
 					<?php else : ?>
 						<small style="color:#888;">Tutte</small>
 					<?php endif; ?>
