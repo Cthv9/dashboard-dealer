@@ -105,6 +105,26 @@ foreach ( $access_requests as $request_id ) {
 	wp_delete_post( (int) $request_id, true );
 }
 
+// ── Rimuove gli annunci della bacheca ─────────────────────────────────────────
+// Come le richieste di accesso: contengono dati di aziende terze e i messaggi
+// privati scambiati fra i loro referenti, non contenuti del sito. Le immagini
+// allegate se ne vanno con l'annuncio.
+$dealer_listings = get_posts( [
+	'post_type'        => 'dealer_listing',
+	'post_status'      => 'any',
+	'numberposts'      => -1,
+	'fields'           => 'ids',
+	'suppress_filters' => true,
+] );
+foreach ( $dealer_listings as $listing_id ) {
+	foreach ( (array) get_post_meta( (int) $listing_id, '_lst_images', true ) as $image_id ) {
+		if ( (int) $image_id ) {
+			wp_delete_attachment( (int) $image_id, true );
+		}
+	}
+	wp_delete_post( (int) $listing_id, true );
+}
+
 // ── Elimina le organizzazioni ──────────────────────────────────────────────────
 // Stessa logica delle richieste di accesso: sono un CPT del plugin, non
 // documenti del cliente. A differenza di documento_dealer non hanno un file

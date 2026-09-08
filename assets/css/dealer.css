@@ -2148,3 +2148,47 @@ html.dealer-js .dealer-nojs-only {
 		grid-template-columns: 1fr;
 	}
 }
+
+/* Risposte ricevute: visibili solo a chi ha pubblicato l'annuncio. */
+.dealer-board-tag-replies {
+	background: var(--dp-blue);
+	color: #fff;
+}
+
+.dealer-board-replies summary {
+	cursor: pointer;
+	font-weight: 600;
+	font-size: .9rem;
+	color: var(--dp-navy);
+}
+
+.dealer-board-reply-item {
+	margin-top: 10px;
+	padding: 12px 14px;
+	border-left: 3px solid var(--dp-blue);
+	border-radius: 0 6px 6px 0;
+	background: #f8fafc;
+}
+
+.dealer-board-reply-from {
+	margin: 0 0 6px;
+	font-size: .86rem;
+}
+
+.dealer-board-reply-from span {
+	color: var(--dp-muted, #64748b);
+	font-size: .78rem;
+	margin-left: 6px;
+}
+
+.dealer-board-reply-msg {
+	margin: 0 0 8px;
+	font-size: .92rem;
+	line-height: 1.5;
+	overflow-wrap: anywhere;
+}
+
+.dealer-board-reply-contact {
+	margin: 0;
+	font-size: .84rem;
+}

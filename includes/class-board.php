@@ -101,6 +101,9 @@ class Dealer_Board {
 	/** Annunci per pagina. */
 	const PER_PAGE = 12;
 
+	/** Tetto alle risposte conservate su un annuncio. */
+	const MAX_REPLIES = 50;
+
 	/** Cron della manutenzione (scadenze e promemoria). */
 	const CRON_SWEEP = 'dealer_portal_board_sweep';
 
@@ -123,6 +126,7 @@ class Dealer_Board {
 	const META_ORG       = '_lst_org';
 	const META_ORG_NAME  = '_lst_org_name';
 	const META_REPORTS   = '_lst_reports';
+	const META_REPLIES   = '_lst_replies';
 	const META_REMINDED  = '_lst_reminded';
 
 	// ─── Constructor ──────────────────────────────────────────────────────────
@@ -379,6 +383,7 @@ class Dealer_Board {
 			'expiry'        => $expiry,
 			'published'     => (string) get_the_date( 'd/m/Y', $post ),
 			'is_mine'       => (int) $post->post_author === get_current_user_id(),
+			'replies'       => self::reply_count( (int) $post->ID ),
 		];
 	}
 
@@ -485,7 +490,8 @@ class Dealer_Board {
 			'solved'    => 'Annuncio chiuso: non è più visibile agli altri.',
 			'renewed'   => 'Annuncio rinnovato.',
 			'deleted'   => 'Annuncio eliminato.',
-			'replied'   => 'Messaggio inviato. Chi ha pubblicato l’annuncio ti risponderà direttamente.',
+			'replied'   => 'Messaggio inviato: chi ha pubblicato l’annuncio lo trova fra le risposte '
+				. 'ricevute in bacheca e ne riceve avviso per email.',
 			'reported'  => 'Segnalazione registrata. Grazie.',
 			'err_limit' => 'Hai raggiunto il numero massimo di annunci: chiudine uno prima di pubblicarne un altro.',
 			'err_day'   => 'Hai pubblicato troppi annunci per oggi: riprova domani.',
@@ -980,6 +986,18 @@ class Dealer_Board {
 			$sender_email = (string) $user->user_email;
 		}
 
+		// Prima si registra, poi si avvisa: e' l'ordine che rende la risposta
+		// indipendente dal fatto che l'email parta davvero.
+		self::store_reply( $post_id, [
+			'user_id' => (int) $user->ID,
+			'name'    => (string) $user->display_name,
+			'org'     => self::current_org_name( $user ),
+			'email'   => $sender_email,
+			'phone'   => (string) get_user_meta( $user->ID, '_referente_telefono', true ),
+			'message' => $message,
+			'date'    => current_time( 'mysql' ),
+		] );
+
 		$body = Dealer_Notifications::render_shared_template( 'email-board-reply', [
 			'listing_title' => (string) $post->post_title,
 			'listing_type'  => self::type_label( (string) get_post_meta( $post_id, self::META_TYPE, true ) ),
@@ -991,7 +1009,9 @@ class Dealer_Board {
 			'board_url'     => self::page_url(),
 		] );
 
-		$sent = Dealer_Notifications::send_transactional(
+		// L'esito dell'invio non decide piu' l'esito dell'operazione: il
+		// messaggio e' gia' arrivato a destinazione, sulla bacheca.
+		Dealer_Notifications::send_transactional(
 			$to,
 			sprintf( 'Risposta al tuo annuncio: %s', $post->post_title ),
 			'Risposta a un tuo annuncio',
@@ -1007,7 +1027,55 @@ class Dealer_Board {
 			)
 		);
 
-		self::redirect( $sent ? 'replied' : 'err_reply', $post_id );
+		self::redirect( 'replied', $post_id );
+	}
+
+	/**
+	 * Risposte ricevute da un annuncio, visibili SOLO a chi lo ha pubblicato.
+	 *
+	 * "Nessun thread pubblico" voleva dire nessuna discussione davanti a tutti,
+	 * non nessuna traccia. Nella prima versione la risposta esisteva solo come
+	 * email: se quella email non partiva — un server senza posta, un recapito
+	 * sbagliato nel profilo, un filtro antispam — la richiesta di un'azienda
+	 * spariva e nessuno dei due lo sapeva. In una bacheca che esiste per far
+	 * incontrare domanda e offerta, perdere in silenzio proprio l'incontro e' il
+	 * modo peggiore di fallire.
+	 *
+	 * Ora la risposta viene prima registrata e poi, separatamente, mandata per
+	 * email. L'email e' un avviso: se non arriva, il messaggio e' comunque qui.
+	 * Resta privato — lo vedono l'autore dell'annuncio e l'amministratore, mai
+	 * gli altri — quindi non c'e' nulla da moderare.
+	 */
+	public static function get_replies( int $post_id ): array {
+		if ( ! self::user_owns( $post_id ) ) {
+			return [];
+		}
+
+		$replies = get_post_meta( $post_id, self::META_REPLIES, true );
+
+		return is_array( $replies ) ? array_reverse( $replies ) : [];
+	}
+
+	/** Numero di risposte, senza esporne il contenuto. */
+	public static function reply_count( int $post_id ): int {
+		$replies = get_post_meta( $post_id, self::META_REPLIES, true );
+
+		return is_array( $replies ) ? count( $replies ) : 0;
+	}
+
+	private static function store_reply( int $post_id, array $reply ): void {
+		$replies = get_post_meta( $post_id, self::META_REPLIES, true );
+		$replies = is_array( $replies ) ? $replies : [];
+
+		$replies[] = $reply;
+
+		// Tetto: un annuncio molto richiesto non deve far crescere senza
+		// limite una riga di postmeta. Si tengono le piu' recenti.
+		if ( count( $replies ) > self::MAX_REPLIES ) {
+			$replies = array_slice( $replies, -self::MAX_REPLIES );
+		}
+
+		update_post_meta( $post_id, self::META_REPLIES, $replies );
 	}
 
 	// ─── Segnalazioni ─────────────────────────────────────────────────────────

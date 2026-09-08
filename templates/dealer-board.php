@@ -110,6 +110,11 @@ $b_types = [
 						<?php if ( Dealer_Board::STATUS_ACTIVE !== $d['status'] ) : ?>
 							<span class="dealer-board-tag dealer-board-tag-off"><?php echo esc_html( ucfirst( $d['status'] ) ); ?></span>
 						<?php endif; ?>
+						<?php if ( $d['is_mine'] && $d['replies'] > 0 ) : ?>
+							<span class="dealer-board-tag dealer-board-tag-replies">
+								<?php echo esc_html( sprintf( '%d %s', $d['replies'], 1 === $d['replies'] ? 'risposta' : 'risposte' ) ); ?>
+							</span>
+						<?php endif; ?>
 						<h3><?php echo esc_html( $d['title'] ); ?></h3>
 					</header>
 
@@ -163,6 +168,38 @@ $b_types = [
 									onclick="return confirm('Eliminare definitivamente questo annuncio?');">Elimina</button>
 							</form>
 							<span class="dealer-board-expiry">Scade il <?php echo esc_html( $d['expiry'] ); ?></span>
+
+							<?php
+							// Le risposte ricevute: le vede solo chi ha pubblicato
+							// l'annuncio. Non e' un thread — nessun altro le legge e
+							// non si puo' replicare qui dentro — e' l'archivio di chi
+							// si e' fatto avanti, che prima esisteva solo nella
+							// casella di posta e spariva se l'email non arrivava.
+							$b_replies = Dealer_Board::get_replies( $d['id'] );
+							?>
+							<?php if ( ! empty( $b_replies ) ) : ?>
+								<details class="dealer-board-replies" open>
+									<summary><?php echo esc_html( sprintf( 'Risposte ricevute (%d)', count( $b_replies ) ) ); ?></summary>
+									<?php foreach ( $b_replies as $b_reply ) : ?>
+										<div class="dealer-board-reply-item">
+											<p class="dealer-board-reply-from">
+												<strong><?php echo esc_html( (string) ( $b_reply['name'] ?? '' ) ); ?></strong>
+												— <?php echo esc_html( (string) ( $b_reply['org'] ?? '' ) ); ?>
+												<span><?php echo esc_html( mysql2date( 'd/m/Y H:i', (string) ( $b_reply['date'] ?? '' ) ) ); ?></span>
+											</p>
+											<p class="dealer-board-reply-msg"><?php echo nl2br( esc_html( (string) ( $b_reply['message'] ?? '' ) ) ); ?></p>
+											<p class="dealer-board-reply-contact">
+												<?php if ( ! empty( $b_reply['email'] ) ) : ?>
+													<a href="mailto:<?php echo esc_attr( (string) $b_reply['email'] ); ?>"><?php echo esc_html( (string) $b_reply['email'] ); ?></a>
+												<?php endif; ?>
+												<?php if ( ! empty( $b_reply['phone'] ) ) : ?>
+													· <?php echo esc_html( (string) $b_reply['phone'] ); ?>
+												<?php endif; ?>
+											</p>
+										</div>
+									<?php endforeach; ?>
+								</details>
+							<?php endif; ?>
 
 							<?php // Correggere un refuso senza dover ripubblicare: l'annuncio lo vede tutta la rete. ?>
 							<details class="dealer-board-reply">
