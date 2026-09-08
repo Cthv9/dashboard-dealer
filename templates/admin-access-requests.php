@@ -42,12 +42,31 @@ $filters = [
 		</div>
 	<?php endif; ?>
 
+	<?php
+	$request_page_id  = (int) get_option( 'dealer_portal_request_page_id' );
+	$request_page_ok  = $request_page_id && 'publish' === get_post_status( $request_page_id );
+	?>
 	<div class="notice notice-info inline" style="margin:16px 0;">
-		<p>
-			Per pubblicare il modulo pubblico crea (o modifica) una pagina e inserisci lo shortcode
-			<code>[<?php echo esc_html( Dealer_Access_Request::SHORTCODE ); ?>]</code>.
-			Le pagine non vengono create automaticamente da questo modulo.
-		</p>
+		<?php if ( $request_page_ok ) : ?>
+			<p>
+				Modulo pubblico di richiesta accesso:
+				<a href="<?php echo esc_url( Dealer_DB::access_request_url() ); ?>" target="_blank" rel="noopener">
+					<?php echo esc_html( Dealer_DB::access_request_url() ); ?>
+				</a>
+				&nbsp;·&nbsp;
+				<a href="<?php echo esc_url( get_edit_post_link( $request_page_id ) ); ?>">Modifica la pagina</a>
+			</p>
+			<p class="description">
+				La pagina viene creata automaticamente ed è linkata dalla schermata di accesso al sito.
+				Puoi spostarla o rinominarla: il plugin la segue tramite il suo ID.
+			</p>
+		<?php else : ?>
+			<p>
+				La pagina del modulo pubblico non risulta pubblicata. Creane una con lo shortcode
+				<code>[<?php echo esc_html( Dealer_Access_Request::SHORTCODE ); ?>]</code>,
+				oppure disattiva e riattiva il plugin per ricrearla automaticamente.
+			</p>
+		<?php endif; ?>
 	</div>
 
 	<ul class="subsubsub">

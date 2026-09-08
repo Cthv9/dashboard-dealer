@@ -22,6 +22,7 @@ $page_options = [
 	'dealer_portal_team_page_id',
 	'dealer_portal_am_page_id',
 	'dealer_portal_fav_page_id',
+	'dealer_portal_request_page_id',
 ];
 foreach ( $page_options as $option ) {
 	$page_id = (int) get_option( $option );

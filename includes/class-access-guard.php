@@ -102,7 +102,7 @@ class Dealer_Access_Guard {
 	 * un URL, qui un ID di pagina corrente viene confrontato con quelli
 	 * salvati).
 	 */
-	private static function is_plugin_page( int $page_id ): bool {
+	public static function is_plugin_page( int $page_id ): bool {
 		if ( ! $page_id ) {
 			return false;
 		}

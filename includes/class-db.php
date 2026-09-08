@@ -41,6 +41,20 @@ class Dealer_DB {
 	}
 
 	/**
+	 * URL del modulo pubblico di richiesta accesso.
+	 *
+	 * A differenza delle altre cinque questa non e' una pagina dell'area
+	 * riservata: e' pubblica, la compila chi un accesso non ce l'ha ancora.
+	 * Viene creata comunque in automatico — finche' andava creata a mano, il
+	 * flusso di ingresso al portale esisteva nel codice e non esisteva sul
+	 * sito. Chi amministra il sito resta libero di spostarla, rinominarla o
+	 * metterne il contenuto altrove: l'URL si risolve dall'ID salvato.
+	 */
+	public static function access_request_url(): string {
+		return self::resolve_page_url( 'dealer_portal_request_page_id', '/richiesta-accesso/' );
+	}
+
+	/**
 	 * Legge l'ID salvato in opzione e ne risolve il permalink attuale.
 	 * Il percorso fisso resta solo come ultima risorsa, se la pagina non
 	 * esiste più o l'opzione non è mai stata popolata.
@@ -151,8 +165,9 @@ class Dealer_DB {
 	 * 1 = Dashboard Dealer, Cerca Documenti (dalla release iniziale).
 	 * 2 = Gestione Collaboratori, Area Manager.
 	 * 3 = Preferiti.
+	 * 4 = Richiesta di Accesso (modulo pubblico).
 	 */
-	const PAGES_REVISION = 3;
+	const PAGES_REVISION = 4;
 
 	/**
 	 * Crea le pagine mancanti anche su un'installazione già attiva.
@@ -245,6 +260,17 @@ class Dealer_DB {
 				'slug'      => 'dealer-preferiti',
 				'shortcode' => '[dealer_favorites]',
 				'option'    => 'dealer_portal_fav_page_id',
+			],
+			// Unica pagina pubblica dell'elenco: e' il modulo con cui si chiede
+			// un accesso al portale, quindi la compila chi non e' autenticato.
+			// La sua collocazione nel sito resta una scelta editoriale, ma
+			// lasciarla da creare a mano significava che il flusso di ingresso
+			// non esisteva finche' qualcuno non se ne ricordava.
+			[
+				'title'     => 'Richiesta di Accesso',
+				'slug'      => 'richiesta-accesso',
+				'shortcode' => '[dealer_access_request]',
+				'option'    => 'dealer_portal_request_page_id',
 			],
 		];
 

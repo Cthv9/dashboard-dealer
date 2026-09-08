@@ -112,31 +112,6 @@ body.dealer-portal-page .page-title {
 	text-align: center !important;
 }
 
-/* ── Link di ritorno alla dashboard ──────────────────────────────────────
-   La dashboard è la home dell'area riservata: ogni altra pagina (ricerca,
-   gestione collaboratori, area manager) ne è un ramo, e senza questo link
-   non c'era modo di risalire se non con il tasto "indietro" del browser. */
-.dealer-back-link {
-	display: inline-flex;
-	align-items: center;
-	gap: 6px;
-	margin-bottom: 16px;
-	color: var(--dp-blue);
-	text-decoration: none;
-	font-size: 0.92rem;
-	font-weight: 500;
-}
-.dealer-back-link:hover,
-.dealer-back-link:focus {
-	color: var(--dp-blue-dk);
-	text-decoration: underline;
-}
-.dealer-back-link .dashicons {
-	font-size: 16px;
-	width: 16px;
-	height: 16px;
-}
-
 /* ── Hero ────────────────────────────────────────────────────────────────── */
 .dealer-hero {
 	background: linear-gradient(135deg, var(--dp-navy) 0%, var(--dp-blue) 100%);
@@ -170,26 +145,6 @@ body.dealer-portal-page .page-title {
 .dealer-hero-meta {
 	font-size: 13px;
 	opacity: .65;
-}
-
-.dealer-hero-logout {
-	position: absolute;
-	top: 20px;
-	right: 24px;
-}
-
-.dealer-logout-link {
-	color: rgba(255,255,255,.75);
-	text-decoration: none;
-	font-size: 13px;
-	display: flex;
-	align-items: center;
-	gap: 4px;
-	transition: color .15s;
-}
-
-.dealer-logout-link:hover {
-	color: var(--dp-white);
 }
 
 /* ── Role badges ─────────────────────────────────────────────────────────── */
@@ -1464,11 +1419,6 @@ html.dealer-js .dealer-nojs-only {
 		font-size: 22px;
 	}
 
-	.dealer-hero-logout {
-		position: static;
-		margin-top: 12px;
-	}
-
 	.dealer-card-grid {
 		grid-template-columns: 1fr 1fr;
 	}
@@ -1547,8 +1497,7 @@ html.dealer-js .dealer-nojs-only {
 
 /* ═══ Pagina "I miei preferiti" — etichette personali ═══════════════════════
    Aggiunte in coda al foglio esistente: nessuna regola sopra viene toccata.
-   Il modulo riusa le classi condivise già definite (.dealer-back-link,
-   .dealer-empty*, .dealer-btn*, .dealer-doc-chip, .dealer-feed-icon/-body/
+   Il modulo riusa le classi condivise già definite (.dealer-empty*, .dealer-btn*, .dealer-doc-chip, .dealer-feed-icon/-body/
    -title/-meta/-actions, .dealer-results-toolbar, .dealer-sort, .dealer-
    section-title, .dealer-notice) e aggiunge solo ciò che gli è proprio. */
 

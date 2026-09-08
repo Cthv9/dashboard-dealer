@@ -83,19 +83,20 @@ I diritti di accesso appartengono all'**organizzazione** (l'azienda dealer), non
 1. Scaricare o clonare il repository come ZIP.
 2. In WordPress admin, andare in **Plugin → Aggiungi nuovo → Carica plugin** e selezionare il file ZIP.
 3. Cliccare **Attiva plugin**.
-4. Cinque pagine vengono create automaticamente:
+4. Sei pagine vengono create automaticamente — cinque riservate più il modulo pubblico di ingresso:
    - **Dashboard Dealer** (slug: `dashboard-dealer`, shortcode: `[dealer_dashboard]`)
    - **Cerca Documenti** (slug: `dealer-search`, shortcode: `[dealer_search]`)
    - **Preferiti** (slug: `dealer-preferiti`, shortcode: `[dealer_favorites]`)
    - **Gestione Collaboratori** (slug: `dealer-team`, shortcode: `[dealer_team]`)
    - **Area Manager** (slug: `dealer-area-manager`, shortcode: `[dealer_area_manager]`)
+   - **Richiesta di Accesso** (slug: `richiesta-accesso`, shortcode: `[dealer_access_request]`) — pubblica, non fa parte dell'area riservata
 5. La tabella custom `{prefisso}_dealer_download_log` viene creata automaticamente.
 6. I ruoli custom (`dealer`, `top_dealer`, `part_center`, `area_manager`) vengono registrati; le capability (`manage_dealer_portal`, `upload_dealer_docs`, `view_dealer_logs`, `manage_dealer_orgs`) vengono assegnate ai ruoli corretti.
 7. La cartella protetta `uploads/dealer-docs/` viene creata con `.htaccess` che nega l'accesso HTTP diretto.
 
-L'unica pagina **non** creata automaticamente è quella delle richieste di accesso: va creata a mano, pubblica, con lo shortcode `[dealer_access_request]`, perché la sua collocazione nel sito è una scelta editoriale.
-
 Le pagine create automaticamente vengono ricontrollate a ogni aggiornamento del plugin, non solo alla prima attivazione: chi aggiorna sostituendo i file trova comunque le pagine nuove. Ogni link interno del portale è risolto dall'ID della pagina, quindi rinominarle o spostarle non rompe nulla.
+
+Nessun passaggio manuale è richiesto per collegarle fra loro: la navigazione dell'area riservata è generata dal plugin (vedi **Navigazione dell'area riservata**), e la pagina di richiesta accesso è linkata automaticamente dalla schermata di login di WordPress.
 
 ### Aggiornamento da una versione precedente alla 1.3.0
 
@@ -200,7 +201,7 @@ Le revisioni di uno stesso documento formano una **catena**. Una sola versione p
 3. La **ricerca** (`/dealer-search/`) filtra per brand, linea, tipo e anno tramite la sidebar a faccette, con conteggi che si aggiornano a ogni selezione.
 4. Ogni card permette di scaricare il documento, aggiungerlo ai preferiti e — se esiste — consultare lo storico delle versioni precedenti.
 5. Il pulsante di download aggregato scarica in un unico ZIP i risultati filtrati o i preferiti.
-6. La pagina **Preferiti** raccoglie tutto ciò che ha messo da parte e gli permette di organizzarlo a modo suo: etichette che crea lui (fino a un tetto), assegnabili a più documenti, con filtro per etichetta e ordinamento. Da ogni pagina un link riporta alla dashboard.
+6. La pagina **Preferiti** raccoglie tutto ciò che ha messo da parte e gli permette di organizzarlo a modo suo: etichette che crea lui (fino a un tetto), assegnabili a più documenti, con filtro per etichetta e ordinamento. Da ogni pagina la barra dell'area riservata permette di spostarsi fra dashboard, ricerca e preferiti e di uscire.
 
 ## Workflow Titolare
 
@@ -226,6 +227,31 @@ Ogni scrittura è rivalidata lato server sul doppio perimetro (organizzazioni se
 
 ---
 
+## Navigazione dell'area riservata
+
+Le pagine del portale sono cinque e ognuna, in origine, sapeva tornare solo alla dashboard con un link scritto a mano nel proprio template: dalla ricerca non si raggiungevano i preferiti, dall'area manager non si tornava da nessuna parte, e il logout compariva solo dove qualcuno si era ricordato di metterlo.
+
+`Dealer_Portal_Nav` sostituisce quei link con **una sola barra**, agganciata a `the_content` sulle pagine riconosciute dal plugin (per ID salvato in opzione, non per slug):
+
+- vale anche per le **schermate di cortesia** — "accesso non autorizzato", "quest'area è riservata al titolare", "il tuo perimetro non è ancora configurato", "organizzazione sospesa" — che sono solo una stringa restituita dallo shortcode e non passano da nessun template. Erano esattamente i vicoli ciechi trovati in collaudo;
+- mostra a ciascuno **solo le voci che per lui funzionano**: il dealer vede Dashboard, Cerca Documenti e Preferiti; il titolare anche Collaboratori; l'area manager la propria area di lavoro; l'amministratore ciò che il plugin gli lascia aprire. Un link che porta a "accesso non autorizzato" è peggio di un link assente;
+- contiene **sempre "Esci"**, per chiunque sia autenticato. Il link fluttuante di `Dealer_Access_Guard` è condizionato a `is_portal_user()`, che è falsa per l'amministratore: chi collauda cambiando ruolo restava senza via d'uscita proprio quando gli serviva.
+
+Lo stile è stampato con la barra, non nel foglio comune: i template del portale non condividono un unico CSS e le schermate di cortesia vengono restituite prima che gli asset siano accodati.
+
+## Richiesta di accesso
+
+È il modo in cui si entra nel portale senza che un amministratore crei l'utente a mano. La pagina esiste ed è pubblica: `richiesta-accesso`, con lo shortcode `[dealer_access_request]`, creata in automatico come le altre.
+
+1. Il visitatore compila il modulo. Non viene creato **nessun** utente: nasce solo una richiesta nel CPT privato `dealer_access_req`, in stato *in attesa*.
+2. Gli amministratori ricevono la notifica e la trovano in **Dealer Portal → Richieste Accesso**, con il badge dei contenuti in attesa.
+3. All'approvazione l'amministratore sceglie **ruolo e linee prodotto definitivi** — quelli richiesti sono una proposta, non un impegno.
+4. Solo a quel punto l'utente WordPress viene creato, con le linee assegnate, e riceve un link per impostare la propria password. Nessuna password in chiaro viene mai generata né inviata.
+
+Il punto di ingresso è la schermata di login (`wp-login.php`), dove il plugin aggiunge da sé il link "Non hai ancora un accesso? Richiedilo qui": è l'unico posto dove chi vuole entrare arriva sicuramente da solo, e non richiede che qualcuno si ricordi di mettere un link nel menu del sito. L'URL della pagina è comunque mostrato in cima a **Richieste Accesso**, pronto da copiare dove serve.
+
+---
+
 ## Struttura file
 
 ```
@@ -248,6 +274,7 @@ dashboard-dealer/
 │   ├── class-org-admin.php         Interfaccia amministrativa delle organizzazioni
 │   ├── class-team.php              Delega al titolare: gestione dei propri collaboratori
 │   ├── class-area-manager.php      Area di lavoro front-end dell'area manager
+│   ├── class-portal-nav.php        Barra di navigazione unica dell'area riservata
 │   ├── class-favorites.php         Pagina preferiti ed etichette personali del dealer
 │   └── class-access-guard.php      wp-admin chiuso agli utenti del portale, redirect e barra admin
 ├── templates/
@@ -377,6 +404,7 @@ Indici su `user_id`, `post_id`, `download_date`. `access_context` è stata aggiu
 | `dealer_portal_fav_page_id` | ID pagina preferiti |
 | `dealer_portal_team_page_id` | ID pagina gestione collaboratori |
 | `dealer_portal_am_page_id` | ID pagina area manager |
+| `dealer_portal_request_page_id` | ID pagina pubblica di richiesta accesso |
 | `dealer_portal_notifications` | Impostazioni del modulo notifiche |
 | `dealer_portal_notification_queue` | Coda di invio email |
 | `dealer_portal_caps_revision` | Contatore di revisione della mappa capability → ruoli, per riparare le assegnazioni senza richiedere la riattivazione |
@@ -434,6 +462,14 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 ---
 
 ## Changelog
+
+### 1.6.0
+
+Navigazione unica dell'area riservata e flusso di ingresso completo.
+
+- **Barra di navigazione del portale** (`includes/class-portal-nav.php`), su tutte le pagine riconosciute dal plugin e su tutte le schermate di cortesia. Ogni voce è filtrata sul ruolo di chi guarda e riproduce il controllo d'accesso della pagina di destinazione, così non compare mai un link che porterebbe a "accesso non autorizzato". I link "Torna alla Dashboard" scritti a mano nei singoli template sono stati rimossi: erano l'unica navigazione esistente e portavano in un posto solo.
+- **"Esci" presente ovunque**, per qualunque ruolo, amministratore compreso. Il logout fluttuante era condizionato a `is_portal_user()`, falsa per chi ha `manage_options`: chi collaudava cambiando ruolo si trovava senza via d'uscita. Il logout nell'header della dashboard è stato spostato nella barra, che è la stessa su tutte le pagine.
+- **Pagina di richiesta accesso creata in automatico** (`richiesta-accesso`) come le altre cinque, e linkata dalla schermata di login di WordPress. Il flusso self-service esisteva per intero nel codice ma non aveva un punto di partenza visibile sul sito. La schermata **Richieste Accesso** mostra l'URL pubblico e il link per modificare la pagina.
 
 ### 1.5.0
 

@@ -16,7 +16,6 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  * $total_count    int      totale preferiti mostrabili
  * $base_url       string   permalink della pagina Preferiti
  * $form_action    string   URL a cui inviare i form (pattern PRG, preserva filtro/ordinamento)
- * $dashboard_url  string   permalink della dashboard dealer
  * $search_url     string   permalink della ricerca documenti
  * $can_add_tag    bool     sotto il tetto MAX_TAGS
  *
@@ -26,11 +25,6 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  */
 ?>
 <div class="dealer-favorites-wrap" id="dealer-favorites">
-
-	<a class="dealer-back-link" href="<?php echo esc_url( $dashboard_url ); ?>">
-		<span class="dashicons dashicons-arrow-left-alt" aria-hidden="true"></span>
-		Torna alla Dashboard
-	</a>
 
 	<div class="dealer-section-title-row">
 		<h1 class="dealer-section-title">
