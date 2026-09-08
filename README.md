@@ -257,6 +257,8 @@ A questo si aggiungono i tetti (10 annunci attivi per utente, 5 pubblicazioni al
 
 **Le foto** passano dalla stessa pipeline indurita dei documenti (allowlist, doppio controllo mime sul file già scritto, cartella protetta, token casuale nel nome, servite via PHP dopo il controllo di chi guarda) più il ridimensionamento a 1600px, che riscrivendo il file **elimina i dati EXIF** — fra cui le coordinate GPS del magazzino dove è stata scattata.
 
+**Le risposte restano sull'annuncio.** "Nessun thread pubblico" vuol dire nessuna discussione davanti a tutti, non nessuna traccia: ogni risposta viene registrata sull'annuncio e la vede **solo chi lo ha pubblicato** (e l'amministratore), con nome, azienda, recapiti, testo e data. L'email è l'avviso; se non parte — un server senza posta, un recapito sbagliato nel profilo, un filtro antispam — il messaggio è comunque lì. Nessuno può replicare dentro quell'elenco, quindi non c'è nulla da moderare.
+
 **I contatti** sono una scelta di chi pubblica, spenta di default: senza la spunta nessuno vede email o telefono e chi è interessato scrive tramite il portale, che inoltra il messaggio per email presentando chi risponde; con la spunta i recapiti del referente sono visibili a tutti gli utenti registrati. In entrambi i casi i recapiti si leggono dal profilo al momento della visualizzazione, mai copiati nell'annuncio.
 
 In **Dealer Portal → Bacheca** l'amministratore trova la coda dei segnalati, gli ultimi annunci, i parametri (durata, promemoria, tetti, soglia), la nota legale modificabile senza toccare il codice e un **interruttore generale**: spegnendola la pagina resta al suo posto e mostra un avviso, senza cancellare nulla.
@@ -488,6 +490,17 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 ---
 
 ## Changelog
+
+### 1.8.1
+
+Fix dal primo collaudo della bacheca: **le risposte a un annuncio non lasciavano traccia sul portale**.
+
+Nella 1.8.0 la risposta esisteva solo come email. Se quella email non partiva — un server di sviluppo senza posta, un recapito sbagliato nel profilo, un filtro antispam — la richiesta di un'azienda spariva e nessuno dei due lo sapeva. In una bacheca che esiste per far incontrare domanda e offerta, perdere in silenzio proprio l'incontro è il modo peggiore di fallire. Era un mio errore di progetto: avevo confuso *nessuna discussione pubblica* con *nessuna traccia*.
+
+- Ogni risposta viene ora **registrata sull'annuncio** e mostrata a chi lo ha pubblicato (e all'amministratore), con nome, azienda, recapiti, testo e data; sulla scheda compare il numero di risposte ricevute. Resta privata: nessun altro la legge e non si può replicare lì dentro, quindi non c'è nulla da moderare.
+- L'ordine è invertito: prima si registra, poi si avvisa per email. L'esito dell'invio non decide più l'esito dell'operazione.
+- Tetto di 50 risposte conservate per annuncio, per non far crescere senza limite una riga di postmeta.
+- La disinstallazione rimuove gli annunci e le loro immagini, come già fa con le richieste di accesso: contengono dati di aziende terze e messaggi privati fra i loro referenti.
 
 ### 1.8.0
 
