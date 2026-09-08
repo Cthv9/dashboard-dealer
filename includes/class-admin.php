@@ -72,6 +72,71 @@ class Dealer_Admin {
 		add_action( 'edit_user_profile',      [ $this, 'render_user_fields' ] );
 		add_action( 'personal_options_update',   [ $this, 'save_user_fields' ] );
 		add_action( 'edit_user_profile_update',  [ $this, 'save_user_fields' ] );
+
+		// I file dei documenti non devono comparire nella Libreria Media di chi
+		// non amministra il portale: vedi hide_document_attachments().
+		add_filter( 'ajax_query_attachments_args', [ $this, 'hide_document_attachments' ] );
+		add_action( 'pre_get_posts',               [ $this, 'hide_document_attachments_list' ] );
+	}
+
+	// ─── Documenti fuori dalla Libreria Media ────────────────────────────────
+
+	/** Meta che marca un allegato come file di un documento del portale. */
+	const DOC_ATTACHMENT_META = '_dealer_doc_attachment';
+
+	/**
+	 * Nasconde i file dei documenti a chi non amministra il portale.
+	 *
+	 * Il CPT `documento_dealer` e' chiuso da capability dedicate: un Editore non
+	 * lo vede. Il suo FILE pero' viene inserito come allegato normale della
+	 * Media Library, e un allegato e' un post come tutti gli altri: chiunque
+	 * abbia `upload_files` — Autore in su, quindi anche chi con il portale non
+	 * c'entra nulla — apriva Media → Libreria, vedeva ogni documento dealer e ne
+	 * copiava l'URL diretto. Il token casuale nel nome del file protegge da chi
+	 * tira a indovinare l'indirizzo, non da chi se lo vede mostrare, e il
+	 * .htaccess della cartella protetta regge su Apache ma non su nginx.
+	 *
+	 * Il confine giusto e' lo stesso del CPT: chi puo' caricare documenti li
+	 * vede anche in libreria, gli altri no.
+	 *
+	 * Non tocca il download, che risolve il file da `_doc_file_id` con
+	 * get_attached_file() senza passare da queste query.
+	 */
+	public function hide_document_attachments( array $args ): array {
+		if ( Dealer_DB::user_can( DEALER_PORTAL_CAP_UPLOAD ) ) {
+			return $args;
+		}
+
+		$meta_query   = isset( $args['meta_query'] ) && is_array( $args['meta_query'] ) ? $args['meta_query'] : [];
+		$meta_query[] = [ 'key' => self::DOC_ATTACHMENT_META, 'compare' => 'NOT EXISTS' ];
+
+		$args['meta_query'] = $meta_query;
+
+		return $args;
+	}
+
+	/**
+	 * Stessa regola per la vista a elenco della libreria (upload.php), che non
+	 * passa da ajax_query_attachments_args.
+	 */
+	public function hide_document_attachments_list( \WP_Query $query ): void {
+		if ( ! is_admin() || ! $query->is_main_query() ) {
+			return;
+		}
+
+		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+		if ( ! $screen || 'upload' !== $screen->base ) {
+			return;
+		}
+
+		if ( Dealer_DB::user_can( DEALER_PORTAL_CAP_UPLOAD ) ) {
+			return;
+		}
+
+		$meta_query   = (array) $query->get( 'meta_query' );
+		$meta_query[] = [ 'key' => self::DOC_ATTACHMENT_META, 'compare' => 'NOT EXISTS' ];
+
+		$query->set( 'meta_query', $meta_query );
 	}
 
 	// ─── Avviso di configurazione server ─────────────────────────────────────
@@ -1650,6 +1715,9 @@ class Dealer_Admin {
 
 		if ( ! is_wp_error( $attachment_id ) ) {
 			wp_update_attachment_metadata( $attachment_id, wp_generate_attachment_metadata( $attachment_id, $uploaded['file'] ) );
+			// Marca l'allegato come file di un documento del portale: e' su
+			// questo meta che si regge hide_document_attachments().
+			update_post_meta( $attachment_id, self::DOC_ATTACHMENT_META, 1 );
 		} else {
 			$attachment_id = 0;
 		}

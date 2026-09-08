@@ -130,6 +130,7 @@ $options = [
 	'dealer_portal_caps_revision',
 	'dealer_portal_schema_revision',
 	'dealer_portal_pages_revision',
+	'dealer_portal_media_revision',
 	'dealer_portal_notifications',
 	// Configurazione di ruoli e catalogo, modificabile da "Ruoli e Linee".
 	'dealer_portal_roles',
@@ -172,3 +173,10 @@ $user_meta_keys = [
 foreach ( $user_meta_keys as $meta_key ) {
 	delete_metadata( 'user', 0, $meta_key, '', true ); // true = per tutti gli utenti
 }
+
+// ── Pulisce la marcatura sugli allegati dei documenti ─────────────────────────
+// I documenti e i loro file restano (sono contenuti del cliente, vedi sopra), ma
+// il meta che li teneva fuori dalla Libreria Media serviva solo a questo plugin:
+// senza il plugin non lo legge piu' nessuno e tornano visibili, che e' il
+// comportamento corretto una volta disinstallato.
+delete_metadata( 'post', 0, '_dealer_doc_attachment', '', true );
