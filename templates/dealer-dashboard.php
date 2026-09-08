@@ -40,11 +40,6 @@ $last_login_fmt = $last_login ? gmdate( 'd/m/Y \a\l\l\e H:i', strtotime( $last_l
 		<div class="dealer-hero-meta">
 			<small>Ultimo accesso: <?php echo esc_html( $last_login_fmt ); ?></small>
 		</div>
-		<div class="dealer-hero-logout">
-			<a href="<?php echo esc_url( wp_logout_url( home_url( '/' ) ) ); ?>" class="dealer-logout-link">
-				<span class="dashicons dashicons-exit"></span> Esci
-			</a>
-		</div>
 	</div>
 
 	<!-- ── ACCESSI RAPIDI ───────────────────────────────────────────────── -->

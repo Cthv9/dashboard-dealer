@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Dealer Portal
  * Description:       Area riservata per la distribuzione controllata di documenti a reti di utenti esterni: permessi granulari per organizzazione, versionamento, ricerca a faccette. SearchWP supportato (opzionale).
- * Version:           1.5.0
+ * Version:           1.6.1
  * Author:            DF
  * Text Domain:       dealer-portal
  * Requires PHP:      7.4
@@ -11,7 +11,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'DEALER_PORTAL_VERSION', '1.5.0' );
+define( 'DEALER_PORTAL_VERSION', '1.6.1' );
 define( 'DEALER_PORTAL_PATH',    plugin_dir_path( __FILE__ ) );
 define( 'DEALER_PORTAL_URL',     plugin_dir_url( __FILE__ ) );
 // ─── Capability ──────────────────────────────────────────────────────────────
@@ -44,6 +44,7 @@ require_once DEALER_PORTAL_PATH . 'includes/class-team.php';
 require_once DEALER_PORTAL_PATH . 'includes/class-area-manager.php';
 require_once DEALER_PORTAL_PATH . 'includes/class-favorites.php';
 require_once DEALER_PORTAL_PATH . 'includes/class-access-guard.php';
+require_once DEALER_PORTAL_PATH . 'includes/class-portal-nav.php';
 
 // Full setup on first activation.
 register_activation_hook( __FILE__, [ 'Dealer_DB', 'install' ] );
@@ -115,4 +116,9 @@ add_action( 'init', static function (): void {
 	// Deve girare in entrambi i contesti: blocca wp-admin e nasconde la barra
 	// di amministrazione agli utenti del portale.
 	new Dealer_Access_Guard();
+
+	// Navigazione unica dell'area riservata. Va istanziata dopo la guardia:
+	// la barra chiede a Dealer_Access_Guard di non stampare anche il logout
+	// fluttuante, che duplicherebbe il proprio.
+	new Dealer_Portal_Nav();
 }, 10 );

@@ -107,7 +107,7 @@ class Dealer_Favorites {
 	 * Carica gli asset della pagina. Idempotente: wp_enqueue_style ignora una
 	 * seconda registrazione dello stesso handle. Si riusa volutamente lo
 	 * stesso handle/foglio di stile della ricerca: le classi condivise
-	 * (.dealer-back-link, .dealer-empty, .dealer-btn, .dealer-doc-chip, …) e
+	 * (.dealer-empty, .dealer-btn, .dealer-doc-chip, …) e
 	 * le regole aggiunte in coda da questo modulo vivono nello stesso file.
 	 * Nessun JavaScript viene caricato: questa pagina non ne ha bisogno.
 	 */
@@ -212,9 +212,6 @@ class Dealer_Favorites {
 			}
 		}
 
-		// La dashboard è la home dell'area riservata: questa pagina ne è un
-		// ramo e deve poterci tornare senza affidarsi al tasto "indietro".
-		$dashboard_url = Dealer_DB::dashboard_url();
 		$search_url    = Dealer_DB::search_url();
 		$form_action   = $this->current_url();
 		$can_add_tag   = count( $tags ) < self::MAX_TAGS;

@@ -78,10 +78,45 @@ class Dealer_Access_Request {
 		// Front-end: intercetta l'invio prima di qualsiasi output (pattern PRG).
 		add_action( 'template_redirect', [ $this, 'maybe_handle_submission' ] );
 
+		// Il modulo dev'essere raggiungibile da chi un accesso non ce l'ha
+		// ancora: la schermata di login e' l'unico punto del sito dove quella
+		// persona arriva sicuramente da sola. Vedi render_login_link().
+		add_action( 'login_form', [ $this, 'render_login_link' ] );
+
 		// Admin: menu + handler approvazione/rifiuto.
 		add_action( 'admin_menu', [ $this, 'register_menu' ], 20 );
 		add_action( 'admin_post_dealer_access_approve', [ $this, 'handle_approve' ] );
 		add_action( 'admin_post_dealer_access_reject',  [ $this, 'handle_reject' ] );
+	}
+
+	// ─── Punto di ingresso ────────────────────────────────────────────────────
+
+	/**
+	 * Link al modulo di richiesta, sotto i campi della schermata di login.
+	 *
+	 * Il flusso self-service esisteva per intero — modulo, coda di
+	 * approvazione, creazione utente — ma non aveva un punto di partenza
+	 * visibile: la pagina non veniva creata (ora si', vedi
+	 * Dealer_DB::create_pages()) e comunque nessuna pagina del sito la
+	 * linkava. Chi cerca di entrare nel portale finisce su wp-login: e' li'
+	 * che serve la via alternativa, senza chiedere a chi amministra il sito di
+	 * aggiungere un link a mano da qualche parte.
+	 *
+	 * Silenzioso se la pagina non c'e' (cestinata, o mai creata su
+	 * un'installazione che non ha ancora fatto l'upgrade): meglio nessun link
+	 * che un link a un 404.
+	 */
+	public function render_login_link(): void {
+		$page_id = (int) get_option( 'dealer_portal_request_page_id' );
+		if ( ! $page_id || 'publish' !== get_post_status( $page_id ) ) {
+			return;
+		}
+
+		printf(
+			'<p class="dealer-access-request-link" style="margin:0 0 16px;font-size:13px;">'
+			. 'Non hai ancora un accesso? <a href="%s">Richiedilo qui</a>.</p>',
+			esc_url( Dealer_DB::access_request_url() )
+		);
 	}
 
 	// ─── CPT ──────────────────────────────────────────────────────────────────

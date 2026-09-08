@@ -139,9 +139,13 @@ class Dealer_Dashboard {
 
 		$role_labels = Dealer_Roles::labels();
 
-		// Questa pagina ha già il proprio link di logout nell'header: evita
-		// che Dealer_Access_Guard ne aggiunga un secondo in fondo alla pagina.
-		Dealer_Access_Guard::suppress_floating_logout();
+		// Il logout non sta più nell'header della dashboard: vive nella barra
+		// di navigazione dell'area riservata (Dealer_Portal_Nav), che è la
+		// stessa su tutte e cinque le pagine ed è lei a chiedere di non
+		// stampare anche quello fluttuante. Qui non si sopprime nulla: se
+		// questo shortcode gira su una pagina che il plugin non riconosce come
+		// la propria, la barra non compare e il link fluttuante resta l'unica
+		// via d'uscita.
 
 		ob_start();
 		require DEALER_PORTAL_PATH . 'templates/dealer-dashboard.php';

@@ -254,17 +254,31 @@ class Dealer_Org_Admin {
 				continue;
 			}
 
+			// Un utente si conta una volta sola, qualunque sia il numero di
+			// cose che gli sono cambiate: i due contatori finiscono in un
+			// messaggio che parla di "utenti", e sommare ruolo e linee dello
+			// stesso utente riportava piu' utenti aggiornati di quanti ne
+			// fossero stati selezionati.
+			$touched = false;
+
 			if ( '' !== $role && in_array( $role, $allowed, true ) ) {
 				$user->set_role( $role );
-				$changed++;
+				$touched = true;
 			}
 
 			if ( 'set' === $mode ) {
+				// Le linee di chi appartiene a un'organizzazione le detiene
+				// l'azienda: scriverle sull'utente non avrebbe effetto e
+				// lascerebbe un meta fuorviante.
 				if ( Dealer_Identity::has_org( $user ) ) {
 					$skipped++;
 					continue;
 				}
 				update_user_meta( $user_id, Dealer_Identity::META_LEGACY_LINES, $lines );
+				$touched = true;
+			}
+
+			if ( $touched ) {
 				$changed++;
 			}
 		}

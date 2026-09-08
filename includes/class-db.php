@@ -41,6 +41,20 @@ class Dealer_DB {
 	}
 
 	/**
+	 * URL del modulo pubblico di richiesta accesso.
+	 *
+	 * A differenza delle altre cinque questa non e' una pagina dell'area
+	 * riservata: e' pubblica, la compila chi un accesso non ce l'ha ancora.
+	 * Viene creata comunque in automatico — finche' andava creata a mano, il
+	 * flusso di ingresso al portale esisteva nel codice e non esisteva sul
+	 * sito. Chi amministra il sito resta libero di spostarla, rinominarla o
+	 * metterne il contenuto altrove: l'URL si risolve dall'ID salvato.
+	 */
+	public static function access_request_url(): string {
+		return self::resolve_page_url( 'dealer_portal_request_page_id', '/richiesta-accesso/' );
+	}
+
+	/**
 	 * Legge l'ID salvato in opzione e ne risolve il permalink attuale.
 	 * Il percorso fisso resta solo come ultima risorsa, se la pagina non
 	 * esiste più o l'opzione non è mai stata popolata.
@@ -151,8 +165,9 @@ class Dealer_DB {
 	 * 1 = Dashboard Dealer, Cerca Documenti (dalla release iniziale).
 	 * 2 = Gestione Collaboratori, Area Manager.
 	 * 3 = Preferiti.
+	 * 4 = Richiesta di Accesso (modulo pubblico).
 	 */
-	const PAGES_REVISION = 3;
+	const PAGES_REVISION = 4;
 
 	/**
 	 * Crea le pagine mancanti anche su un'installazione già attiva.
@@ -246,6 +261,22 @@ class Dealer_DB {
 				'shortcode' => '[dealer_favorites]',
 				'option'    => 'dealer_portal_fav_page_id',
 			],
+			// Unica pagina pubblica dell'elenco: e' il modulo con cui si chiede
+			// un accesso al portale, quindi la compila chi non e' autenticato.
+			// La sua collocazione nel sito resta una scelta editoriale, ma
+			// lasciarla da creare a mano significava che il flusso di ingresso
+			// non esisteva finche' qualcuno non se ne ricordava.
+			[
+				'title'     => 'Richiesta di Accesso',
+				'slug'      => 'richiesta-accesso',
+				'shortcode' => '[dealer_access_request]',
+				'option'    => 'dealer_portal_request_page_id',
+				// Fino alla 1.5.0 il README diceva di creare questa pagina a
+				// mano: chi ha seguito quell'istruzione ce l'ha gia', con un
+				// suo titolo e un suo slug. Cercarla anche per shortcode evita
+				// di affiancargliene una seconda identica.
+				'adopt_shortcode' => 'dealer_access_request',
+			],
 		];
 
 		foreach ( $pages as $page ) {
@@ -268,6 +299,16 @@ class Dealer_DB {
 				continue;
 			}
 
+			// Adozione per shortcode: una pagina che fa gia' questo lavoro con
+			// un altro slug non va duplicata, va riconosciuta.
+			if ( ! empty( $page['adopt_shortcode'] ) ) {
+				$found = self::find_page_with_shortcode( $page['adopt_shortcode'] );
+				if ( $found ) {
+					update_option( $page['option'], $found );
+					continue;
+				}
+			}
+
 			// Crea la pagina.
 			$page_id = wp_insert_post( [
 				'post_title'   => $page['title'],
@@ -282,6 +323,33 @@ class Dealer_DB {
 				update_option( $page['option'], $page_id );
 			}
 		}
+	}
+
+	/**
+	 * Prima pagina pubblicata che contiene uno shortcode.
+	 *
+	 * Si guarda il post_content con una LIKE invece di has_shortcode() su ogni
+	 * pagina: qui serve solo a non duplicare una pagina esistente, e caricare
+	 * tutte le pagine del sito per interrogarle una a una sarebbe sproporzionato
+	 * a quello scopo. Se il contenuto sta nei meta di un page builder la
+	 * ricerca non lo trova: in quel caso si crea la pagina nuova, che e'
+	 * comunque il comportamento corretto (una pagina in piu', mai una in meno).
+	 */
+	private static function find_page_with_shortcode( string $shortcode ): int {
+		global $wpdb;
+
+		$like = '%' . $wpdb->esc_like( '[' . $shortcode ) . '%';
+
+		$found = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT ID FROM {$wpdb->posts}
+				 WHERE post_type = 'page' AND post_status = 'publish' AND post_content LIKE %s
+				 ORDER BY ID ASC LIMIT 1",
+				$like
+			)
+		);
+
+		return (int) $found;
 	}
 
 	private static function create_protected_upload_dir(): void {
