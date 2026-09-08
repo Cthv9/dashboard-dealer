@@ -409,6 +409,7 @@ Indici su `user_id`, `post_id`, `download_date`. `access_context` è stata aggiu
 | `dealer_portal_notification_queue` | Coda di invio email |
 | `dealer_portal_caps_revision` | Contatore di revisione della mappa capability → ruoli, per riparare le assegnazioni senza richiedere la riattivazione |
 | `dealer_portal_schema_revision` | Contatore di revisione dello schema della tabella log, stesso meccanismo delle capability |
+| `dealer_portal_media_revision` | Contatore di revisione della marcatura degli allegati dei documenti, per toglierli dalla Libreria Media anche su un'installazione già attiva |
 | `dealer_portal_pages_revision` | Contatore di revisione dell'elenco delle pagine del portale: crea quelle mancanti su un'installazione già attiva, senza richiedere la riattivazione |
 
 ### Capability
@@ -462,6 +463,14 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 ---
 
 ## Changelog
+
+### 1.7.0
+
+Due difetti ereditati dalla build in produzione, emersi confrontandola con questa.
+
+- **L'IP del registro download era falsificabile da chiunque.** `log_download()` leggeva sempre il primo valore di `X-Forwarded-For`, che è un'intestazione scritta dal client: su un sito non dietro un reverse proxy — il caso normale — bastava scaricare un documento mandando `X-Forwarded-For: 1.2.3.4` per far scrivere quel valore nel registro, dove passava `FILTER_VALIDATE_IP` e sembrava legittimo. Il download restava autorizzato e l'utente identificato, ma la colonna IP dell'audit trail — che di questo plugin è lo scopo dichiarato — non era attendibile e non lo diceva. Ora la sorgente è `REMOTE_ADDR`, l'unico valore che chi si collega non può scegliere; `X-Forwarded-For` viene letto solo quando `REMOTE_ADDR` è un indirizzo privato o di loopback, cioè quando davanti c'è davvero un proxy, e in quel caso si prende l'ultimo valore della catena, non il primo. Filtro `dealer_portal_trust_forwarded_for` per chi ha un CDN.
+- **Lo stesso calcolo reggeva il rate limit del modulo pubblico di richiesta accesso**, ed è la conseguenza più seria: cambiando `X-Forwarded-For` a ogni invio si otteneva ogni volta un secchiello nuovo e il limite di tre richieste all'ora su un form non autenticato non limitava nulla. La decisione su quale sia l'IP reale vive ora in un punto solo, `Dealer_DB::client_ip()`.
+- **I documenti comparivano nella Libreria Media a chi non è del portale.** Il CPT `documento_dealer` è chiuso da capability dedicate, ma il suo *file* è un allegato come tutti gli altri: chiunque avesse `upload_files` — Autore in su — apriva Media → Libreria, vedeva ogni documento dealer e ne copiava l'URL diretto. Il token casuale nel nome del file protegge da chi tira a indovinare l'indirizzo, non da chi se lo vede mostrare, e il `.htaccess` della cartella protetta regge su Apache ma non su nginx. Gli allegati dei documenti sono ora marcati e nascosti dalla libreria (griglia ed elenco) a chi non può caricare documenti; il download non passa da quelle query e non cambia. Gli allegati già esistenti vengono marcati da `MEDIA_REVISION`, senza richiedere la riattivazione.
 
 ### 1.6.2
 

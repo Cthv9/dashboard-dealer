@@ -118,6 +118,11 @@ class Dealer_DB {
 		// versione successiva alla prima installazione.
 		self::maybe_upgrade_pages();
 
+		// E per i file dei documenti gia' caricati, che vanno marcati come
+		// tali per sparire dalla Libreria Media di chi non amministra il
+		// portale: senza, la protezione varrebbe solo da qui in avanti.
+		self::maybe_upgrade_media();
+
 		if ( get_option( 'dealer_portal_version' ) === DEALER_PORTAL_VERSION ) {
 			return;
 		}
@@ -182,6 +187,48 @@ class Dealer_DB {
 
 		self::create_pages();
 		update_option( 'dealer_portal_pages_revision', self::PAGES_REVISION );
+	}
+
+	/**
+	 * Revisione della marcatura degli allegati.
+	 *
+	 * 1 = i file dei documenti ricevono `_dealer_doc_attachment`, che li toglie
+	 *     dalla Libreria Media di chi non puo' caricare documenti (vedi
+	 *     Dealer_Admin::hide_document_attachments()).
+	 */
+	const MEDIA_REVISION = 1;
+
+	/**
+	 * Marca gli allegati dei documenti gia' esistenti.
+	 *
+	 * Si parte dai documenti, non dagli allegati: `_doc_file_id` e' il legame
+	 * autorevole fra un documento e il suo file, mentre il post_parent di un
+	 * allegato puo' essere stato cambiato a mano. Una sola query, e il ciclo
+	 * scrive solo dove serve — su un sito con documenti gia' caricati gira una
+	 * volta e non torna piu'.
+	 */
+	private static function maybe_upgrade_media(): void {
+		if ( (int) get_option( 'dealer_portal_media_revision' ) === self::MEDIA_REVISION ) {
+			return;
+		}
+
+		global $wpdb;
+
+		$ids = $wpdb->get_col(
+			"SELECT DISTINCT pm.meta_value
+			 FROM {$wpdb->postmeta} pm
+			 INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id AND p.post_type = 'documento_dealer'
+			 WHERE pm.meta_key = '_doc_file_id' AND pm.meta_value > 0"
+		);
+
+		foreach ( (array) $ids as $id ) {
+			$id = (int) $id;
+			if ( $id && 'attachment' === get_post_type( $id ) ) {
+				update_post_meta( $id, Dealer_Admin::DOC_ATTACHMENT_META, 1 );
+			}
+		}
+
+		update_option( 'dealer_portal_media_revision', self::MEDIA_REVISION );
 	}
 
 	private static function create_log_table(): void {
@@ -657,6 +704,63 @@ class Dealer_DB {
 
 	// ─── Write ───────────────────────────────────────────────────────────────
 
+	/**
+	 * Indirizzo IP del client, per il registro dei download.
+	 *
+	 * REMOTE_ADDR e' l'unico valore che chi si collega non puo' scegliere:
+	 * e' quello che il server osserva sulla connessione. X-Forwarded-For, al
+	 * contrario, e' un'intestazione che il client scrive. Fidarsene sempre —
+	 * come faceva questo metodo — significa che chiunque puo' scaricare un
+	 * documento mandando "X-Forwarded-For: 1.2.3.4" e vedere quel valore
+	 * finire nel registro: passa FILTER_VALIDATE_IP e sembra legittimo. Il
+	 * download resta autorizzato e l'utente resta identificato, ma la colonna
+	 * IP dell'audit trail — che di questo plugin e' lo scopo dichiarato —
+	 * diventa inattendibile senza dirlo.
+	 *
+	 * Non si puo' sapere a priori se il sito girera' dietro un reverse proxy,
+	 * quindi non si sceglie: si deduce. Se REMOTE_ADDR e' un indirizzo privato
+	 * o di loopback, la connessione arriva da una macchina della stessa rete —
+	 * cioe' c'e' davvero un proxy davanti — e allora X-Forwarded-For ha un
+	 * senso. In quel caso si prende l'ULTIMO valore della catena, quello
+	 * aggiunto dal proxy piu' vicino: i precedenti li puo' avere scritti il
+	 * client. Se invece REMOTE_ADDR e' un indirizzo pubblico, il client sta
+	 * parlando direttamente con noi e l'intestazione non va guardata.
+	 *
+	 * Chi ha un CDN e sa cosa sta facendo puo' forzare la fiducia con il
+	 * filtro 'dealer_portal_trust_forwarded_for'.
+	 *
+	 * Pubblico perche' e' l'unico punto in cui il plugin decide qual e' l'IP di
+	 * chi si collega: lo usa anche il rate limit del modulo pubblico di
+	 * richiesta accesso, dove sbagliarlo non sporca un registro ma apre una
+	 * porta (vedi Dealer_Access_Request::client_ip()).
+	 */
+	public static function client_ip(): string {
+		$remote = isset( $_SERVER['REMOTE_ADDR'] )
+			? trim( sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) )
+			: '';
+
+		// Vero quando REMOTE_ADDR non e' un indirizzo pubblico instradabile.
+		$behind_proxy = '' !== $remote && ! filter_var(
+			$remote,
+			FILTER_VALIDATE_IP,
+			FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
+		);
+
+		/** @param bool $behind_proxy Dedotto da REMOTE_ADDR; sovrascrivibile. */
+		$trust = (bool) apply_filters( 'dealer_portal_trust_forwarded_for', $behind_proxy, $remote );
+
+		if ( $trust && ! empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) {
+			$parts = explode( ',', sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) );
+			$last  = trim( (string) end( $parts ) );
+			if ( filter_var( $last, FILTER_VALIDATE_IP ) ) {
+				return $last;
+			}
+		}
+
+		// Scarta valori non validi: nessun IP e' meglio di uno inventato.
+		return filter_var( $remote, FILTER_VALIDATE_IP ) ? $remote : '';
+	}
+
 	public static function log_download( int $post_id ): void {
 		global $wpdb;
 
@@ -665,19 +769,7 @@ class Dealer_DB {
 			return;
 		}
 
-		// Recupera IP reale, gestisce proxy (solo primo IP della catena).
-		$ip = '';
-		if ( ! empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) {
-			$parts = explode( ',', sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) );
-			$ip    = trim( $parts[0] );
-		} elseif ( ! empty( $_SERVER['REMOTE_ADDR'] ) ) {
-			$ip = sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) );
-		}
-
-		// Scarta IP non validi (prevenzione log injection).
-		if ( ! filter_var( $ip, FILTER_VALIDATE_IP ) ) {
-			$ip = '';
-		}
+		$ip = self::client_ip();
 
 		// Titolo con cui l'utente sta scaricando: un download fatto da un area
 		// manager non è un download di rete e non deve confondersi con quello

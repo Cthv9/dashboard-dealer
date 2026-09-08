@@ -388,21 +388,20 @@ class Dealer_Access_Request {
 	// ─── Anti-abuso ───────────────────────────────────────────────────────────
 
 	/**
-	 * IP del client, validato con FILTER_VALIDATE_IP come in Dealer_DB::log_download().
+	 * IP del client, da Dealer_DB::client_ip().
+	 *
+	 * Qui l'IP non serve a riempire una colonna di registro: e' la chiave del
+	 * rate limit di un modulo pubblico e non autenticato. La versione
+	 * precedente prendeva il primo valore di X-Forwarded-For quando l'header
+	 * c'era, cioe' un valore scelto da chi invia la richiesta: bastava
+	 * cambiarlo a ogni invio per avere ogni volta un secchiello nuovo e
+	 * mandare a vuoto il limite di tre richieste all'ora. Ora la decisione su
+	 * quale IP sia quello vero sta in un punto solo, che si fida
+	 * dell'intestazione unicamente quando REMOTE_ADDR dice che davanti c'e'
+	 * davvero un proxy.
 	 */
 	private function client_ip(): string {
-		$ip = '';
-		if ( ! empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) {
-			$parts = explode( ',', sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) );
-			$ip    = trim( $parts[0] );
-		} elseif ( ! empty( $_SERVER['REMOTE_ADDR'] ) ) {
-			$ip = sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) );
-		}
-
-		if ( ! filter_var( $ip, FILTER_VALIDATE_IP ) ) {
-			$ip = '';
-		}
-		return $ip;
+		return Dealer_DB::client_ip();
 	}
 
 	private function rate_limit_key(): string {
