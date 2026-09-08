@@ -127,6 +127,10 @@ class Dealer_Board {
 	const META_ORG_NAME  = '_lst_org_name';
 	const META_REPORTS   = '_lst_reports';
 	const META_REPLIES   = '_lst_replies';
+
+	/** User meta: risposte inviate da questo utente, e ultimo passaggio in bacheca. */
+	const USER_SENT = '_dealer_board_sent';
+	const USER_SEEN = '_dealer_board_seen';
 	const META_REMINDED  = '_lst_reminded';
 
 	// ─── Constructor ──────────────────────────────────────────────────────────
@@ -256,7 +260,10 @@ class Dealer_Board {
 		if ( ! $user || ! $user->exists() ) {
 			return false;
 		}
-		if ( current_user_can( 'manage_options' ) ) {
+		// user_can( $user, ... ) e non current_user_can(): questo metodo riceve
+		// un utente esplicito dalla barra di navigazione, e valutare sempre
+		// quello corrente darebbe la risposta giusta per caso.
+		if ( user_can( $user, 'manage_options' ) ) {
 			return true;
 		}
 		if ( ! Dealer_Access_Guard::is_portal_user( $user ) ) {
@@ -459,6 +466,12 @@ class Dealer_Board {
 		$can_post   = $active < (int) $options['max_active'] && ! self::daily_limit_reached( (int) $user->ID );
 		$org_name   = self::current_org_name( $user );
 		$messages   = self::notice_text( $notice );
+		$sent_list  = self::get_sent_replies( (int) $user->ID );
+
+		// Da qui in poi le novità sono state viste. Si segna PRIMA di stampare,
+		// non dopo: se il template dovesse fallire a metà, il numerino
+		// resterebbe acceso su qualcosa che l'utente ha comunque davanti.
+		self::mark_seen( (int) $user->ID );
 
 		ob_start();
 		require DEALER_PORTAL_PATH . 'templates/dealer-board.php';
@@ -988,6 +1001,8 @@ class Dealer_Board {
 
 		// Prima si registra, poi si avvisa: e' l'ordine che rende la risposta
 		// indipendente dal fatto che l'email parta davvero.
+		self::record_sent_reply( (int) $user->ID, $post_id, (string) $post->post_title, $message );
+
 		self::store_reply( $post_id, [
 			'user_id' => (int) $user->ID,
 			'name'    => (string) $user->display_name,
@@ -1028,6 +1043,160 @@ class Dealer_Board {
 		);
 
 		self::redirect( 'replied', $post_id );
+	}
+
+	// ─── Copia per chi risponde ───────────────────────────────────────────────
+
+	/**
+	 * Le risposte che l'utente ha inviato.
+	 *
+	 * Chi scrive perdeva ogni traccia di cio' che aveva mandato: sapeva di
+	 * aver risposto a qualcosa, non a quale annuncio ne' cosa aveva scritto.
+	 * In una rete dove si risponde a piu' annunci nello stesso pomeriggio,
+	 * "ho gia' scritto a questo?" e' la prima domanda che ci si fa.
+	 *
+	 * Si conserva sul profilo di chi scrive e non si ricava dagli annunci:
+	 * l'annuncio puo' essere chiuso, scaduto o eliminato dal suo autore, e la
+	 * copia di chi ha scritto deve sopravvivergli. Per questo il titolo viene
+	 * salvato qui, non risolto ogni volta.
+	 *
+	 * @return array Le piu' recenti per prime.
+	 */
+	public static function get_sent_replies( int $user_id ): array {
+		$sent = get_user_meta( $user_id, self::USER_SENT, true );
+
+		return is_array( $sent ) ? array_reverse( $sent ) : [];
+	}
+
+	private static function record_sent_reply( int $user_id, int $post_id, string $title, string $message ): void {
+		$sent = get_user_meta( $user_id, self::USER_SENT, true );
+		$sent = is_array( $sent ) ? $sent : [];
+
+		$sent[] = [
+			'listing_id' => $post_id,
+			'title'      => $title,
+			'message'    => $message,
+			'date'       => current_time( 'mysql' ),
+		];
+
+		if ( count( $sent ) > self::MAX_REPLIES ) {
+			$sent = array_slice( $sent, -self::MAX_REPLIES );
+		}
+
+		update_user_meta( $user_id, self::USER_SENT, $sent );
+	}
+
+	// ─── Novità ───────────────────────────────────────────────────────────────
+
+	/**
+	 * Quante novità ha l'utente in bacheca.
+	 *
+	 * Due cose sommate, che sono le uniche che lo riguardano davvero:
+	 * gli annunci pubblicati DA ALTRI dopo il suo ultimo passaggio, e le
+	 * risposte arrivate sui SUOI annunci dopo lo stesso momento.
+	 *
+	 * Senza questo numero una bacheca asincrona muore per una ragione banale:
+	 * nessuno la apre "per vedere se c'e' qualcosa". Con il numero, si apre
+	 * solo quando c'e' qualcosa — che e' esattamente cio' che serve.
+	 *
+	 * Il conteggio e' tenuto in un transient breve: la barra di navigazione
+	 * viene stampata su ogni pagina del portale, e due query a ogni caricamento
+	 * per un numero che puo' essere vecchio di un minuto non si giustificano.
+	 */
+	public static function unread_count( ?\WP_User $user = null ): int {
+		$user = $user ?: wp_get_current_user();
+
+		if ( ! $user || ! $user->exists() || ! self::is_enabled() || ! self::user_can_use( $user ) ) {
+			return 0;
+		}
+
+		$cache_key = 'dealer_board_unread_' . $user->ID;
+		$cached    = get_transient( $cache_key );
+		if ( false !== $cached ) {
+			return (int) $cached;
+		}
+
+		$since = self::seen_since( $user );
+		$count = self::count_new_listings( (int) $user->ID, $since ) + self::count_new_replies( (int) $user->ID, $since );
+
+		set_transient( $cache_key, $count, 2 * MINUTE_IN_SECONDS );
+
+		return $count;
+	}
+
+	/**
+	 * Momento da cui contare le novità.
+	 *
+	 * Chi non ha mai aperto la bacheca non deve trovarsi addosso il numero di
+	 * tutto lo storico: si parte da due settimane fa, e comunque mai da prima
+	 * della sua iscrizione.
+	 */
+	private static function seen_since( \WP_User $user ): string {
+		$seen = (string) get_user_meta( $user->ID, self::USER_SEEN, true );
+		if ( '' !== $seen ) {
+			return $seen;
+		}
+
+		// Tutto in ora locale del sito: post_date e la data delle risposte lo
+		// sono, mentre user_registered e' salvato da WordPress in UTC e va
+		// convertito. Senza la conversione il confronto sbaglierebbe
+		// dell'offset del fuso — un'ora o due di annunci contati male.
+		$now        = (string) current_time( 'mysql' );
+		$fallback   = (string) gmdate( 'Y-m-d H:i:s', strtotime( $now ) - ( 14 * DAY_IN_SECONDS ) );
+		$registered = (string) $user->user_registered;
+		$registered = '' !== $registered ? (string) get_date_from_gmt( $registered ) : '';
+
+		return ( '' !== $registered && $registered > $fallback ) ? $registered : $fallback;
+	}
+
+	private static function count_new_listings( int $user_id, string $since ): int {
+		$q = new WP_Query( [
+			'post_type'      => self::CPT,
+			'post_status'    => 'publish',
+			'posts_per_page' => 1,
+			'fields'         => 'ids',
+			'author__not_in' => [ $user_id ],
+			'date_query'     => [ [ 'after' => $since, 'inclusive' => false ] ],
+			'meta_query'     => [ // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+				[ 'key' => self::META_STATUS, 'value' => self::STATUS_ACTIVE, 'compare' => '=' ],
+			],
+		] );
+
+		return (int) $q->found_posts;
+	}
+
+	/**
+	 * Risposte arrivate sugli annunci dell'utente dopo $since.
+	 *
+	 * Si parte dai propri annunci — pochi per definizione, c'e' un tetto — e
+	 * si guardano i loro meta, invece di cercare nel postmeta di tutti: quella
+	 * ricerca non userebbe indici e crescerebbe con l'intera bacheca.
+	 */
+	private static function count_new_replies( int $user_id, string $since ): int {
+		$ids = get_posts( [
+			'post_type'      => self::CPT,
+			'post_status'    => 'publish',
+			'author'         => $user_id,
+			'posts_per_page' => 100,
+			'fields'         => 'ids',
+		] );
+
+		$count = 0;
+		foreach ( $ids as $id ) {
+			foreach ( (array) get_post_meta( (int) $id, self::META_REPLIES, true ) as $reply ) {
+				if ( isset( $reply['date'] ) && (string) $reply['date'] > $since ) {
+					$count++;
+				}
+			}
+		}
+
+		return $count;
+	}
+
+	/** Segna la bacheca come vista adesso. */
+	private static function mark_seen( int $user_id ): void {
+		update_user_meta( $user_id, self::USER_SEEN, current_time( 'mysql' ) );
+		delete_transient( 'dealer_board_unread_' . $user_id );
 	}
 
 	/**

@@ -16,6 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  * @var bool    $can_post
  * @var string  $org_name  azienda con cui l'utente pubblica
  * @var string  $messages  esito dell'ultima azione
+ * @var array   $sent_list risposte inviate dall'utente, le più recenti per prime
  * @var int     $open      annuncio da aprire (dopo un'azione)
  */
 
@@ -46,6 +47,36 @@ $b_types = [
 
 	<?php if ( '' !== $messages ) : ?>
 		<p class="dealer-board-notice"><?php echo esc_html( $messages ); ?></p>
+	<?php endif; ?>
+
+	<?php // Copia di ciò che l'utente ha mandato: l'annuncio può essere già stato chiuso o eliminato. ?>
+	<?php if ( ! empty( $sent_list ) ) : ?>
+		<details class="dealer-board-sent">
+			<summary><?php echo esc_html( sprintf( 'Le risposte che hai inviato (%d)', count( $sent_list ) ) ); ?></summary>
+			<?php foreach ( $sent_list as $b_sent ) : ?>
+				<div class="dealer-board-reply-item">
+					<p class="dealer-board-reply-from">
+						<strong>
+							<?php
+							$b_sent_id    = (int) ( $b_sent['listing_id'] ?? 0 );
+							$b_sent_title = (string) ( $b_sent['title'] ?? '' );
+							$b_sent_alive = $b_sent_id && Dealer_Board::CPT === get_post_type( $b_sent_id );
+							?>
+							<?php if ( $b_sent_alive ) : ?>
+								<a href="<?php echo esc_url( $base_url . '#annuncio-' . $b_sent_id ); ?>">
+									<?php echo esc_html( $b_sent_title ); ?>
+								</a>
+							<?php else : ?>
+								<?php echo esc_html( $b_sent_title ); ?>
+								<em>(annuncio non più in bacheca)</em>
+							<?php endif; ?>
+						</strong>
+						<span><?php echo esc_html( mysql2date( 'd/m/Y H:i', (string) ( $b_sent['date'] ?? '' ) ) ); ?></span>
+					</p>
+					<p class="dealer-board-reply-msg"><?php echo nl2br( esc_html( (string) ( $b_sent['message'] ?? '' ) ) ); ?></p>
+				</div>
+			<?php endforeach; ?>
+		</details>
 	<?php endif; ?>
 
 	<!-- ── Filtri ───────────────────────────────────────────────────────── -->

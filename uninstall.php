@@ -191,6 +191,9 @@ $user_meta_keys = [
 	// Etichette personali sui preferiti (facoltative, per il dealer).
 	'_dealer_fav_tags',
 	'_dealer_fav_doc_tags',
+	// Bacheca: copia delle risposte inviate e ultimo passaggio.
+	'_dealer_board_sent',
+	'_dealer_board_seen',
 ];
 foreach ( $user_meta_keys as $meta_key ) {
 	delete_metadata( 'user', 0, $meta_key, '', true ); // true = per tutti gli utenti
