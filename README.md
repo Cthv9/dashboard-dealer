@@ -259,6 +259,10 @@ A questo si aggiungono i tetti (10 annunci attivi per utente, 5 pubblicazioni al
 
 **Le risposte restano sull'annuncio.** "Nessun thread pubblico" vuol dire nessuna discussione davanti a tutti, non nessuna traccia: ogni risposta viene registrata sull'annuncio e la vede **solo chi lo ha pubblicato** (e l'amministratore), con nome, azienda, recapiti, testo e data. L'email è l'avviso; se non parte — un server senza posta, un recapito sbagliato nel profilo, un filtro antispam — il messaggio è comunque lì. Nessuno può replicare dentro quell'elenco, quindi non c'è nulla da moderare.
 
+**Chi risponde conserva la propria copia.** Sulla pagina, in cima, ogni utente trova *Le risposte che hai inviato*: a quale annuncio, cosa ha scritto e quando. Vive sul profilo di chi scrive e non sull'annuncio, così sopravvive alla sua chiusura o eliminazione.
+
+**Il contatore delle novità.** Accanto alla voce *Bacheca* nella barra di navigazione compare un numero: gli annunci pubblicati da altri dopo l'ultimo passaggio, più le risposte arrivate sui propri annunci. Si azzera aprendo la pagina. È ciò che rende usabile una bacheca asincrona: senza, nessuno la apre "per vedere se c'è qualcosa"; con, la si apre solo quando c'è. Il conteggio sta in un transient di due minuti, perché la barra viene stampata su ogni pagina del portale.
+
 **I contatti** sono una scelta di chi pubblica, spenta di default: senza la spunta nessuno vede email o telefono e chi è interessato scrive tramite il portale, che inoltra il messaggio per email presentando chi risponde; con la spunta i recapiti del referente sono visibili a tutti gli utenti registrati. In entrambi i casi i recapiti si leggono dal profilo al momento della visualizzazione, mai copiati nell'annuncio.
 
 In **Dealer Portal → Bacheca** l'amministratore trova la coda dei segnalati, gli ultimi annunci, i parametri (durata, promemoria, tetti, soglia), la nota legale modificabile senza toccare il codice e un **interruttore generale**: spegnendola la pagina resta al suo posto e mostra un avviso, senza cancellare nulla.
@@ -490,6 +494,15 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 ---
 
 ## Changelog
+
+### 1.9.0
+
+Due aggiunte alla bacheca, dal secondo giro di collaudo.
+
+- **Chi risponde conserva la propria copia.** Prima chi scriveva perdeva ogni traccia: sapeva di aver risposto a qualcosa, non a quale annuncio né cosa aveva scritto — e in un pomeriggio in cui si risponde a più annunci, "ho già scritto a questo?" è la prima domanda che ci si fa. La copia vive sul profilo di chi scrive e non sull'annuncio, così sopravvive alla sua chiusura o eliminazione (il titolo viene salvato, non risolto ogni volta).
+- **Contatore delle novità sulla voce Bacheca**, per ogni ruolo: annunci pubblicati da altri dopo l'ultimo passaggio più risposte arrivate sui propri annunci, azzerato aprendo la pagina. È la cosa che rende usabile una bacheca asincrona. Chi non l'ha mai aperta parte da due settimane fa e comunque mai da prima della propria iscrizione, per non trovarsi addosso il numero di tutto lo storico. Conteggio in un transient di due minuti: la barra è stampata su ogni pagina del portale e due query a ogni caricamento, per un numero che può essere vecchio di un minuto, non si giustificano.
+- Le risposte sui propri annunci si contano partendo dai propri annunci (pochi, c'è un tetto) e non cercando nel postmeta di tutta la bacheca: quella ricerca non userebbe indici e crescerebbe con l'archivio.
+- Fix di coerenza trovati scrivendo il contatore: `Dealer_Board::user_can_use()` valutava sempre l'utente corrente pur ricevendone uno esplicito, e il confronto delle date mescolava ora locale del sito (`post_date`) e UTC (`user_registered`), sbagliando dell'offset del fuso.
 
 ### 1.8.1
 

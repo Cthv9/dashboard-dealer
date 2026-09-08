@@ -2192,3 +2192,30 @@ html.dealer-js .dealer-nojs-only {
 	margin: 0;
 	font-size: .84rem;
 }
+
+/* Copia delle risposte inviate: la vede solo chi le ha scritte. */
+.dealer-board-sent {
+	margin: 0 0 20px;
+	padding: 14px 18px;
+	border: 1px solid #e2e8f0;
+	border-radius: 8px;
+	background: #fff;
+}
+
+.dealer-board-sent summary {
+	cursor: pointer;
+	font-weight: 600;
+	font-size: .92rem;
+	color: var(--dp-navy);
+}
+
+.dealer-board-sent .dealer-board-reply-item {
+	border-left-color: #cbd5e1;
+}
+
+.dealer-board-sent em {
+	font-style: normal;
+	font-weight: 400;
+	color: var(--dp-muted, #64748b);
+	font-size: .82rem;
+}

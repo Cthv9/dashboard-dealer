@@ -183,6 +183,10 @@ class Dealer_Portal_Nav {
 				'label'   => $item['label'],
 				'url'     => $item['url'],
 				'page_id' => (int) get_option( $item['option'] ),
+				// Solo la bacheca ha un contatore: e' l'unica pagina dove
+				// arriva qualcosa che l'utente non ha chiesto. Vedi
+				// Dealer_Board::unread_count() per cosa viene contato.
+				'badge'   => 'board' === $item['key'] ? Dealer_Board::unread_count( $user ) : 0,
 			];
 		}
 
@@ -215,12 +219,20 @@ class Dealer_Portal_Nav {
 		$links = '';
 		foreach ( $items as $item ) {
 			$is_current = $current_page_id && $item['page_id'] === $current_page_id;
+			$badge      = (int) ( $item['badge'] ?? 0 );
 			$links     .= sprintf(
-				'<a class="dealer-nav-item%1$s" href="%2$s"%3$s>%4$s</a>',
+				'<a class="dealer-nav-item%1$s" href="%2$s"%3$s>%4$s%5$s</a>',
 				$is_current ? ' is-current' : '',
 				esc_url( $item['url'] ),
 				$is_current ? ' aria-current="page"' : '',
-				esc_html( $item['label'] )
+				esc_html( $item['label'] ),
+				$badge > 0
+					? sprintf(
+						'<span class="dealer-nav-badge" aria-label="%s">%s</span>',
+						esc_attr( sprintf( '%d novità', $badge ) ),
+						esc_html( $badge > 99 ? '99+' : (string) $badge )
+					)
+					: ''
 			);
 		}
 
@@ -302,6 +314,13 @@ class Dealer_Portal_Nav {
 			. 'text-decoration:none;transition:background .15s,color .15s;}'
 			. '.dealer-nav-item:hover,.dealer-nav-item:focus{background:#eef2f7;color:#0a1628;text-decoration:none;}'
 			. '.dealer-nav-item.is-current{background:#0a1628;color:#fff;}'
+			// Il contatore delle novità della bacheca. Il rosso e' l'unico
+			// punto di colore acceso della barra: se lo fosse anche altro non
+			// si noterebbe piu'.
+			. '.dealer-nav-badge{display:inline-block;min-width:18px;margin-left:6px;padding:0 5px;'
+			. 'border-radius:999px;background:#dc2626;color:#fff;font-size:11px;font-weight:700;'
+			. 'line-height:18px;text-align:center;vertical-align:1px;}'
+			. '.dealer-nav-item.is-current .dealer-nav-badge{background:#fff;color:#0a1628;}'
 			. '.dealer-nav-user{display:flex;align-items:center;gap:10px;}'
 			. '.dealer-nav-name{color:#64748b;font-size:13px;}'
 			. '.dealer-nav-logout{display:inline-block;padding:7px 16px;border-radius:999px;border:1px solid #cbd5e1;'
