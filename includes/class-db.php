@@ -40,6 +40,11 @@ class Dealer_DB {
 		return self::resolve_page_url( 'dealer_portal_fav_page_id', '/dealer-preferiti/' );
 	}
 
+	/** URL della pagina Bacheca. */
+	public static function board_url(): string {
+		return self::resolve_page_url( 'dealer_portal_board_page_id', '/bacheca/' );
+	}
+
 	/**
 	 * URL del modulo pubblico di richiesta accesso.
 	 *
@@ -123,6 +128,12 @@ class Dealer_DB {
 		// portale: senza, la protezione varrebbe solo da qui in avanti.
 		self::maybe_upgrade_media();
 
+		// La passata quotidiana della bacheca: senza, gli annunci non
+		// scadrebbero mai su un sito aggiornato sostituendo i file.
+		if ( class_exists( 'Dealer_Board' ) && Dealer_Board::is_enabled() ) {
+			Dealer_Board::ensure_sweep_scheduled();
+		}
+
 		if ( get_option( 'dealer_portal_version' ) === DEALER_PORTAL_VERSION ) {
 			return;
 		}
@@ -171,8 +182,9 @@ class Dealer_DB {
 	 * 2 = Gestione Collaboratori, Area Manager.
 	 * 3 = Preferiti.
 	 * 4 = Richiesta di Accesso (modulo pubblico).
+	 * 5 = Bacheca della rete.
 	 */
-	const PAGES_REVISION = 4;
+	const PAGES_REVISION = 5;
 
 	/**
 	 * Crea le pagine mancanti anche su un'installazione già attiva.
@@ -307,6 +319,14 @@ class Dealer_DB {
 				'slug'      => 'dealer-preferiti',
 				'shortcode' => '[dealer_favorites]',
 				'option'    => 'dealer_portal_fav_page_id',
+			],
+			// Unica pagina del portale aperta a ogni ruolo: dealer, titolari,
+			// area manager e amministratore vedono la stessa bacheca.
+			[
+				'title'     => 'Bacheca',
+				'slug'      => 'bacheca',
+				'shortcode' => '[dealer_bacheca]',
+				'option'    => 'dealer_portal_board_page_id',
 			],
 			// Unica pagina pubblica dell'elenco: e' il modulo con cui si chiede
 			// un accesso al portale, quindi la compila chi non e' autenticato.

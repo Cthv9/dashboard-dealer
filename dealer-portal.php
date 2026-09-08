@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Dealer Portal
  * Description:       Area riservata per la distribuzione controllata di documenti a reti di utenti esterni: permessi granulari per organizzazione, versionamento, ricerca a faccette. SearchWP supportato (opzionale).
- * Version:           1.7.0
+ * Version:           1.8.0
  * Author:            DF
  * Text Domain:       dealer-portal
  * Requires PHP:      7.4
@@ -11,7 +11,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'DEALER_PORTAL_VERSION', '1.7.0' );
+define( 'DEALER_PORTAL_VERSION', '1.8.0' );
 define( 'DEALER_PORTAL_PATH',    plugin_dir_path( __FILE__ ) );
 define( 'DEALER_PORTAL_URL',     plugin_dir_url( __FILE__ ) );
 // ─── Capability ──────────────────────────────────────────────────────────────
@@ -43,6 +43,7 @@ require_once DEALER_PORTAL_PATH . 'includes/class-org-admin.php';
 require_once DEALER_PORTAL_PATH . 'includes/class-team.php';
 require_once DEALER_PORTAL_PATH . 'includes/class-area-manager.php';
 require_once DEALER_PORTAL_PATH . 'includes/class-favorites.php';
+require_once DEALER_PORTAL_PATH . 'includes/class-board.php';
 require_once DEALER_PORTAL_PATH . 'includes/class-access-guard.php';
 require_once DEALER_PORTAL_PATH . 'includes/class-portal-nav.php';
 
@@ -52,6 +53,7 @@ register_activation_hook( __FILE__, [ 'Dealer_DB', 'install' ] );
 // Alla disattivazione vanno rimossi gli eventi cron delle notifiche: senza
 // questo WP continuerebbe a richiamare hook di una classe non più caricata.
 register_deactivation_hook( __FILE__, [ 'Dealer_Notifications', 'clear_scheduled_events' ] );
+register_deactivation_hook( __FILE__, [ 'Dealer_Board', 'clear_scheduled_events' ] );
 
 // Re-apply idempotent upgrade steps (capability, protected dir) on updates without reactivation.
 add_action( 'plugins_loaded', [ 'Dealer_DB', 'maybe_upgrade' ] );
@@ -112,6 +114,7 @@ add_action( 'init', static function (): void {
 	new Dealer_Team();
 	new Dealer_Area_Manager();
 	new Dealer_Favorites();
+	new Dealer_Board();
 
 	// Deve girare in entrambi i contesti: blocca wp-admin e nasconde la barra
 	// di amministrazione agli utenti del portale.

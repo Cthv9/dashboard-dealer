@@ -23,6 +23,7 @@ $page_options = [
 	'dealer_portal_am_page_id',
 	'dealer_portal_fav_page_id',
 	'dealer_portal_request_page_id',
+	'dealer_portal_board_page_id',
 ];
 foreach ( $page_options as $option ) {
 	$page_id = (int) get_option( $option );
@@ -131,6 +132,7 @@ $options = [
 	'dealer_portal_schema_revision',
 	'dealer_portal_pages_revision',
 	'dealer_portal_media_revision',
+	'dealer_portal_board',
 	'dealer_portal_notifications',
 	// Configurazione di ruoli e catalogo, modificabile da "Ruoli e Linee".
 	'dealer_portal_roles',

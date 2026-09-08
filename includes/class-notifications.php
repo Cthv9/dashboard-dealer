@@ -799,6 +799,27 @@ class Dealer_Notifications {
 	 * subito dopo l'invio (anche in caso di eccezione): lasciarli attivi
 	 * cambierebbe il Content-Type di tutte le email del sito.
 	 */
+	/**
+	 * Invio di una singola email transazionale da un altro modulo del plugin.
+	 *
+	 * La coda serve al fan-out: accodare un job per mandare UNA email a UNA
+	 * persona la rimanderebbe di qualche minuto senza alcun vantaggio. Una
+	 * risposta a un annuncio della bacheca deve partire mentre chi l'ha scritta
+	 * e' ancora sulla pagina.
+	 *
+	 * Passa comunque da qui e non da un wp_mail() sparso altrove: mittente,
+	 * content-type e testo alternativo sono impostati e rimossi in un punto
+	 * solo, e l'involucro grafico e' lo stesso di tutte le altre email.
+	 */
+	public static function send_transactional( string $to, string $subject, string $title, string $body_html, string $text ): bool {
+		return self::send_html( $to, $subject, self::wrap_html( $title, $body_html ), $text );
+	}
+
+	/** Involucro grafico condiviso, per i moduli che compongono da soli il corpo. */
+	public static function render_shared_template( string $slug, array $data ): string {
+		return self::render_template( $slug, $data );
+	}
+
 	private static function send_html( string $to, string $subject, string $html, string $text ): bool {
 		if ( ! is_email( $to ) ) {
 			return false;
