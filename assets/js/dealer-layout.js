@@ -72,7 +72,7 @@
 	 * molti temi usano per evitare lo scorrimento orizzontale.
 	 */
 	var WRAPS = '.dealer-dashboard-wrap, .dealer-search-wrap, .dealer-favorites-wrap,'
-		+ ' .dealer-team-wrap, .dealer-am-wrap, .dealer-portal-nav';
+		+ ' .dealer-team-wrap, .dealer-am-wrap, .dealer-board-wrap, .dealer-portal-nav';
 
 	function clipsOverflow( el ) {
 		var style = window.getComputedStyle( el );

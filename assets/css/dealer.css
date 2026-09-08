@@ -52,7 +52,8 @@
    sull'ordine di caricamento. */
 body .dealer-dashboard-wrap,
 body .dealer-search-wrap,
-body .dealer-favorites-wrap {
+body .dealer-favorites-wrap,
+body .dealer-board-wrap {
 	box-sizing: border-box !important;
 	width: var(--dp-vw, 100vw) !important;
 	max-width: var(--dp-vw, 100vw) !important;
@@ -79,7 +80,8 @@ body .dealer-favorites-wrap {
    accadeva alla regola del tema. */
 body .dealer-dashboard-wrap.dp-no-bleed,
 body .dealer-search-wrap.dp-no-bleed,
-body .dealer-favorites-wrap.dp-no-bleed {
+body .dealer-favorites-wrap.dp-no-bleed,
+body .dealer-board-wrap.dp-no-bleed {
 	width: auto !important;
 	max-width: none !important;
 	margin-left: 0 !important;
@@ -1434,7 +1436,8 @@ html.dealer-js .dealer-nojs-only {
 	   contro quello — e sul telefono resterebbe la spaziatura da desktop. */
 	body .dealer-dashboard-wrap,
 	body .dealer-search-wrap,
-	body .dealer-favorites-wrap {
+	body .dealer-favorites-wrap,
+	body .dealer-board-wrap {
 		padding: 20px 12px 40px !important;
 	}
 
@@ -1768,3 +1771,380 @@ html.dealer-js .dealer-nojs-only {
 /* Il padding della pagina Preferiti sotto i 480px non si ridichiara qui:
    dalla 1.3.2 .dealer-favorites-wrap fa parte del gruppo condiviso, e la
    regola vive con le altre nella media query in cima al foglio. */
+
+/* ═══ Bacheca della rete ════════════════════════════════════════════════════
+   Aggiunte in coda al foglio esistente: nessuna regola sopra viene toccata.
+   Il wrapper .dealer-board-wrap riceve l'uscita dal contenitore del tema dal
+   blocco "Wrapper globale" in cima, insieme agli altri. */
+
+.dealer-board-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 16px;
+	margin-bottom: 24px;
+}
+
+.dealer-board-title {
+	margin: 0 0 4px;
+	font-size: 1.6rem;
+	color: var(--dp-navy);
+}
+
+.dealer-board-sub {
+	margin: 0;
+	max-width: 62ch;
+	color: var(--dp-muted, #64748b);
+	font-size: .95rem;
+}
+
+.dealer-board-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.dealer-board-btn {
+	display: inline-block;
+	padding: 9px 18px;
+	border: 1px solid #cbd5e1;
+	border-radius: 999px;
+	background: #fff;
+	color: var(--dp-navy);
+	font: 600 .9rem/1.2 inherit;
+	text-decoration: none;
+	cursor: pointer;
+	transition: background .15s, color .15s, border-color .15s;
+}
+
+.dealer-board-btn:hover,
+.dealer-board-btn:focus {
+	background: var(--dp-navy);
+	border-color: var(--dp-navy);
+	color: #fff;
+	text-decoration: none;
+}
+
+.dealer-board-btn-primary {
+	background: var(--dp-blue);
+	border-color: var(--dp-blue);
+	color: #fff;
+}
+
+.dealer-board-btn-primary:hover,
+.dealer-board-btn-primary:focus {
+	background: var(--dp-blue-dk);
+	border-color: var(--dp-blue-dk);
+}
+
+.dealer-board-btn-quiet {
+	border-color: transparent;
+	color: var(--dp-muted, #64748b);
+}
+
+.dealer-board-notice {
+	margin: 0 0 20px;
+	padding: 12px 16px;
+	border-left: 4px solid var(--dp-blue);
+	border-radius: 4px;
+	background: #eef4fa;
+	font-size: .95rem;
+}
+
+.dealer-board-filters {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-bottom: 14px;
+}
+
+.dealer-board-filters input[type="search"] {
+	flex: 1 1 260px;
+	min-width: 0;
+}
+
+.dealer-board-filters input,
+.dealer-board-filters select {
+	padding: 8px 12px;
+	border: 1px solid #cbd5e1;
+	border-radius: 6px;
+	background: #fff;
+	font-size: .92rem;
+}
+
+.dealer-board-count {
+	margin: 0 0 16px;
+	color: var(--dp-muted, #64748b);
+	font-size: .88rem;
+}
+
+.dealer-board-empty {
+	margin: 0 0 24px;
+	padding: 24px;
+	border: 1px dashed #cbd5e1;
+	border-radius: 8px;
+	color: var(--dp-muted, #64748b);
+	text-align: center;
+}
+
+/* ── Griglia degli annunci ───────────────────────────────────────────────── */
+.dealer-board-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+	gap: 18px;
+	margin-bottom: 28px;
+}
+
+.dealer-board-card {
+	display: flex;
+	flex-direction: column;
+	padding: 18px 20px;
+	border: 1px solid #e2e8f0;
+	border-radius: 10px;
+	background: #fff;
+	box-shadow: 0 1px 2px rgba(10, 22, 40, .04);
+}
+
+.dealer-board-card.is-mine {
+	border-color: var(--dp-blue);
+}
+
+.dealer-board-card-head h3 {
+	margin: 8px 0 0;
+	font-size: 1.05rem;
+	line-height: 1.35;
+	color: var(--dp-navy);
+}
+
+.dealer-board-tag {
+	display: inline-block;
+	padding: 2px 10px;
+	border-radius: 999px;
+	font-size: .72rem;
+	font-weight: 700;
+	letter-spacing: .04em;
+	text-transform: uppercase;
+}
+
+.dealer-board-tag-cerco { background: #fef3c7; color: #92400e; }
+.dealer-board-tag-offro { background: #dcfce7; color: #166534; }
+.dealer-board-tag-off   { background: #e2e8f0; color: #475569; }
+
+.dealer-board-org {
+	margin: 6px 0 12px;
+	color: var(--dp-muted, #64748b);
+	font-size: .82rem;
+}
+
+.dealer-board-images {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-bottom: 12px;
+}
+
+.dealer-board-images img {
+	width: 84px;
+	height: 84px;
+	object-fit: cover;
+	border-radius: 6px;
+	border: 1px solid #e2e8f0;
+}
+
+.dealer-board-body {
+	margin: 0 0 14px;
+	font-size: .94rem;
+	line-height: 1.55;
+	overflow-wrap: anywhere;
+}
+
+.dealer-board-meta {
+	list-style: none;
+	margin: 0 0 14px;
+	padding: 0;
+	display: grid;
+	gap: 4px;
+	font-size: .86rem;
+}
+
+.dealer-board-meta li span {
+	display: inline-block;
+	min-width: 84px;
+	color: var(--dp-muted, #64748b);
+}
+
+.dealer-board-card-foot {
+	margin-top: auto;
+	padding-top: 12px;
+	border-top: 1px solid #f1f5f9;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.dealer-board-inline {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.dealer-board-expiry {
+	color: var(--dp-muted, #64748b);
+	font-size: .8rem;
+}
+
+.dealer-board-contacts {
+	margin: 0;
+	font-size: .9rem;
+}
+
+.dealer-board-reply summary {
+	cursor: pointer;
+	font-weight: 600;
+	font-size: .9rem;
+	color: var(--dp-blue);
+}
+
+.dealer-board-reply textarea {
+	width: 100%;
+	margin: 10px 0 8px;
+	padding: 10px 12px;
+	border: 1px solid #cbd5e1;
+	border-radius: 6px;
+	font: inherit;
+	font-size: .92rem;
+}
+
+.dealer-board-report {
+	align-self: flex-start;
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--dp-muted, #64748b);
+	font-size: .78rem;
+	text-decoration: underline;
+	cursor: pointer;
+}
+
+.dealer-board-pagination {
+	display: flex;
+	justify-content: center;
+	gap: 6px;
+	margin-bottom: 32px;
+}
+
+.dealer-board-pagination .page-numbers {
+	padding: 6px 12px;
+	border: 1px solid #cbd5e1;
+	border-radius: 6px;
+	color: var(--dp-navy);
+	text-decoration: none;
+}
+
+.dealer-board-pagination .page-numbers.current {
+	background: var(--dp-navy);
+	border-color: var(--dp-navy);
+	color: #fff;
+}
+
+/* ── Modulo di pubblicazione ─────────────────────────────────────────────── */
+.dealer-board-form {
+	padding: 24px;
+	border: 1px solid #e2e8f0;
+	border-radius: 10px;
+	background: #fff;
+}
+
+.dealer-board-form h3 {
+	margin: 0 0 18px;
+	font-size: 1.2rem;
+	color: var(--dp-navy);
+}
+
+.dealer-board-form label {
+	display: block;
+	margin-bottom: 14px;
+	font-size: .9rem;
+}
+
+.dealer-board-form label > span {
+	display: block;
+	margin-bottom: 5px;
+	font-weight: 600;
+	color: var(--dp-navy);
+}
+
+.dealer-board-form label > span em {
+	font-weight: 400;
+	font-style: normal;
+	color: var(--dp-muted, #64748b);
+}
+
+.dealer-board-form input[type="text"],
+.dealer-board-form input[type="number"],
+.dealer-board-form select,
+.dealer-board-form textarea {
+	width: 100%;
+	padding: 9px 12px;
+	border: 1px solid #cbd5e1;
+	border-radius: 6px;
+	font: inherit;
+	font-size: .93rem;
+}
+
+.dealer-board-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 14px;
+}
+
+.dealer-board-row > label {
+	flex: 1 1 180px;
+}
+
+.dealer-board-row > .dealer-board-grow {
+	flex: 3 1 320px;
+}
+
+.dealer-board-check {
+	display: flex;
+	gap: 10px;
+	align-items: flex-start;
+	padding: 14px;
+	border: 1px solid #e2e8f0;
+	border-radius: 8px;
+	background: #f8fafc;
+}
+
+.dealer-board-check input {
+	margin-top: 3px;
+}
+
+.dealer-board-check em {
+	display: block;
+	margin-top: 4px;
+	font-style: normal;
+	font-size: .84rem;
+	line-height: 1.5;
+	color: var(--dp-muted, #64748b);
+}
+
+.dealer-board-signature {
+	margin: 0 0 16px;
+	font-size: .86rem;
+	color: var(--dp-muted, #64748b);
+}
+
+.dealer-board-disclaimer {
+	margin: 26px 0 0;
+	font-size: .82rem;
+	line-height: 1.6;
+	color: var(--dp-muted, #64748b);
+}
+
+@media (max-width: 600px) {
+	.dealer-board-grid {
+		grid-template-columns: 1fr;
+	}
+}

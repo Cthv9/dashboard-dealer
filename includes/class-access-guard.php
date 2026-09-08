@@ -115,6 +115,7 @@ class Dealer_Access_Guard {
 				get_option( 'dealer_portal_team_page_id' ),
 				get_option( 'dealer_portal_am_page_id' ),
 				get_option( 'dealer_portal_fav_page_id' ),
+				get_option( 'dealer_portal_board_page_id' ),
 			] ) );
 		}
 

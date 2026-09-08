@@ -148,6 +148,16 @@ class Dealer_Portal_Nav {
 				'visible' => $is_dealer,
 			],
 			[
+				'key'     => 'board',
+				'label'   => 'Bacheca',
+				'url'     => Dealer_DB::board_url(),
+				'option'  => 'dealer_portal_board_page_id',
+				// L'unica voce trasversale: la bacheca e' della rete, non di un
+				// ruolo. La vedono tutti, area manager e amministratore
+				// compresi, purche' la bacheca sia accesa.
+				'visible' => Dealer_Board::is_enabled(),
+			],
+			[
 				'key'     => 'team',
 				'label'   => 'Collaboratori',
 				'url'     => Dealer_DB::team_url(),

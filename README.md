@@ -83,12 +83,13 @@ I diritti di accesso appartengono all'**organizzazione** (l'azienda dealer), non
 1. Scaricare o clonare il repository come ZIP.
 2. In WordPress admin, andare in **Plugin → Aggiungi nuovo → Carica plugin** e selezionare il file ZIP.
 3. Cliccare **Attiva plugin**.
-4. Sei pagine vengono create automaticamente — cinque riservate più il modulo pubblico di ingresso:
+4. Sette pagine vengono create automaticamente — sei riservate più il modulo pubblico di ingresso:
    - **Dashboard Dealer** (slug: `dashboard-dealer`, shortcode: `[dealer_dashboard]`)
    - **Cerca Documenti** (slug: `dealer-search`, shortcode: `[dealer_search]`)
    - **Preferiti** (slug: `dealer-preferiti`, shortcode: `[dealer_favorites]`)
    - **Gestione Collaboratori** (slug: `dealer-team`, shortcode: `[dealer_team]`)
    - **Area Manager** (slug: `dealer-area-manager`, shortcode: `[dealer_area_manager]`)
+   - **Bacheca** (slug: `bacheca`, shortcode: `[dealer_bacheca]`)
    - **Richiesta di Accesso** (slug: `richiesta-accesso`, shortcode: `[dealer_access_request]`) — pubblica, non fa parte dell'area riservata
 5. La tabella custom `{prefisso}_dealer_download_log` viene creata automaticamente.
 6. I ruoli custom (`dealer`, `top_dealer`, `part_center`, `area_manager`) vengono registrati; le capability (`manage_dealer_portal`, `upload_dealer_docs`, `view_dealer_logs`, `manage_dealer_orgs`) vengono assegnate ai ruoli corretti.
@@ -239,6 +240,27 @@ Le pagine del portale sono cinque e ognuna, in origine, sapeva tornare solo alla
 
 Lo stile è stampato con la barra, non nel foglio comune: i template del portale non condividono un unico CSS e le schermate di cortesia vengono restituite prima che gli asset siano accodati.
 
+## Bacheca della rete
+
+È l'unica pagina **trasversale** del portale: la vedono tutti gli utenti registrati, qualunque sia il ruolo, area manager e amministratore compresi. Nasce da un bisogno raccontato dalla rete — quando serve un pezzo che il canale ordinario non ha, o quando se ne hanno troppi uguali, si telefona alle persone che si immagina possano averlo.
+
+Il vincolo di progetto è che **non ci sono moderatori**. La bacheca è quindi costruita perché moderare non serva, non perché qualcuno moderi:
+
+- **Nessun thread pubblico.** È la decisione principale. I commenti sono esattamente ciò che richiede un moderatore. Qui l'annuncio è una scheda: si pubblica, si risponde in privato, si chiude.
+- **Ogni annuncio porta il nome dell'azienda**, non un soprannome: gli account li crea l'amministratore e appartengono ad aziende con una ragione sociale. In una rete dove tutti si conoscono, la reputazione fa il lavoro del moderatore.
+- **Scadenza automatica.** Una bacheca non moderata non muore di abusi, muore di annunci vecchi: chi telefona per un pezzo venduto sei mesi prima smette di fidarsi. Ogni annuncio scade (45 giorni di default), l'autore riceve un promemoria con due link — *ripubblica* o *chiudi* — e se non fa nulla l'annuncio si archivia da solo.
+- **Segnalazione con auto-nascondimento.** Oltre soglia (3 di default) segnalazioni da utenti **diversi**, l'annuncio si nasconde da solo ed entra nella coda admin. La rete si modera da sola; l'amministratore vede solo ciò che è già stato fermato.
+
+A questo si aggiungono i tetti (10 annunci attivi per utente, 5 pubblicazioni al giorno) e la struttura obbligata dei campi: un modulo con dei campi limita ciò che si può pubblicare molto più di qualunque regolamento.
+
+**L'annuncio**: Cerco / Offro · titolo · descrizione (testo semplice, nessun HTML e quindi nessun link cliccabile) · codice articolo, brand, linea, quantità, stato e zona, tutti facoltativi · fino a 3 foto. **Nessun campo prezzo**: una bacheca gestita dalla casa madre dove concessionari concorrenti si scambiano prezzi è terreno delicato sul piano della concorrenza, e la cifra si concorda comunque in privato.
+
+**Le foto** passano dalla stessa pipeline indurita dei documenti (allowlist, doppio controllo mime sul file già scritto, cartella protetta, token casuale nel nome, servite via PHP dopo il controllo di chi guarda) più il ridimensionamento a 1600px, che riscrivendo il file **elimina i dati EXIF** — fra cui le coordinate GPS del magazzino dove è stata scattata.
+
+**I contatti** sono una scelta di chi pubblica, spenta di default: senza la spunta nessuno vede email o telefono e chi è interessato scrive tramite il portale, che inoltra il messaggio per email presentando chi risponde; con la spunta i recapiti del referente sono visibili a tutti gli utenti registrati. In entrambi i casi i recapiti si leggono dal profilo al momento della visualizzazione, mai copiati nell'annuncio.
+
+In **Dealer Portal → Bacheca** l'amministratore trova la coda dei segnalati, gli ultimi annunci, i parametri (durata, promemoria, tetti, soglia), la nota legale modificabile senza toccare il codice e un **interruttore generale**: spegnendola la pagina resta al suo posto e mostra un avviso, senza cancellare nulla.
+
 ## Richiesta di accesso
 
 È il modo in cui si entra nel portale senza che un amministratore crei l'utente a mano. La pagina esiste ed è pubblica: `richiesta-accesso`, con lo shortcode `[dealer_access_request]`, creata in automatico come le altre.
@@ -275,6 +297,7 @@ dashboard-dealer/
 │   ├── class-team.php              Delega al titolare: gestione dei propri collaboratori
 │   ├── class-area-manager.php      Area di lavoro front-end dell'area manager
 │   ├── class-portal-nav.php        Barra di navigazione unica dell'area riservata
+│   ├── class-board.php             Bacheca della rete: domanda e offerta fra le aziende
 │   ├── class-favorites.php         Pagina preferiti ed etichette personali del dealer
 │   └── class-access-guard.php      wp-admin chiuso agli utenti del portale, redirect e barra admin
 ├── templates/
@@ -405,6 +428,8 @@ Indici su `user_id`, `post_id`, `download_date`. `access_context` è stata aggiu
 | `dealer_portal_team_page_id` | ID pagina gestione collaboratori |
 | `dealer_portal_am_page_id` | ID pagina area manager |
 | `dealer_portal_request_page_id` | ID pagina pubblica di richiesta accesso |
+| `dealer_portal_board_page_id` | ID pagina Bacheca |
+| `dealer_portal_board` | Configurazione della bacheca: durata annunci, tetti, soglia segnalazioni, nota legale, interruttore |
 | `dealer_portal_notifications` | Impostazioni del modulo notifiche |
 | `dealer_portal_notification_queue` | Coda di invio email |
 | `dealer_portal_caps_revision` | Contatore di revisione della mappa capability → ruoli, per riparare le assegnazioni senza richiedere la riattivazione |
@@ -463,6 +488,18 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 ---
 
 ## Changelog
+
+### 1.8.0
+
+**Bacheca della rete** (`includes/class-board.php`): domanda e offerta fra le aziende del portale, prima pagina trasversale a tutti i ruoli. Vedi la sezione *Bacheca della rete* per il ragionamento completo; in breve, è costruita perché moderare non serva — nessun thread pubblico, ogni annuncio col nome dell'azienda, scadenza automatica con promemoria, segnalazione con auto-nascondimento oltre soglia, tetti per utente e al giorno, campi strutturati.
+
+- Nuovo CPT privato `dealer_listing` con capability dedicate, come `dealer_org` e `dealer_access_req`.
+- Pagina `bacheca` creata in automatico (`PAGES_REVISION` 5) e voce fissa nella barra di navigazione per ogni ruolo.
+- Fino a 3 foto per annuncio, stessa pipeline dei documenti più il ridimensionamento a 1600px, che riscrivendo il file elimina i dati EXIF (le coordinate GPS del magazzino incluse). Servite via PHP dalla cartella protetta, mai per URL diretto.
+- Risposta privata via email: il recapito di chi pubblica non passa mai dal browser di chi risponde. Chi pubblica può scegliere di mostrare i propri recapiti (spunta spenta di default).
+- Passata quotidiana su cron: archivia gli scaduti e manda il promemoria, ordinata per scadenza crescente così nessun annuncio resta fuori dal blocco.
+- Schermata **Dealer Portal → Bacheca**: coda segnalazioni, parametri, nota legale modificabile e interruttore generale.
+- `Dealer_Notifications::send_transactional()`: porta pubblica per una singola email fuori dalla coda, che serve al fan-out e qui rimanderebbe l'invio senza alcun vantaggio.
 
 ### 1.7.0
 
