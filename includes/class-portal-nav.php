@@ -60,6 +60,16 @@ class Dealer_Portal_Nav {
 		if ( is_admin() || self::$rendered || ! is_user_logged_in() ) {
 			return $content;
 		}
+		// Il contenuto di una pagina viene filtrato anche fuori dalla pagina
+		// visibile: i plugin SEO lo fanno dentro wp_head per ricavarne la
+		// descrizione, e i feed lo fanno per il proprio XML. Senza queste due
+		// esclusioni la barra verrebbe consumata da quella chiamata invisibile
+		// — $rendered resterebbe alzato — e la pagina vera resterebbe senza
+		// navigazione e, da quando il logout vive qui, anche senza via
+		// d'uscita.
+		if ( is_feed() || doing_action( 'wp_head' ) ) {
+			return $content;
+		}
 		if ( ! is_page() ) {
 			return $content;
 		}

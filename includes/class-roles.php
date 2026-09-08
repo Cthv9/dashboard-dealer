@@ -131,6 +131,13 @@ class Dealer_Roles {
 		$errors  = [];
 		$created = 0;
 
+		// Ruoli che questo plugin considera propri: i tre storici piu' quelli
+		// gia' presenti nella mappa salvata. Serve a distinguere un ruolo
+		// nostro da uno di un altro plugin — vedi il controllo piu' sotto.
+		$known  = get_option( self::OPTION );
+		$known  = is_array( $known ) ? array_keys( $known ) : [];
+		$known  = array_merge( array_keys( self::ROLES ), $known );
+
 		foreach ( $rows as $slug => $row ) {
 			$slug  = self::sanitize_slug( (string) $slug );
 			$label = trim( (string) ( $row['label'] ?? '' ) );
@@ -144,6 +151,22 @@ class Dealer_Roles {
 			}
 			if ( self::is_reserved( $slug ) ) {
 				$errors[] = sprintf( 'Lo slug "%s" e\' riservato a WordPress o al plugin e non puo\' essere usato.', $slug );
+				continue;
+			}
+			// Uno slug gia' registrato in WordPress da qualcun altro non si
+			// adotta. Adottarlo avrebbe due conseguenze, entrambe fuori da
+			// quello che l'amministratore sta chiedendo: register() lo
+			// rinominerebbe con la nostra etichetta su tutto il sito, e la
+			// disinstallazione lo cancellerebbe insieme ai nostri, togliendolo
+			// a ogni utente che ce l'ha. is_reserved() copre solo i ruoli
+			// nativi: i ruoli degli altri plugin non si possono elencare a
+			// priori, si possono solo riconoscere.
+			if ( ! in_array( $slug, $known, true ) && get_role( $slug ) ) {
+				$errors[] = sprintf(
+					'Lo slug "%s" e\' gia\' un ruolo di WordPress o di un altro plugin: scegline un altro. '
+					. 'Il portale non adotta ruoli altrui, li rinominerebbe e li cancellerebbe alla disinstallazione.',
+					$slug
+				);
 				continue;
 			}
 

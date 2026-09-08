@@ -158,8 +158,15 @@ class Dealer_Access_Guard {
 			return;
 		}
 
-		// Anche l'amministratore, che le pagine del portale può visitarle.
-		if ( ! self::is_portal_user() && ! current_user_can( 'manage_options' ) ) {
+		// Anche l'amministratore, che le pagine del portale può visitarle, e
+		// chiunque si trovi su una di quelle pagine: la barra di navigazione
+		// (Dealer_Portal_Nav) esce dal contenitore del tema come i wrapper del
+		// portale, e senza --dp-vw ricadrebbe su 100vw — quindici pixel di
+		// troppo e una barra di scorrimento orizzontale — proprio sulle
+		// schermate di cortesia mostrate a chi un ruolo del portale non ce l'ha.
+		if ( ! self::is_portal_user()
+			&& ! current_user_can( 'manage_options' )
+			&& ! ( is_page() && self::is_plugin_page( get_queried_object_id() ) ) ) {
 			return;
 		}
 

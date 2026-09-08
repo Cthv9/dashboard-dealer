@@ -271,6 +271,11 @@ class Dealer_DB {
 				'slug'      => 'richiesta-accesso',
 				'shortcode' => '[dealer_access_request]',
 				'option'    => 'dealer_portal_request_page_id',
+				// Fino alla 1.5.0 il README diceva di creare questa pagina a
+				// mano: chi ha seguito quell'istruzione ce l'ha gia', con un
+				// suo titolo e un suo slug. Cercarla anche per shortcode evita
+				// di affiancargliene una seconda identica.
+				'adopt_shortcode' => 'dealer_access_request',
 			],
 		];
 
@@ -294,6 +299,16 @@ class Dealer_DB {
 				continue;
 			}
 
+			// Adozione per shortcode: una pagina che fa gia' questo lavoro con
+			// un altro slug non va duplicata, va riconosciuta.
+			if ( ! empty( $page['adopt_shortcode'] ) ) {
+				$found = self::find_page_with_shortcode( $page['adopt_shortcode'] );
+				if ( $found ) {
+					update_option( $page['option'], $found );
+					continue;
+				}
+			}
+
 			// Crea la pagina.
 			$page_id = wp_insert_post( [
 				'post_title'   => $page['title'],
@@ -308,6 +323,33 @@ class Dealer_DB {
 				update_option( $page['option'], $page_id );
 			}
 		}
+	}
+
+	/**
+	 * Prima pagina pubblicata che contiene uno shortcode.
+	 *
+	 * Si guarda il post_content con una LIKE invece di has_shortcode() su ogni
+	 * pagina: qui serve solo a non duplicare una pagina esistente, e caricare
+	 * tutte le pagine del sito per interrogarle una a una sarebbe sproporzionato
+	 * a quello scopo. Se il contenuto sta nei meta di un page builder la
+	 * ricerca non lo trova: in quel caso si crea la pagina nuova, che e'
+	 * comunque il comportamento corretto (una pagina in piu', mai una in meno).
+	 */
+	private static function find_page_with_shortcode( string $shortcode ): int {
+		global $wpdb;
+
+		$like = '%' . $wpdb->esc_like( '[' . $shortcode ) . '%';
+
+		$found = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT ID FROM {$wpdb->posts}
+				 WHERE post_type = 'page' AND post_status = 'publish' AND post_content LIKE %s
+				 ORDER BY ID ASC LIMIT 1",
+				$like
+			)
+		);
+
+		return (int) $found;
 	}
 
 	private static function create_protected_upload_dir(): void {

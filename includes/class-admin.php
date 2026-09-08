@@ -2126,10 +2126,84 @@ class Dealer_Admin {
 			return [ 'brands' => 0, 'lines' => 0, 'errors' => $errors ];
 		}
 
+		// Una linea tolta dal catalogo non e' una modifica di sola forma:
+		// Dealer_Identity::get_effective_lines() interseca sempre con
+		// get_valid_lines(), quindi dal salvataggio in poi quella linea sparisce
+		// dai diritti di ogni organizzazione e di ogni utente che ce l'aveva, e
+		// i documenti che la portano smettono di essere visibili. Succederebbe
+		// in silenzio, e con una riga cancellata per sbaglio nella textarea
+		// nessuno collegherebbe la causa all'effetto.
+		//
+		// Il salvataggio si esegue comunque — rinominare o ritirare una linea e'
+		// un'operazione legittima — ma si dice esattamente cosa e' appena
+		// uscito dal catalogo e quante assegnazioni ne dipendono. Nessun dato
+		// viene toccato: i meta restano scritti, quindi rimettere la linea
+		// nell'elenco ripristina tutto com'era.
+		$dropped = self::lines_in_use_missing_from( $catalog );
+
 		ksort( $catalog );
 		update_option( self::LINES_OPTION, $catalog );
 
+		if ( $dropped ) {
+			$errors[] = sprintf(
+				'Attenzione: %d linee non sono piu\' nel catalogo ma risultano ancora assegnate (%s). '
+				. 'Da adesso non sono piu\' visibili a chi le ha. Nessuna assegnazione e\' stata cancellata: '
+				. 'rimettere la linea nell\'elenco ripristina la situazione precedente.',
+				count( $dropped ),
+				implode( ', ', array_slice( $dropped, 0, 12 ) ) . ( count( $dropped ) > 12 ? '…' : '' )
+			);
+		}
+
 		return [ 'brands' => count( $catalog ), 'lines' => $count, 'errors' => $errors ];
+	}
+
+	/**
+	 * Linee ancora assegnate da qualche parte che il catalogo proposto non
+	 * contiene piu'.
+	 *
+	 * Le linee vivono come stringhe in tre meta: `_org_lines` (organizzazioni),
+	 * `_doc_lines` (documenti) e `_dealer_lines` (utenti del modello storico).
+	 * Si leggono con due query dirette sulle sole colonne dei valori invece che
+	 * con get_posts()/get_users(): l'alternativa sarebbe caricare interi
+	 * documenti e utenti per guardare un solo meta, e questa funzione gira
+	 * comunque una volta sola, al salvataggio del catalogo.
+	 *
+	 * @param array<string,string[]> $catalog Catalogo proposto, brand => linee.
+	 * @return string[] Linee orfane, ordinate.
+	 */
+	private static function lines_in_use_missing_from( array $catalog ): array {
+		global $wpdb;
+
+		$valid = [];
+		foreach ( $catalog as $lines ) {
+			foreach ( (array) $lines as $line ) {
+				$valid[ (string) $line ] = true;
+			}
+		}
+
+		$rows = array_merge(
+			(array) $wpdb->get_col(
+				"SELECT meta_value FROM {$wpdb->postmeta} WHERE meta_key IN ( '_org_lines', '_doc_lines' )"
+			),
+			(array) $wpdb->get_col(
+				"SELECT meta_value FROM {$wpdb->usermeta} WHERE meta_key = '_dealer_lines'"
+			)
+		);
+
+		$missing = [];
+		foreach ( $rows as $row ) {
+			foreach ( (array) maybe_unserialize( $row ) as $line ) {
+				$line = trim( (string) $line );
+				if ( '' !== $line && ! isset( $valid[ $line ] ) ) {
+					$missing[ $line ] = true;
+				}
+			}
+		}
+
+		$missing = array_keys( $missing );
+		sort( $missing );
+
+		return $missing;
 	}
 
 	public static function get_doc_types(): array {

@@ -463,6 +463,17 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 
 ## Changelog
 
+### 1.6.1
+
+Difetti trovati rivedendo la 1.4.0-1.6.0.
+
+- **Un ruolo di un altro plugin non si adotta più.** "Ruoli e Linee" accettava qualunque slug non nativo: scrivendo per esempio `shop_manager`, il portale avrebbe rinominato quel ruolo su tutto il sito e la disinstallazione lo avrebbe cancellato, togliendolo a ogni utente che ce l'ha. `is_reserved()` copre i ruoli nativi; i ruoli altrui non si possono elencare a priori, si possono solo riconoscere — ora vengono riconosciuti e rifiutati.
+- **Togliere una linea dal catalogo non è più un'operazione silenziosa.** `get_effective_lines()` interseca sempre con il catalogo: una riga cancellata per sbaglio nella textarea faceva sparire quella linea dai diritti di ogni organizzazione e utente, e i documenti che la portano dalla vista di tutti, senza dire nulla. Il salvataggio ora dichiara quali linee sono rimaste assegnate ma fuori catalogo, e ricorda che nessuna assegnazione viene cancellata: rimettere la linea ripristina la situazione.
+- **La barra di navigazione non viene più consumata da una chiamata invisibile.** I plugin SEO filtrano `the_content` dentro `wp_head` per ricavarne la descrizione, e i feed lo fanno per il proprio XML: la barra sarebbe finita lì, e la pagina vera sarebbe rimasta senza navigazione e — da quando il logout vive nella barra — senza via d'uscita.
+- **`--dp-vw` viene caricata anche per chi non ha un ruolo del portale** ma si trova su una sua pagina: senza, la barra ricadeva su `100vw` e produceva una barra di scorrimento orizzontale proprio sulle schermate di cortesia.
+- **La pagina di richiesta accesso viene riconosciuta se esiste già.** Fino alla 1.5.0 il README diceva di crearla a mano: su quelle installazioni la 1.6.0 ne avrebbe affiancata una seconda identica.
+- Assegnazione massiva: un utente viene contato una volta sola. Sommare ruolo e linee dello stesso utente riportava più utenti aggiornati di quanti ne fossero stati selezionati.
+
 ### 1.6.0
 
 Navigazione unica dell'area riservata e flusso di ingresso completo.
