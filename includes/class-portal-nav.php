@@ -193,6 +193,15 @@ class Dealer_Portal_Nav {
 		$user  = wp_get_current_user();
 		$items = self::items( $user );
 
+		// Una sola voce, ed e' la pagina che si sta gia' guardando: e' il caso
+		// dell'area manager, che ha una sola destinazione. Mostrargliela
+		// significa mettere in cima alla pagina un pulsante che porta dove si
+		// e' gia', accanto a una barra per il resto vuota. Restano il nome e
+		// l'uscita, che sono l'unica cosa che quella barra gli dice davvero.
+		if ( 1 === count( $items ) && $current_page_id && $items[0]['page_id'] === $current_page_id ) {
+			$items = [];
+		}
+
 		$links = '';
 		foreach ( $items as $item ) {
 			$is_current = $current_page_id && $item['page_id'] === $current_page_id;
@@ -291,6 +300,23 @@ class Dealer_Portal_Nav {
 			. 'border-color:#0a1628;text-decoration:none;}'
 			. '@media(max-width:600px){.dealer-nav-inner{padding-left:12px;padding-right:12px;}'
 			. '.dealer-nav-name{display:none;}}'
+			// Titolo di pagina del tema. Stava in dealer.css, che pero' non
+			// viene caricato sull'area del titolare ne' su quella dell'area
+			// manager (hanno un proprio blocco <style>): la regola raggiungeva
+			// tre pagine su cinque, e sulle altre due il titolo restava alla
+			// misura pensata dal tema per un articolo — sopra una barra di
+			// navigazione e sopra un hero con il proprio titolo, prendeva mezzo
+			// schermo. Qui invece vive esattamente dove vive la barra, cioe' su
+			// tutte le pagine del portale.
+			//
+			// I selettori coprono i temi a blocchi (.wp-block-post-title, il
+			// blocco nativo di WordPress) e quelli classici (.entry-title,
+			// .page-title). !important perche' un tema a blocchi puo' scrivere
+			// allineamento e dimensione come stile inline sul blocco stesso.
+			. 'body.dealer-portal-page .wp-block-post-title,'
+			. 'body.dealer-portal-page .entry-title,'
+			. 'body.dealer-portal-page .page-title{text-align:center !important;'
+			. 'font-size:clamp(1.6rem,3.2vw,2.4rem) !important;margin-bottom:.4em !important;}'
 			. '</style>';
 	}
 }

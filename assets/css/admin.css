@@ -268,12 +268,34 @@
 	border-radius: 4px;
 }
 
+/* I bottoni vanno a capo dentro la colonna invece di uscire dalla tabella:
+   con "table-layout: fixed" un white-space:nowrap non allarga la colonna,
+   stampa il contenuto fuori dal riquadro. */
 .dealer-archive-table .dealer-actions-cell {
-	white-space: nowrap;
+	white-space: normal;
 }
 
 .dealer-archive-table .dealer-actions-cell .button {
-	margin-right: 4px;
+	margin: 0 4px 4px 0;
+}
+
+/* Una etichetta per linea prodotto: brand in grassetto, linea accanto. */
+.dealer-line-chip {
+	display: inline-block;
+	max-width: 100%;
+	margin: 0 3px 3px 0;
+	padding: 1px 7px;
+	border-radius: 10px;
+	background: #f0f0f1;
+	color: #3c434a;
+	font-size: 11px;
+	line-height: 1.7;
+	overflow-wrap: anywhere;
+}
+
+.dealer-line-chip b {
+	color: #1d2327;
+	font-weight: 600;
 }
 
 .dealer-type-badge {
