@@ -2070,7 +2070,7 @@ html.dealer-js .dealer-nojs-only {
 
 .dealer-board-form label > span {
 	display: block;
-	margin-bottom: 5px;
+	margin-bottom: 7px;
 	font-weight: 600;
 	color: var(--dp-navy);
 }
@@ -2086,25 +2086,29 @@ html.dealer-js .dealer-nojs-only {
 .dealer-board-form select,
 .dealer-board-form textarea {
 	width: 100%;
-	padding: 9px 12px;
+	padding: 10px 12px;
 	border: 1px solid #cbd5e1;
 	border-radius: 6px;
 	font: inherit;
 	font-size: .93rem;
 }
 
+/* Riga di campi affiancati. Dopo la revisione del modulo di pubblicazione la
+   usa solo il form di modifica dentro la scheda (dealer-board-card.php): li'
+   lo spazio e' quello stretto di una card, e il flex con base 180px e' la cosa
+   giusta perche' i campi devono poter tornare a capo da soli, senza che
+   nessuno dichiari quante colonne ci stiano. Il modulo di pubblicazione usa
+   invece i pannelli a griglia in fondo al foglio.
+   Nessuna larghezza per singolo campo si appoggia piu' a questa regola: era la
+   coppia che si combatteva per specificita' (0-1-1 contro 0-1-0). */
 .dealer-board-row {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 14px;
+	gap: 18px 20px;
 }
 
 .dealer-board-row > label {
 	flex: 1 1 180px;
-}
-
-.dealer-board-row > .dealer-board-grow {
-	flex: 3 1 320px;
 }
 
 .dealer-board-check {
@@ -2242,8 +2246,11 @@ html.dealer-js .dealer-nojs-only {
 	color: #fff;
 }
 
+/* Sta in una cella della griglia del modulo: la spaziatura la decide il gap
+   del pannello, un margine proprio ci si sommerebbe e staccherebbe troppo la
+   descrizione dal titolo. */
 .dealer-board-hint {
-	margin: -4px 0 16px;
+	margin: 0;
 	padding: 10px 14px;
 	border-radius: 6px;
 	background: #f1f5f9;
@@ -2257,41 +2264,78 @@ html.dealer-js .dealer-nojs-only {
 }
 
 /* ── Vista di pubblicazione ───────────────────────────────────────────────
-   Un modulo non e' un elenco. Su uno schermo largo va incolonnato stretto e
-   CENTRATO, intestazione compresa: se l'intestazione occupa tutta la pagina e
-   il modulo resta appoggiato a sinistra, meta' schermo resta vuoto e le due
-   cose sembrano scollegate. */
-.dealer-board-column {
-	max-width: 860px;
-	margin: 0 auto;
-}
+   Il modulo e' una pagina del portale come le altre: sta nella stessa fascia
+   che il blocco "Wrapper globale" ritaglia per tutti (1440px, gia' centrati
+   dal padding) e occupa quindi la stessa larghezza dell'elenco annunci, della
+   dashboard e della ricerca. La versione precedente lo incolonnava a 860px e
+   centrava anche l'intestazione: passando dalla bacheca al modulo la pagina
+   "si stringeva" sotto gli occhi, e il modulo sembrava un foglietto appoggiato
+   in mezzo a una pagina larga.
 
-.dealer-board-column .dealer-board-head {
-	align-items: center;
-}
+   Piena ampiezza pero' non vuol dire campi lunghi un metro. Lo spazio in piu'
+   si spende AFFIANCANDO i due blocchi del modulo — quello che si scrive (tipo,
+   titolo, descrizione) e quello che si sceglie (codice, quantita', stato,
+   brand, linea, zona) — invece di stirare un campo per riga: una casella
+   "Quantita'" larga 600px e' sbagliata quanto una schiacciata.
+
+   Da qui in giu' il modulo e' costruito a griglia e non piu' a flex. Con il
+   flex ogni riga ridistribuiva lo spazio per conto suo e i bordi destri non
+   tornavano mai fra una riga e l'altra; con la griglia le colonne si
+   dichiarano una volta sul pannello e tutti i campi ci si allineano. */
 
 .dealer-board-form {
-	padding: 28px 30px;
+	padding: 28px 32px;
 }
 
-/* Titoletti che separano le tre parti del modulo: cosa pubblichi, i dettagli
+/* I due pannelli affiancati. Il primo pesa di piu': titolo e descrizione hanno
+   bisogno di una riga lunga da leggere, un codice articolo no. */
+.dealer-board-panels {
+	display: grid;
+	grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+	gap: 32px 44px;
+	align-items: start;
+}
+
+/* Ritmo del modulo: il gap e' l'UNICA spaziatura fra un campo e l'altro (i
+   margini delle etichette sono azzerati poco sotto), cosi' non ci sono due
+   spaziature che si sommano e il passo verticale resta uguale ovunque. Prima
+   il gap di 14px e il margine di 14px si sommavano solo in verticale e non in
+   orizzontale: da qui l'effetto "campi attaccati" fra una colonna e l'altra. */
+.dealer-board-panel {
+	display: grid;
+	align-content: start;
+	gap: 22px 24px;
+}
+
+.dealer-board-panel-main {
+	/* "Tipo" ha valori corti e prevedibili (Cerco/Offro/Comunicazione): misura
+	   fissa, cosi' il titolo si prende tutto quello che avanza. */
+	grid-template-columns: 200px minmax(0, 1fr);
+}
+
+.dealer-board-panel-details {
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.dealer-board-panel-options {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	margin-top: 32px;
+}
+
+/* Titoletti che separano le parti del modulo: cosa pubblichi, i dettagli
    facoltativi, le opzioni. Un modulo lungo senza stacchi si legge come un
-   elenco indistinto di caselle. */
+   elenco indistinto di caselle. Ora ogni titoletto apre il proprio pannello e
+   la sua riga sottolineata dice fin dove arriva il blocco: e' quello che
+   tiene distinti i due pannelli affiancati, senza aggiungere cornici. */
 .dealer-board-legend {
-	margin: 26px 0 14px;
-	padding-bottom: 8px;
-	border-bottom: 1px solid #eef2f6;
+	margin: 0;
+	padding-bottom: 10px;
+	border-bottom: 1px solid var(--dp-border);
 	font-size: .82rem;
 	font-weight: 700;
 	letter-spacing: .06em;
 	text-transform: uppercase;
-	color: var(--dp-muted, #64748b);
-}
-
-/* Il primo titoletto non e' :first-child — prima di lui il form stampa i campi
-   nascosti del nonce — quindi si usa :first-of-type, che guarda solo gli h4. */
-.dealer-board-form .dealer-board-legend:first-of-type {
-	margin-top: 0;
+	color: var(--dp-muted);
 }
 
 .dealer-board-legend em {
@@ -2301,26 +2345,75 @@ html.dealer-js .dealer-nojs-only {
 	letter-spacing: 0;
 }
 
-/* Larghezze dei campi: prima ogni riga distribuiva lo spazio in modo diverso e
-   i bordi destri non si allineavano fra una riga e l'altra. Ora i campi brevi
-   hanno una misura propria e il resto occupa lo spazio che avanza. */
-/* Il selettore va scritto come figlio della riga: la regola di base
-   `.dealer-board-row > label` vale 0-1-1, e una classe sola (0-1-0) le
-   perderebbe contro, lasciando le larghezze com'erano. */
-.dealer-board-row > .dealer-board-w-type { flex: 0 0 220px; }
-.dealer-board-row > .dealer-board-w-qty  { flex: 0 0 120px; }
-.dealer-board-row > .dealer-board-w-cond { flex: 0 0 190px; }
+/* Il titoletto prende tutta la riga del pannello: e' un'intestazione, non un
+   campo. Nota per chi ci tornera': la versione precedente azzerava il margine
+   del PRIMO titoletto con :first-of-type e non con :first-child, perche' nel
+   modulo i campi nascosti (nonce e action) lo precedono. Qui il margine e'
+   azzerato per tutti e il problema non si pone, ma se un titoletto tornasse a
+   essere figlio diretto del <form>, :first-child sbaglierebbe di nuovo
+   bersaglio. */
+.dealer-board-panel > .dealer-board-legend {
+	grid-column: 1 / -1;
+}
+
+/* Le etichette sono celle di una griglia: il loro margine di serie si
+   sommerebbe al gap e sfalserebbe il ritmo. Il selettore parte da
+   .dealer-board-form perche' la regola di base `.dealer-board-form label` vale
+   0-1-1: una classe sola pareggerebbe soltanto per ordine di scrittura, cioe'
+   vincerebbe per fortuna. */
+.dealer-board-form .dealer-board-panel > label {
+	margin-bottom: 0;
+}
+
+/* Descrizione e riquadro esplicativo prendono tutta la riga: sono testo lungo,
+   incolonnarli accanto a un campo li renderebbe illeggibili. */
+.dealer-board-panel-main > .dealer-board-hint,
+.dealer-board-panel-main > .dealer-board-f-body {
+	grid-column: 1 / -1;
+}
+
+/* Quanto occupa ogni campo dei dettagli, in colonne su quattro.
+   La misura passa da una variabile invece che da un selettore piu' specifico:
+   cosi' il punto in cui si decide la posizione resta UNO solo (la regola qui
+   sotto) e le media query lo riscrivono senza dover rincorrere la
+   specificita'. E' la trappola in cui erano finite le vecchie .dealer-board-w-*,
+   costrette a scriversi `.dealer-board-row > .classe` per non perdere contro
+   `.dealer-board-row > label`. */
+.dealer-board-panel-details > label {
+	grid-column: span var(--dp-span, 2);
+}
+
+.dealer-board-f-code  { --dp-span: 3; }
+.dealer-board-f-qty   { --dp-span: 1; }
+.dealer-board-f-cond  { --dp-span: 2; }
+.dealer-board-f-brand { --dp-span: 2; }
+.dealer-board-f-line  { --dp-span: 2; }
+.dealer-board-f-area  { --dp-span: 2; }
+.dealer-board-file    { --dp-span: 4; }
+
+/* La quantita' e' un numero di quattro cifre: qualunque colonna gli tocchi, il
+   campo non deve diventare una barra lunga mezza pagina. A cedere e' il
+   controllo, non la cella: la griglia resta regolare. */
+.dealer-board-f-qty input {
+	max-width: 160px;
+}
 
 /* Il selettore dei file di serie e' un controllo grezzo del browser in mezzo a
    campi con bordo e raggio: gli si da' lo stesso contenitore degli altri. */
 .dealer-board-file input[type="file"] {
 	width: 100%;
-	padding: 9px 12px;
+	padding: 10px 12px;
 	border: 1px dashed #cbd5e1;
 	border-radius: 6px;
 	background: #f8fafc;
 	font-size: .9rem;
 	cursor: pointer;
+}
+
+/* Firma e azioni chiudono il modulo: staccate dall'ultima opzione, altrimenti
+   sembrano parte di essa. */
+.dealer-board-form .dealer-board-signature {
+	margin: 26px 0 0;
 }
 
 /* Azioni in fondo, separate dal contenuto e allineate a destra come in ogni
@@ -2330,23 +2423,56 @@ html.dealer-js .dealer-nojs-only {
 	flex-wrap: wrap;
 	justify-content: flex-end;
 	align-items: center;
-	gap: 10px;
-	margin-top: 26px;
-	padding-top: 20px;
-	border-top: 1px solid #eef2f6;
+	gap: 12px;
+	margin-top: 24px;
+	padding-top: 22px;
+	border-top: 1px solid var(--dp-border);
 }
 
+/* Sotto i 1180px i due pannelli non ci stanno piu' affiancati senza schiacciare
+   i dettagli (la quantita' scenderebbe sotto le quattro cifre leggibili):
+   si impilano. A quel punto il pannello dei dettagli e' largo quanto la pagina,
+   e quattro colonne fisse renderebbero ogni campo largo il doppio del dato che
+   contiene: si passa a colonne che si contano da sole, larghe almeno 180px. */
+@media (max-width: 1180px) {
+	.dealer-board-panels {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 32px;
+	}
+
+	.dealer-board-panel-details {
+		grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+	}
+
+	/* Stessa specificita' della regola di base (0-1-1: una classe piu' un tipo),
+	   ma piu' avanti nel foglio: vince per ordine, come deve fare una media
+	   query. La regola sul file, che vale 0-2-0, resta valida sopra a questa. */
+	.dealer-board-panel-details > label {
+		grid-column: span 1;
+	}
+
+	.dealer-board-panel-details > .dealer-board-file {
+		grid-column: 1 / -1;
+	}
+}
+
+/* Sotto i 600px non c'e' larghezza da spartire: tutto in colonna singola. */
 @media (max-width: 600px) {
-	.dealer-board-row > .dealer-board-w-type,
-	.dealer-board-row > .dealer-board-w-qty,
-	.dealer-board-row > .dealer-board-w-cond {
-		flex: 1 1 140px;
+	.dealer-board-panel-main,
+	.dealer-board-panel-details,
+	.dealer-board-panel-options {
+		grid-template-columns: minmax(0, 1fr);
 	}
 
-	.dealer-board-submit {
-		justify-content: stretch;
+	/* Va riscritto: uno `span 2` dentro una griglia a una colonna sola
+	   creerebbe una seconda colonna implicita e il campo uscirebbe dal modulo. */
+	.dealer-board-panel-details > label {
+		grid-column: 1 / -1;
 	}
 
+	/* I due pulsanti si distendono e occupano la riga: su un telefono un
+	   bersaglio stretto in fondo alla pagina si sbaglia. A distenderli e' il
+	   flex-grow, non un allineamento del contenitore. */
 	.dealer-board-submit .dealer-board-btn {
 		flex: 1 1 auto;
 		text-align: center;
