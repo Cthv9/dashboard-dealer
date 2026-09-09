@@ -503,6 +503,16 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 
 ## Changelog
 
+### 1.10.1
+
+Grafica della vista di pubblicazione, dallo screenshot del collaudo.
+
+- **Modulo incolonnato e centrato**, intestazione compresa. Prima l'intestazione occupava tutta la larghezza della pagina e il modulo restava appoggiato a sinistra, con mezzo schermo vuoto a destra: le due cose sembravano scollegate. Un modulo non è un elenco — su uno schermo largo va in colonna stretta, altrimenti l'occhio deve tornare indietro di mezzo metro fra un campo e l'altro.
+- **Bordi destri allineati fra le righe.** Ogni riga distribuiva lo spazio a modo suo, e i campi finivano a larghezze diverse. Ora *Quantità* e *Stato* hanno una misura propria e *Codice articolo* occupa quello che avanza. Nel farlo è emerso che le classi di larghezza avrebbero perso contro la regola di base `.dealer-board-row > label` per un punto di specificità: sono scritte come figlie della riga.
+- **Tre sezioni** — *Cosa pubblichi*, *Dettagli*, *Opzioni* — invece di un elenco indistinto di caselle; i «(facoltativo)» ripetuti su ogni etichetta sono stati riuniti nel titoletto.
+- **Selettore dei file** con lo stesso contenitore degli altri campi, invece del controllo grezzo del browser in mezzo a campi con bordo e raggio.
+- **Azioni in fondo**, separate da una riga e allineate a destra, con *Annulla* accanto a *Pubblica annuncio*: prima l'unico modo di tornare indietro era il link in cima.
+
 ### 1.10.0
 
 Bacheca: comunicazioni alla rete, risposte disattivabili, pubblicazione in una vista propria.
