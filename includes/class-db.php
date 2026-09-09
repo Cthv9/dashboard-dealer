@@ -107,6 +107,14 @@ class Dealer_DB {
 		self::create_pages();
 		update_option( 'dealer_portal_pages_revision', self::PAGES_REVISION );
 		self::create_protected_upload_dir();
+
+		// Durante l'attivazione WordPress puo' aver gia' eseguito 'init': in
+		// quel caso il costruttore di Dealer_Roles, che e' agganciato li', non
+		// viene chiamato in questa richiesta e setup_capability() non
+		// troverebbe il ruolo area_manager da configurare. Registrarli qui e'
+		// idempotente e garantisce che ruoli e capability siano pronti subito,
+		// senza aspettare il caricamento successivo.
+		new Dealer_Roles();
 		self::setup_capability();
 		update_option( 'dealer_portal_version', DEALER_PORTAL_VERSION );
 	}
@@ -223,7 +231,7 @@ class Dealer_DB {
 
 		foreach ( self::page_definitions() as $page ) {
 			$page_id = (int) get_option( $page['option'] );
-			if ( ! $page_id || 'publish' !== get_post_status( $page_id ) ) {
+			if ( ! $page_id || 'page' !== get_post_type( $page_id ) || 'publish' !== get_post_status( $page_id ) ) {
 				$missing[] = $page;
 			}
 		}
@@ -529,23 +537,64 @@ class Dealer_DB {
 		$pages = self::page_definitions();
 
 		foreach ( $pages as $page ) {
-			// Controlla se la pagina esiste già (per slug). Adottiamo solo una
-			// pagina PUBBLICATA: get_page_by_path() restituisce anche bozze e
-			// pagine in attesa di revisione, e adottarne una lascerebbe i
-			// dealer davanti a un 404 con l'opzione apparentemente a posto.
-			$existing = get_page_by_path( $page['slug'], OBJECT, 'page' );
-			if ( $existing && 'publish' === get_post_status( $existing ) ) {
-				update_option( $page['option'], $existing->ID );
-				continue;
+			// ── 1. L'ID gia' salvato e' il riferimento piu' autorevole ──────
+			//
+			// Prima di cercare per slug si guarda l'ID: se la pagina esiste
+			// ancora ma e' stata rinominata, e' comunque quella giusta.
+			//
+			// E se non e' piu' pubblicata, si RIPUBBLICA invece di crearne
+			// un'altra. E' la differenza che conta su un sito reale: una
+			// pagina del portale puo' essere resa privata o messa in bozza
+			// dopo l'attivazione — anche da un plugin di membership o di area
+			// clienti che gestisce le pagine riservate — e una pagina
+			// 'private' in WordPress risponde 404 a chiunque non possa
+			// leggere i contenuti privati, cioe' a tutti i dealer, mentre
+			// l'amministratore continua a vederla. Crearne una nuova
+			// lascerebbe la vecchia dov'e' e riempirebbe il sito di doppioni
+			// (bacheca-2, bacheca-3) a ogni ripetersi della cosa.
+			//
+			// Ripubblicarla e' legittimo: il contenuto riservato non sta nella
+			// pagina, sta nello shortcode, che applica da se' i propri
+			// controlli d'accesso.
+			$saved_id = (int) get_option( $page['option'] );
+			if ( $saved_id && 'page' === get_post_type( $saved_id ) ) {
+				$status = get_post_status( $saved_id );
+
+				if ( 'publish' === $status ) {
+					continue;
+				}
+
+				// Dal cestino e dalle bozze automatiche non si recupera: quelle
+				// sono decisioni esplicite o scarti di WordPress.
+				if ( $status && ! in_array( $status, [ 'trash', 'auto-draft' ], true ) ) {
+					$published = wp_update_post( [
+						'ID'          => $saved_id,
+						'post_status' => 'publish',
+					], true );
+
+					if ( ! is_wp_error( $published ) && 'publish' === get_post_status( $saved_id ) ) {
+						continue;
+					}
+				}
 			}
 
-			// Controlla se l'ID salvato in precedenza punta a una pagina ancora
-			// pubblicata. get_post_status() e' vero anche per 'draft' e 'trash':
-			// senza il confronto esplicito, una pagina cestinata verrebbe
-			// considerata valida e non ne verrebbe creata una nuova.
-			$saved_id = (int) get_option( $page['option'] );
-			if ( $saved_id && 'publish' === get_post_status( $saved_id ) ) {
-				continue;
+			// ── 2. Altrimenti si cerca lo slug canonico ─────────────────────
+			// Stessa regola: se c'e' ma non e' pubblicata, si ripubblica.
+			$existing = get_page_by_path( $page['slug'], OBJECT, 'page' );
+			if ( $existing ) {
+				$status = get_post_status( $existing );
+
+				if ( 'publish' !== $status && $status && ! in_array( $status, [ 'trash', 'auto-draft' ], true ) ) {
+					wp_update_post( [
+						'ID'          => (int) $existing->ID,
+						'post_status' => 'publish',
+					], true );
+				}
+
+				if ( 'publish' === get_post_status( $existing ) ) {
+					update_option( $page['option'], (int) $existing->ID );
+					continue;
+				}
 			}
 
 			// Adozione per shortcode: una pagina che fa gia' questo lavoro con
@@ -602,11 +651,25 @@ class Dealer_DB {
 	}
 
 	private static function create_protected_upload_dir(): void {
-		$uploads  = wp_upload_dir();
-		$dir      = $uploads['basedir'] . '/dealer-docs';
+		$uploads = wp_upload_dir();
 
-		if ( ! is_dir( $dir ) ) {
-			wp_mkdir_p( $dir );
+		// Su alcuni hosting wp_upload_dir() restituisce un errore, oppure una
+		// basedir che non e' scrivibile. Prima si proseguiva comunque fino a
+		// file_put_contents(), con warning durante l'attivazione e — dove i
+		// warning diventano eccezioni — un'attivazione fallita del tutto.
+		// Senza una directory valida si esce in silenzio: le difese sui file
+		// non sono l'unica difesa (vedi la quarta, il token nel nome).
+		if ( ! empty( $uploads['error'] ) || empty( $uploads['basedir'] ) ) {
+			return;
+		}
+
+		$dir = trailingslashit( $uploads['basedir'] ) . 'dealer-docs';
+
+		if ( ! is_dir( $dir ) && ! wp_mkdir_p( $dir ) ) {
+			return;
+		}
+		if ( ! is_dir( $dir ) || ! is_writable( $dir ) ) {
+			return;
 		}
 
 		// ── Difesa 1: Apache ──────────────────────────────────────────────
@@ -619,7 +682,7 @@ class Dealer_DB {
 				   . "<IfModule !mod_authz_core.c>\n"
 				   . "    Deny from all\n"
 				   . "</IfModule>\n";
-			file_put_contents( $htaccess, $rules );
+			@file_put_contents( $htaccess, $rules );
 		}
 
 		// ── Difesa 2: IIS ─────────────────────────────────────────────────
@@ -633,13 +696,13 @@ class Dealer_DB {
 				 . "    </authorization>\n"
 				 . "  </system.webServer>\n"
 				 . "</configuration>\n";
-			file_put_contents( $webconfig, $xml );
+			@file_put_contents( $webconfig, $xml );
 		}
 
 		// ── Difesa 3: nessun listing della cartella ───────────────────────
 		$index = $dir . '/index.php';
 		if ( ! file_exists( $index ) ) {
-			file_put_contents( $index, '<?php // Silence is golden.' );
+			@file_put_contents( $index, '<?php // Silence is golden.' );
 		}
 
 		// ── Difesa 4, quella che regge ovunque ────────────────────────────

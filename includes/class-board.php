@@ -702,9 +702,43 @@ class Dealer_Board {
 		];
 		// phpcs:enable WordPress.Security.NonceVerification.Missing
 
-		$fields['body'] = mb_substr( $fields['body'], 0, 1500 );
+		$fields['body'] = self::truncate_text( $fields['body'], 1500 );
 
 		return $fields;
+	}
+
+	/**
+	 * Tronca un testo UTF-8 senza rendere mbstring una dipendenza obbligatoria.
+	 *
+	 * mb_substr() sembra sempre disponibile finche' non si incontra l'hosting
+	 * dove non lo e': li' non e' un degrado, e' un errore fatale, e la pagina
+	 * smette proprio di funzionare. Il ripiego non e' pero' un substr() secco —
+	 * quello taglierebbe a meta' un carattere accentato e lascerebbe una
+	 * sequenza UTF-8 non valida, che a valle diventa testo illeggibile o un
+	 * INSERT rifiutato da una colonna utf8mb4. Si taglia quindi sul confine di
+	 * carattere, con una regex che non richiede alcuna estensione.
+	 */
+	private static function truncate_text( string $text, int $length ): string {
+		if ( function_exists( 'mb_substr' ) ) {
+			return mb_substr( $text, 0, $length, 'UTF-8' );
+		}
+
+		if ( preg_match( '/^.{0,' . (int) $length . '}/us', $text, $m ) ) {
+			return $m[0];
+		}
+
+		// Il testo in ingresso non e' gia' valido come UTF-8 (la regex sopra
+		// fallisce solo in quel caso). Si taglia sui byte e si tolgono in coda
+		// i byte della sequenza rimasta incompleta, uno alla volta: al massimo
+		// tre, perche' tanto e' lunga la piu' lunga sequenza UTF-8 valida.
+		// preg_match( '//u', ... ) e' il controllo di validita' che non
+		// richiede mbstring.
+		$cut = (string) substr( $text, 0, $length );
+		for ( $i = 0; $i < 3 && '' !== $cut && ! preg_match( '//u', $cut ); $i++ ) {
+			$cut = (string) substr( $cut, 0, -1 );
+		}
+
+		return $cut;
 	}
 
 	private static function default_expiry(): string {
@@ -978,7 +1012,7 @@ class Dealer_Board {
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Missing — nonce sopra
 		$message = trim( wp_strip_all_tags( (string) wp_unslash( $_POST['b_message'] ?? '' ) ) );
-		$message = mb_substr( $message, 0, 1500 );
+		$message = self::truncate_text( $message, 1500 );
 
 		if ( '' === $message ) {
 			self::redirect( 'err_reply', $post_id );
