@@ -60,6 +60,24 @@ class Dealer_DB {
 	}
 
 	/**
+	 * URL della pagina identificata da una delle opzioni del plugin.
+	 *
+	 * Serve alla Diagnostica, che scorre page_definitions() e deve mostrare
+	 * per ciascuna l'URL che il portale usa davvero — compreso il percorso di
+	 * ripiego quando la pagina non c'e', che e' esattamente quello che
+	 * risponde 404.
+	 */
+	public static function page_url_for_option( string $option ): string {
+		foreach ( self::page_definitions() as $page ) {
+			if ( $page['option'] === $option ) {
+				return self::resolve_page_url( $option, '/' . trim( $page['slug'], '/' ) . '/' );
+			}
+		}
+
+		return home_url( '/' );
+	}
+
+	/**
 	 * Legge l'ID salvato in opzione e ne risolve il permalink attuale.
 	 * Il percorso fisso resta solo come ultima risorsa, se la pagina non
 	 * esiste più o l'opzione non è mai stata popolata.
@@ -117,11 +135,12 @@ class Dealer_DB {
 		// aggiornare i file non vedrebbe mai una colonna nuova.
 		self::maybe_upgrade_schema();
 
-		// E per le pagine: senza questo, un plugin aggiornato sostituendo i
-		// file (il modo normale in cui si aggiorna un sito reale, senza
-		// disattivare e riattivare) non crea mai le pagine introdotte in una
-		// versione successiva alla prima installazione.
-		self::maybe_upgrade_pages();
+		// Le pagine NON si creano qui. maybe_upgrade() gira su 'plugins_loaded',
+		// cioe' prima di 'init': a quel punto meta' WordPress non ha ancora
+		// registrato i propri filtri, e wp_insert_post() e' la chiamata piu'
+		// esposta ai plugin di terzi che si agganciano alla creazione di
+		// contenuti. Vengono riconciliate su 'init' — vedi il hook in
+		// dealer-portal.php.
 
 		// E per i file dei documenti gia' caricati, che vanno marcati come
 		// tali per sparire dalla Libreria Media di chi non amministra il
@@ -192,13 +211,84 @@ class Dealer_DB {
 	 * richiamarla di nuovo su un sito che le ha già tutte non ha alcun
 	 * effetto collaterale.
 	 */
-	private static function maybe_upgrade_pages(): void {
-		if ( (int) get_option( 'dealer_portal_pages_revision' ) === self::PAGES_REVISION ) {
+	/**
+	 * Le pagine del portale che in questo momento NON sono raggiungibili:
+	 * opzione mai scritta, oppure ID che punta a una pagina cancellata, in
+	 * bozza o nel cestino.
+	 *
+	 * @return array Definizioni delle pagine mancanti, vuoto se e' tutto a posto.
+	 */
+	public static function missing_pages(): array {
+		$missing = [];
+
+		foreach ( self::page_definitions() as $page ) {
+			$page_id = (int) get_option( $page['option'] );
+			if ( ! $page_id || 'publish' !== get_post_status( $page_id ) ) {
+				$missing[] = $page;
+			}
+		}
+
+		return $missing;
+	}
+
+	/**
+	 * Riconcilia le pagine del portale. Verifica che ci SIANO, non che siano
+	 * state create una volta.
+	 *
+	 * Questa funzione usciva subito quando il contatore di revisione diceva
+	 * "gia' fatto", e il contatore veniva scritto SEMPRE dopo create_pages(),
+	 * anche quando qualche wp_insert_post() era fallito. Su un server dove
+	 * l'inserimento non riesce — un plugin di sicurezza che intercetta la
+	 * creazione di contenuti, un filtro di terzi, un errore di scrittura — il
+	 * risultato era: pagine assenti, contatore che dichiara il lavoro concluso,
+	 * nessun tentativo successivo. Da li' in poi ogni link del portale ricade
+	 * sul percorso fisso di resolve_page_url() e risponde 404, per tutti i
+	 * ruoli, per sempre. E' esattamente lo stesso difetto gia' corretto per le
+	 * capability in setup_capability(): un contatore registra "applicato una
+	 * volta", non "presente adesso".
+	 *
+	 * Ora il contatore serve solo a evitare il controllo quando e' inutile, e
+	 * viene scritto SOLO se alla fine non manca piu' niente. Il controllo costa
+	 * sette get_option e sette get_post_status, tutti serviti dalla cache degli
+	 * oggetti dopo la prima richiesta.
+	 */
+	public static function maybe_upgrade_pages(): void {
+		// Via rapida. Questa funzione gira su ogni richiesta, anche sul
+		// front-end: verificare sette pagine ogni volta significherebbe fino a
+		// sette query in piu' su un sito senza cache persistente degli
+		// oggetti. Quando il contatore e' allineato E una verifica recente e'
+		// andata a buon fine, non si controlla nulla. La verifica scade dopo
+		// un quarto d'ora, quindi una pagina cancellata a mano viene comunque
+		// notata da sola, senza che nessuno debba accorgersene.
+		$verified = get_transient( 'dealer_portal_pages_ok' );
+		if ( $verified && (int) get_option( 'dealer_portal_pages_revision' ) === self::PAGES_REVISION ) {
+			return;
+		}
+
+		$missing = self::missing_pages();
+
+		if ( empty( $missing ) ) {
+			// Tutto presente: si allinea il contatore, senza toccare nulla.
+			if ( (int) get_option( 'dealer_portal_pages_revision' ) !== self::PAGES_REVISION ) {
+				update_option( 'dealer_portal_pages_revision', self::PAGES_REVISION );
+			}
+			set_transient( 'dealer_portal_pages_ok', 1, 15 * MINUTE_IN_SECONDS );
 			return;
 		}
 
 		self::create_pages();
-		update_option( 'dealer_portal_pages_revision', self::PAGES_REVISION );
+
+		// Le regole di riscrittura possono essere in cache da prima che queste
+		// pagine esistessero. Il flush e' costoso e si fa solo qui, cioe' solo
+		// quando qualcosa e' stato davvero creato.
+		flush_rewrite_rules( false );
+
+		// Il contatore si scrive solo se adesso c'e' tutto. Se qualcosa non e'
+		// stato creato, alla prossima richiesta si riprova.
+		if ( empty( self::missing_pages() ) ) {
+			update_option( 'dealer_portal_pages_revision', self::PAGES_REVISION );
+			set_transient( 'dealer_portal_pages_ok', 1, 15 * MINUTE_IN_SECONDS );
+		}
 	}
 
 	/**
@@ -243,6 +333,84 @@ class Dealer_DB {
 		update_option( 'dealer_portal_media_revision', self::MEDIA_REVISION );
 	}
 
+	/**
+	 * Avviso in wp-admin quando una pagina del portale non e' raggiungibile.
+	 *
+	 * Senza questo, il difetto e' invisibile a chi amministra il sito: lui in
+	 * wp-admin vede tutto normale, e sono i dealer a sbattere contro un 404
+	 * che non spiega niente. L'avviso dice quali pagine mancano e offre di
+	 * ricrearle, cosi' chi ha il sito davanti non deve chiedere niente a
+	 * nessuno.
+	 */
+	public static function notice_missing_pages(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		$missing = self::missing_pages();
+		if ( empty( $missing ) ) {
+			return;
+		}
+
+		$titles = wp_list_pluck( $missing, 'title' );
+		?>
+		<div class="notice notice-error">
+			<p>
+				<strong>Dealer Portal:</strong>
+				<?php echo esc_html( sprintf(
+					'%d %s dell\'area riservata %s mancante: %s.',
+					count( $missing ),
+					count( $missing ) === 1 ? 'pagina' : 'pagine',
+					count( $missing ) === 1 ? 'risulta' : 'risultano',
+					implode( ', ', $titles )
+				) ); ?>
+			</p>
+			<p>
+				Finche' mancano, i link del portale rispondono <strong>404</strong> a tutti gli utenti,
+				qualunque sia il ruolo.
+			</p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<?php wp_nonce_field( 'dealer_fix_pages' ); ?>
+				<input type="hidden" name="action" value="dealer_fix_pages">
+				<p><button type="submit" class="button button-primary">Ricrea le pagine mancanti</button></p>
+			</form>
+		</div>
+		<?php
+	}
+
+	/** Ricrea le pagine mancanti su richiesta esplicita. */
+	public static function handle_fix_pages(): void {
+		check_admin_referer( 'dealer_fix_pages' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'Accesso non consentito.', 'dealer-portal' ) );
+		}
+
+		// Il contatore va azzerato prima: se dichiarava il lavoro concluso,
+		// nulla verrebbe ritentato. E' proprio la situazione da cui si arriva
+		// qui.
+		delete_option( 'dealer_portal_pages_revision' );
+		delete_transient( 'dealer_portal_pages_ok' );
+		self::maybe_upgrade_pages();
+
+		$still = self::missing_pages();
+
+		set_transient(
+			'dealer_portal_pages_fixed_' . get_current_user_id(),
+			empty( $still )
+				? 'Pagine del portale ricreate: adesso ci sono tutte.'
+				: sprintf(
+					'Alcune pagine non sono state create: %s. Il server ha rifiutato l\'inserimento — '
+					. 'controlla i plugin di sicurezza attivi e i permessi di scrittura sul database.',
+					implode( ', ', wp_list_pluck( $still, 'title' ) )
+				),
+			60
+		);
+
+		wp_safe_redirect( admin_url( 'admin.php?page=dealer-portal-diagnostics' ) );
+		exit;
+	}
+
 	private static function create_log_table(): void {
 		global $wpdb;
 
@@ -283,8 +451,18 @@ class Dealer_DB {
 	 * codice qui non basta a farla comparire su un'installazione già attiva:
 	 * vedi PAGES_REVISION più sotto.
 	 */
-	private static function create_pages(): void {
-		$pages = [
+	/**
+	 * Le pagine che il plugin possiede, in un punto solo.
+	 *
+	 * Le usano create_pages() per crearle, missing_pages() per verificare che
+	 * ci siano ancora e la Diagnostica per mostrarne lo stato: tre lettori, una
+	 * sola lista. Quando l'elenco viveva dentro create_pages(), aggiungere una
+	 * pagina significava ricordarsi di aggiornare anche gli altri due punti.
+	 *
+	 * @return array<int,array{title:string,slug:string,shortcode:string,option:string,adopt_shortcode?:string}>
+	 */
+	public static function page_definitions(): array {
+		return [
 			[
 				'title'     => 'Dashboard Dealer',
 				'slug'      => 'dashboard-dealer',
@@ -345,6 +523,10 @@ class Dealer_DB {
 				'adopt_shortcode' => 'dealer_access_request',
 			],
 		];
+	}
+
+	private static function create_pages(): void {
+		$pages = self::page_definitions();
 
 		foreach ( $pages as $page ) {
 			// Controlla se la pagina esiste già (per slug). Adottiamo solo una

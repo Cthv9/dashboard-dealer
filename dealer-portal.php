@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Dealer Portal
  * Description:       Area riservata per la distribuzione controllata di documenti a reti di utenti esterni: permessi granulari per organizzazione, versionamento, ricerca a faccette. SearchWP supportato (opzionale).
- * Version:           1.9.0
+ * Version:           1.9.3
  * Author:            DF
  * Text Domain:       dealer-portal
  * Requires PHP:      7.4
@@ -11,7 +11,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'DEALER_PORTAL_VERSION', '1.9.0' );
+define( 'DEALER_PORTAL_VERSION', '1.9.3' );
 define( 'DEALER_PORTAL_PATH',    plugin_dir_path( __FILE__ ) );
 define( 'DEALER_PORTAL_URL',     plugin_dir_url( __FILE__ ) );
 // ─── Capability ──────────────────────────────────────────────────────────────
@@ -57,6 +57,20 @@ register_deactivation_hook( __FILE__, [ 'Dealer_Board', 'clear_scheduled_events'
 
 // Re-apply idempotent upgrade steps (capability, protected dir) on updates without reactivation.
 add_action( 'plugins_loaded', [ 'Dealer_DB', 'maybe_upgrade' ] );
+
+// Le pagine del portale si riconciliano su 'init', non su 'plugins_loaded':
+// creare un contenuto prima che WordPress abbia finito di registrare i propri
+// filtri e' il momento piu' fragile per farlo, e su un sito reale con altri
+// plugin installati e' il momento in cui wp_insert_post() puo' fallire in
+// silenzio. Priorita' 5: prima che i moduli del portale, su 10, comincino a
+// chiedere l'URL delle pagine.
+add_action( 'init', [ 'Dealer_DB', 'maybe_upgrade_pages' ], 5 );
+
+// Avviso e riparazione a un click quando una pagina manca: senza, l'unico
+// sintomo visibile e' un 404 su ogni link del portale, che non dice a nessuno
+// dove sia il problema.
+add_action( 'admin_notices',                 [ 'Dealer_DB', 'notice_missing_pages' ] );
+add_action( 'admin_post_dealer_fix_pages',   [ 'Dealer_DB', 'handle_fix_pages' ] );
 
 // L'amministratore ha le capability del plugin a runtime, senza dipendere da
 // cosa risulta scritto nel ruolo: se qualcosa gliele toglie, add_submenu_page()
