@@ -2256,8 +2256,99 @@ html.dealer-js .dealer-nojs-only {
 	color: var(--dp-navy);
 }
 
-/* Nella vista di pubblicazione il modulo è il contenuto della pagina:
-   non deve stare dentro un riquadro dentro un altro riquadro. */
+/* ── Vista di pubblicazione ───────────────────────────────────────────────
+   Un modulo non e' un elenco. Su uno schermo largo va incolonnato stretto e
+   CENTRATO, intestazione compresa: se l'intestazione occupa tutta la pagina e
+   il modulo resta appoggiato a sinistra, meta' schermo resta vuoto e le due
+   cose sembrano scollegate. */
+.dealer-board-column {
+	max-width: 860px;
+	margin: 0 auto;
+}
+
+.dealer-board-column .dealer-board-head {
+	align-items: center;
+}
+
 .dealer-board-form {
-	max-width: 780px;
+	padding: 28px 30px;
+}
+
+/* Titoletti che separano le tre parti del modulo: cosa pubblichi, i dettagli
+   facoltativi, le opzioni. Un modulo lungo senza stacchi si legge come un
+   elenco indistinto di caselle. */
+.dealer-board-legend {
+	margin: 26px 0 14px;
+	padding-bottom: 8px;
+	border-bottom: 1px solid #eef2f6;
+	font-size: .82rem;
+	font-weight: 700;
+	letter-spacing: .06em;
+	text-transform: uppercase;
+	color: var(--dp-muted, #64748b);
+}
+
+/* Il primo titoletto non e' :first-child — prima di lui il form stampa i campi
+   nascosti del nonce — quindi si usa :first-of-type, che guarda solo gli h4. */
+.dealer-board-form .dealer-board-legend:first-of-type {
+	margin-top: 0;
+}
+
+.dealer-board-legend em {
+	font-style: normal;
+	font-weight: 400;
+	text-transform: none;
+	letter-spacing: 0;
+}
+
+/* Larghezze dei campi: prima ogni riga distribuiva lo spazio in modo diverso e
+   i bordi destri non si allineavano fra una riga e l'altra. Ora i campi brevi
+   hanno una misura propria e il resto occupa lo spazio che avanza. */
+/* Il selettore va scritto come figlio della riga: la regola di base
+   `.dealer-board-row > label` vale 0-1-1, e una classe sola (0-1-0) le
+   perderebbe contro, lasciando le larghezze com'erano. */
+.dealer-board-row > .dealer-board-w-type { flex: 0 0 220px; }
+.dealer-board-row > .dealer-board-w-qty  { flex: 0 0 120px; }
+.dealer-board-row > .dealer-board-w-cond { flex: 0 0 190px; }
+
+/* Il selettore dei file di serie e' un controllo grezzo del browser in mezzo a
+   campi con bordo e raggio: gli si da' lo stesso contenitore degli altri. */
+.dealer-board-file input[type="file"] {
+	width: 100%;
+	padding: 9px 12px;
+	border: 1px dashed #cbd5e1;
+	border-radius: 6px;
+	background: #f8fafc;
+	font-size: .9rem;
+	cursor: pointer;
+}
+
+/* Azioni in fondo, separate dal contenuto e allineate a destra come in ogni
+   modulo: il pulsante che conclude sta dove l'occhio finisce di leggere. */
+.dealer-board-submit {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	align-items: center;
+	gap: 10px;
+	margin-top: 26px;
+	padding-top: 20px;
+	border-top: 1px solid #eef2f6;
+}
+
+@media (max-width: 600px) {
+	.dealer-board-row > .dealer-board-w-type,
+	.dealer-board-row > .dealer-board-w-qty,
+	.dealer-board-row > .dealer-board-w-cond {
+		flex: 1 1 140px;
+	}
+
+	.dealer-board-submit {
+		justify-content: stretch;
+	}
+
+	.dealer-board-submit .dealer-board-btn {
+		flex: 1 1 auto;
+		text-align: center;
+	}
 }

@@ -46,6 +46,15 @@ if ( ! function_exists( 'dealer_board_card' ) ) {
 <?php if ( 'new' === $view ) : ?>
 
 	<!-- ══ VISTA: pubblica un annuncio ═══════════════════════════════════ -->
+	<?php
+	// Un modulo non e' un elenco: incolonnarlo su tutta la larghezza dello
+	// schermo lo renderebbe illeggibile (l'occhio deve tornare indietro di
+	// mezzo metro fra un campo e l'altro). Qui la colonna e' stretta e
+	// CENTRATA, intestazione compresa: prima l'intestazione era larga quanto
+	// la pagina e il modulo appoggiato a sinistra, con mezzo schermo vuoto a
+	// destra.
+	?>
+	<div class="dealer-board-column">
 	<div class="dealer-board-head">
 		<div>
 			<h2 class="dealer-board-title">Pubblica un annuncio</h2>
@@ -69,8 +78,10 @@ if ( ! function_exists( 'dealer_board_card' ) ) {
 				<?php wp_nonce_field( 'dealer_board_publish' ); ?>
 				<input type="hidden" name="action" value="dealer_board_publish">
 
+				<h4 class="dealer-board-legend">Cosa pubblichi</h4>
+
 				<div class="dealer-board-row">
-					<label>
+					<label class="dealer-board-w-type">
 						<span>Tipo</span>
 						<select name="b_type" id="dealer-board-type">
 							<?php foreach ( $types as $t_key => $t_label ) : ?>
@@ -99,16 +110,18 @@ if ( ! function_exists( 'dealer_board_card' ) ) {
 						placeholder="Cosa ti serve o cosa hai disponibile. Niente prezzi: quelli si concordano in privato."></textarea>
 				</label>
 
+				<h4 class="dealer-board-legend">Dettagli <em>(tutti facoltativi)</em></h4>
+
 				<div class="dealer-board-row">
-					<label>
-						<span>Codice articolo <em>(facoltativo)</em></span>
+					<label class="dealer-board-grow">
+						<span>Codice articolo</span>
 						<input type="text" name="b_code" maxlength="60">
 					</label>
-					<label>
+					<label class="dealer-board-w-qty">
 						<span>Quantità</span>
 						<input type="number" name="b_qty" min="0" max="9999" value="1">
 					</label>
-					<label>
+					<label class="dealer-board-w-cond">
 						<span>Stato</span>
 						<select name="b_condition">
 							<?php foreach ( Dealer_Board::CONDITIONS as $c_key => $c_label ) : ?>
@@ -120,7 +133,7 @@ if ( ! function_exists( 'dealer_board_card' ) ) {
 
 				<div class="dealer-board-row">
 					<label>
-						<span>Brand <em>(facoltativo)</em></span>
+						<span>Brand</span>
 						<select name="b_brand">
 							<option value="">—</option>
 							<?php foreach ( array_keys( $lines ) as $b_brand ) : ?>
@@ -129,7 +142,7 @@ if ( ! function_exists( 'dealer_board_card' ) ) {
 						</select>
 					</label>
 					<label>
-						<span>Linea <em>(facoltativo)</em></span>
+						<span>Linea</span>
 						<select name="b_line">
 							<option value="">—</option>
 							<?php foreach ( $lines as $b_brand => $b_lines ) : ?>
@@ -142,15 +155,17 @@ if ( ! function_exists( 'dealer_board_card' ) ) {
 						</select>
 					</label>
 					<label>
-						<span>Zona <em>(facoltativo)</em></span>
+						<span>Zona</span>
 						<input type="text" name="b_area" maxlength="60" placeholder="Es. Liguria">
 					</label>
 				</div>
 
-				<label>
+				<label class="dealer-board-file">
 					<span>Foto <em>(fino a <?php echo esc_html( (string) Dealer_Board::MAX_IMAGES ); ?>, JPG/PNG/WEBP)</em></span>
 					<input type="file" name="b_images[]" accept="image/jpeg,image/png,image/webp" multiple>
 				</label>
+
+				<h4 class="dealer-board-legend">Opzioni</h4>
 
 				<label class="dealer-board-check">
 					<input type="checkbox" name="b_replies_on" value="1" checked>
@@ -177,10 +192,14 @@ if ( ! function_exists( 'dealer_board_card' ) ) {
 					<?php echo esc_html( $user->display_name ); ?>.
 				</p>
 
-				<button type="submit" class="dealer-board-btn dealer-board-btn-primary">Pubblica</button>
+				<div class="dealer-board-submit">
+					<a class="dealer-board-btn dealer-board-btn-quiet" href="<?php echo esc_url( $base_url ); ?>">Annulla</a>
+					<button type="submit" class="dealer-board-btn dealer-board-btn-primary">Pubblica annuncio</button>
+				</div>
 			</form>
 		</section>
 	<?php endif; ?>
+	</div>
 
 <?php else : ?>
 
