@@ -255,6 +255,12 @@ Il vincolo di progetto è che **non ci sono moderatori**. La bacheca è quindi c
 
 A questo si aggiungono i tetti (10 annunci attivi per utente, 5 pubblicazioni al giorno) e la struttura obbligata dei campi: un modulo con dei campi limita ciò che si può pubblicare molto più di qualunque regolamento.
 
+**Tre tipi.** *Cerco* e *Offro* sono di tutti. **Comunicazione** è riservata a chi può già pubblicare documenti per la rete — amministratori e area manager — e serve a saimgroup per parlare alla rete dalla stessa pagina che la rete già apre. È riservata per un motivo preciso: se un dealer potesse pubblicarne una, potrebbe far passare per annuncio ufficiale della casa madre qualcosa che ufficiale non è, e chi legge non avrebbe modo di accorgersene. Il controllo è lato server, non solo un'opzione nascosta nel modulo. Le comunicazioni stanno in una fascia in evidenza in cima alla pagina, fuori dalla paginazione (un avviso che finisce a pagina due non lo legge nessuno), durano più a lungo — 90 giorni di default — e **non possono essere nascoste dalle segnalazioni**: con la soglia a tre, tre persone potrebbero far sparire un avviso ufficiale.
+
+**Risposte disattivabili.** Una spunta nel modulo dice se l'annuncio accetta risposte. Per una comunicazione che non richiede risposta si toglie, e il pulsante *Rispondi* non compare; il server rifiuta comunque la richiesta, perché il pulsante assente non impedisce a nessuno di inviarla a mano.
+
+**Due viste, una pagina.** L'elenco e il modulo di pubblicazione non stanno più uno sotto l'altro: *Pubblica un annuncio* porta a una vista dedicata sullo stesso URL. Non è una pagina WordPress in più — dopo la vicenda dei 404 in produzione, un'ottava pagina da creare, proteggere e riparare sarebbe un rischio gratuito.
+
 **L'annuncio**: Cerco / Offro · titolo · descrizione (testo semplice, nessun HTML e quindi nessun link cliccabile) · codice articolo, brand, linea, quantità, stato e zona, tutti facoltativi · fino a 3 foto. **Nessun campo prezzo**: una bacheca gestita dalla casa madre dove concessionari concorrenti si scambiano prezzi è terreno delicato sul piano della concorrenza, e la cifra si concorda comunque in privato.
 
 **Le foto** passano dalla stessa pipeline indurita dei documenti (allowlist, doppio controllo mime sul file già scritto, cartella protetta, token casuale nel nome, servite via PHP dopo il controllo di chi guarda) più il ridimensionamento a 1600px, che riscrivendo il file **elimina i dati EXIF** — fra cui le coordinate GPS del magazzino dove è stata scattata.
@@ -496,6 +502,17 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 ---
 
 ## Changelog
+
+### 1.10.0
+
+Bacheca: comunicazioni alla rete, risposte disattivabili, pubblicazione in una vista propria.
+
+- **Modulo di pubblicazione in una vista dedicata.** Stava sempre in fondo all'elenco: ora *Pubblica un annuncio* porta a una vista propria sullo stesso URL. Non una pagina WordPress in più: dopo i 404 in produzione, un'ottava pagina da creare, proteggere e riparare sarebbe un rischio gratuito.
+- **Nuovo tipo Comunicazione**, riservato a chi può già pubblicare documenti per la rete (amministratori e area manager). Serve a parlare alla rete dalla stessa pagina che la rete già apre. Il vincolo non è cosmetico: se un dealer potesse pubblicarne una, potrebbe far passare per ufficiale qualcosa che non lo è. Validato lato server sui tipi che *quel* utente può pubblicare, non sull'elenco completo.
+- Le comunicazioni stanno **in evidenza in cima**, fuori dalla paginazione, con un aspetto inequivocabilmente diverso da un annuncio fra pari; durano 90 giorni di default (parametro a sé in *Dealer Portal → Bacheca*) e **scadono comunque**: il principio che tiene pulita la bacheca non ha eccezioni.
+- **Le comunicazioni non si auto-nascondono con le segnalazioni.** Con la soglia a tre, tre persone potrebbero far sparire un avviso ufficiale — il contrario di ciò che quel meccanismo serve a fare. Le segnalazioni si registrano comunque e l'amministratore le vede.
+- **Spunta "Accetta risposte"**, modificabile anche dopo. Quando è spenta il pulsante *Rispondi* non compare e il server rifiuta comunque la richiesta: il pulsante assente non impedisce a nessuno di inviarla a mano.
+- Filtro per tipo nella barra dei filtri; la scheda dell'annuncio vive ora in `templates/dealer-board-card.php`, riusata dalla fascia in evidenza e dall'elenco invece di essere duplicata.
 
 ### 1.9.4
 

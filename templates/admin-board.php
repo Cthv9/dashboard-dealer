@@ -112,6 +112,19 @@ if ( ! Dealer_DB::user_can( DEALER_PORTAL_CAP ) ) {
 				</td>
 			</tr>
 			<tr>
+				<th scope="row"><label for="b_notice_duration">Durata di una comunicazione</label></th>
+				<td>
+					<input type="number" id="b_notice_duration" name="b_notice_duration" min="7" max="365"
+						value="<?php echo esc_attr( (string) $options['notice_duration_days'] ); ?>" class="small-text"> giorni
+					<p class="description">
+						Le comunicazioni alla rete restano in evidenza in cima alla bacheca. Scadono anche
+						loro — il principio che tiene pulita la pagina non ha eccezioni — ma di norma più
+						tardi di una richiesta di ricambio. Può pubblicarle solo chi può caricare documenti
+						per la rete: amministratori e area manager.
+					</p>
+				</td>
+			</tr>
+			<tr>
 				<th scope="row"><label for="b_reminder">Promemoria prima della scadenza</label></th>
 				<td>
 					<input type="number" id="b_reminder" name="b_reminder" min="1" max="30"
