@@ -276,13 +276,12 @@ class Dealer_Admin {
 
 		$caps = [ DEALER_PORTAL_CAP, DEALER_PORTAL_CAP_UPLOAD, DEALER_PORTAL_CAP_LOGS, DEALER_PORTAL_CAP_ORGS ];
 
-		$pages = [
-			'dealer_portal_dashboard_page_id' => 'Dashboard',
-			'dealer_portal_search_page_id'    => 'Cerca Documenti',
-			'dealer_portal_fav_page_id'       => 'Preferiti',
-			'dealer_portal_team_page_id'      => 'Gestione Collaboratori',
-			'dealer_portal_am_page_id'        => 'Area Manager',
-		];
+		// Dall'elenco vero delle pagine, non da una copia: quando erano due
+		// liste separate, la Diagnostica continuava a dire "tutto a posto"
+		// mentre mancavano le pagine che non le erano mai state aggiunte.
+		$pages = Dealer_DB::page_definitions();
+		$pages_notice = get_transient( 'dealer_portal_pages_fixed_' . get_current_user_id() );
+		delete_transient( 'dealer_portal_pages_fixed_' . get_current_user_id() );
 
 		// Callback effettivamente agganciate ad admin_menu: se una classe non
 		// compare qui, non e' stata istanziata (o il suo costruttore non e'
@@ -400,23 +399,63 @@ class Dealer_Admin {
 			</tbody></table>
 
 			<h2>Pagine del portale</h2>
-			<table class="widefat striped" style="max-width:760px;"><tbody>
-			<?php foreach ( $pages as $option => $label ) :
+
+			<?php if ( $pages_notice ) : ?>
+				<div class="notice notice-info inline" style="margin:12px 0;"><p><?php echo esc_html( (string) $pages_notice ); ?></p></div>
+			<?php endif; ?>
+
+			<p class="description" style="max-width:760px;">
+				Se una pagina non risulta pubblicata, ogni link che ci porta risponde 404 — per tutti i ruoli.
+				L'URL nella terza colonna e' quello che il plugin usa davvero: aprilo per verificarlo.
+			</p>
+
+			<table class="widefat striped"><tbody>
+			<?php foreach ( $pages as $page_def ) :
+				$option  = $page_def['option'];
 				$page_id = (int) get_option( $option );
 				$status  = $page_id ? get_post_status( $page_id ) : '';
+				$url     = Dealer_DB::page_url_for_option( $option );
+				$ok      = 'publish' === $status;
 				?>
 				<tr>
-					<td style="width:340px;"><?php echo esc_html( $label ); ?></td>
-					<td>
+					<td style="width:220px;"><strong><?php echo esc_html( $page_def['title'] ); ?></strong><br>
+						<small><code><?php echo esc_html( $page_def['shortcode'] ); ?></code></small>
+					</td>
+					<td style="width:220px;">
 						<?php if ( ! $page_id ) : ?>
-							<strong style="color:#d63638;">non creata</strong>
+							<strong style="color:#d63638;">opzione mai scritta</strong>
+						<?php elseif ( $ok ) : ?>
+							ID <code><?php echo esc_html( (string) $page_id ); ?></code> —
+							<span style="color:#00a32a;">pubblicata</span>
 						<?php else : ?>
 							ID <code><?php echo esc_html( (string) $page_id ); ?></code> —
-							<?php echo 'publish' === $status ? '<span style="color:#00a32a;">pubblicata</span>' : '<strong style="color:#d63638;">' . esc_html( $status ? $status : 'inesistente' ) . '</strong>'; ?>
+							<strong style="color:#d63638;"><?php echo esc_html( $status ? $status : 'pagina inesistente' ); ?></strong>
+						<?php endif; ?>
+					</td>
+					<td>
+						<a href="<?php echo esc_url( $url ); ?>" target="_blank" rel="noopener"><?php echo esc_html( $url ); ?></a>
+						<?php if ( ! $ok ) : ?>
+							<br><small style="color:#d63638;">Percorso di ripiego: questa pagina non esiste, risponde 404.</small>
 						<?php endif; ?>
 					</td>
 				</tr>
 			<?php endforeach; ?>
+			</tbody></table>
+
+			<?php if ( ! empty( Dealer_DB::missing_pages() ) ) : ?>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+					<?php wp_nonce_field( 'dealer_fix_pages' ); ?>
+					<input type="hidden" name="action" value="dealer_fix_pages">
+					<p><button type="submit" class="button button-primary">Ricrea le pagine mancanti</button></p>
+				</form>
+			<?php endif; ?>
+
+			<h2>Permalink</h2>
+			<table class="widefat striped" style="max-width:760px;"><tbody>
+				<tr><td style="width:340px;">Struttura permalink</td>
+					<td><code><?php echo esc_html( get_option( 'permalink_structure' ) ?: '(predefinita, con ?p=)' ); ?></code></td></tr>
+				<tr><td>home_url()</td><td><code><?php echo esc_html( home_url( '/' ) ); ?></code></td></tr>
+				<tr><td>site_url()</td><td><code><?php echo esc_html( site_url( '/' ) ); ?></code></td></tr>
 			</tbody></table>
 		</div>
 		<?php

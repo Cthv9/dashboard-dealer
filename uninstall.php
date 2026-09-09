@@ -152,6 +152,8 @@ $options = [
 	'dealer_portal_schema_revision',
 	'dealer_portal_pages_revision',
 	'dealer_portal_media_revision',
+	'_transient_dealer_portal_pages_ok',
+	'_transient_timeout_dealer_portal_pages_ok',
 	'dealer_portal_board',
 	'dealer_portal_notifications',
 	// Configurazione di ruoli e catalogo, modificabile da "Ruoli e Linee".

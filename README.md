@@ -95,6 +95,8 @@ I diritti di accesso appartengono all'**organizzazione** (l'azienda dealer), non
 6. I ruoli custom (`dealer`, `top_dealer`, `part_center`, `area_manager`) vengono registrati; le capability (`manage_dealer_portal`, `upload_dealer_docs`, `view_dealer_logs`, `manage_dealer_orgs`) vengono assegnate ai ruoli corretti.
 7. La cartella protetta `uploads/dealer-docs/` viene creata con `.htaccess` che nega l'accesso HTTP diretto.
 
+Le pagine vengono **verificate, non date per fatte**: a ogni caricamento (con una via rapida che evita il controllo quando una verifica recente è andata a buon fine) il plugin controlla che ognuna esista e sia pubblicata, e ricrea quelle mancanti. Il contatore di revisione viene scritto solo quando non manca più niente. Se una pagina non si riesce a creare, in wp-admin compare un avviso con l'elenco e un pulsante per riprovare, e **Dealer Portal → Diagnostica** mostra per ciascuna l'ID, lo stato e l'URL realmente usato.
+
 Le pagine create automaticamente vengono ricontrollate a ogni aggiornamento del plugin, non solo alla prima attivazione: chi aggiorna sostituendo i file trova comunque le pagine nuove. Ogni link interno del portale è risolto dall'ID della pagina, quindi rinominarle o spostarle non rompe nulla.
 
 Nessun passaggio manuale è richiesto per collegarle fra loro: la navigazione dell'area riservata è generata dal plugin (vedi **Navigazione dell'area riservata**), e la pagina di richiesta accesso è linkata automaticamente dalla schermata di login di WordPress.
@@ -494,6 +496,21 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 ---
 
 ## Changelog
+
+### 1.9.3
+
+Fix di un difetto emerso solo in produzione: **sul sito ufficiale tutte le pagine del portale rispondevano 404, per ogni ruolo**, mentre in locale funzionava tutto.
+
+La causa non era nelle pagine ma nel modo in cui venivano dichiarate create. `maybe_upgrade_pages()` usciva subito quando il contatore `dealer_portal_pages_revision` diceva "già fatto", e quel contatore veniva scritto **sempre** dopo `create_pages()` — anche quando qualche `wp_insert_post()` era fallito. Su un server dove l'inserimento non riesce (un plugin di sicurezza che intercetta la creazione di contenuti, un filtro di terzi, un problema di scrittura) il risultato era: pagine assenti, contatore che dichiara il lavoro concluso, nessun tentativo successivo. Da lì in poi ogni link del portale ricade sul percorso fisso di `resolve_page_url()` e risponde 404, per tutti, per sempre.
+
+È lo stesso difetto già corretto per le capability in 1.4.5 — *un contatore registra "applicato una volta", non "presente adesso"* — che era rimasto sulle pagine.
+
+- **Le pagine si verificano, non si danno per fatte.** Il contatore viene scritto solo se alla fine non manca più niente; altrimenti si riprova alla richiesta successiva. Una via rapida a transient (15 minuti) evita il controllo quando una verifica recente è andata a buon fine, così il costo su ogni richiesta resta una `get_option` e una `get_transient`.
+- **Le pagine si creano su `init`, non più su `plugins_loaded`.** Creare un contenuto prima che WordPress abbia finito di registrare i propri filtri è il momento più fragile per farlo, ed è il momento in cui `wp_insert_post()` può fallire in silenzio su un sito con altri plugin installati.
+- **Avviso in wp-admin quando una pagina manca**, con l'elenco e un pulsante per ricrearle: senza, il difetto è invisibile a chi amministra il sito — lui vede tutto normale, e sono i dealer a sbattere contro un 404 che non spiega niente. Se la creazione fallisce ancora, il messaggio lo dice invece di fingere.
+- **Diagnostica completa**: tutte e sette le pagine (prima ne elencava cinque, da una lista duplicata che non era mai stata aggiornata), con ID, stato, **URL realmente usato** e struttura dei permalink.
+- `flush_rewrite_rules()` una sola volta, quando qualcosa è stato davvero creato.
+- Le definizioni delle pagine vivono ora in `Dealer_DB::page_definitions()`, un punto solo letto da chi le crea, da chi le verifica e dalla Diagnostica.
 
 ### 1.9.0
 
