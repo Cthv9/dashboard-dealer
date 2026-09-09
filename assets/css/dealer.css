@@ -2219,3 +2219,45 @@ html.dealer-js .dealer-nojs-only {
 	color: var(--dp-muted, #64748b);
 	font-size: .82rem;
 }
+
+/* ── Bacheca: comunicazioni della rete ────────────────────────────────────
+   Devono essere riconoscibili a colpo d'occhio come "non un annuncio fra
+   pari": stanno in cima, occupano tutta la larghezza e hanno una banda di
+   colore propria. Se somigliassero a una scheda qualunque, nessuno
+   distinguerebbe un avviso di saimgroup da un annuncio di un concessionario —
+   che e' esattamente il motivo per cui il tipo e' riservato. */
+.dealer-board-pinned {
+	display: grid;
+	gap: 12px;
+	margin-bottom: 24px;
+}
+
+.dealer-board-card.is-notice {
+	border-left: 4px solid var(--dp-blue);
+	background: #f6fafd;
+}
+
+.dealer-board-tag-comunicazione {
+	background: var(--dp-blue);
+	color: #fff;
+}
+
+.dealer-board-hint {
+	margin: -4px 0 16px;
+	padding: 10px 14px;
+	border-radius: 6px;
+	background: #f1f5f9;
+	font-size: .86rem;
+	line-height: 1.5;
+	color: var(--dp-muted, #64748b);
+}
+
+.dealer-board-hint strong {
+	color: var(--dp-navy);
+}
+
+/* Nella vista di pubblicazione il modulo è il contenuto della pagina:
+   non deve stare dentro un riquadro dentro un altro riquadro. */
+.dealer-board-form {
+	max-width: 780px;
+}

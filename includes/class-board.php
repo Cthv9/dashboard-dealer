@@ -71,6 +71,19 @@ class Dealer_Board {
 	const TYPE_WANTED  = 'cerco';
 	const TYPE_OFFERED = 'offro';
 
+	/**
+	 * Comunicazione alla rete: e' un tipo RISERVATO.
+	 *
+	 * Serve a saimgroup per parlare alla rete dalla stessa pagina che la rete
+	 * gia' apre. Ma proprio per questo non puo' essere alla portata di tutti:
+	 * se un dealer potesse pubblicare una "Comunicazione", potrebbe far
+	 * passare per annuncio ufficiale della casa madre qualcosa che ufficiale
+	 * non e', e chi legge non avrebbe modo di accorgersene. Lo puo' usare solo
+	 * chi ha DEALER_PORTAL_CAP_UPLOAD, cioe' chi puo' gia' pubblicare documenti
+	 * a tutta la rete: amministratori e area manager. Vedi can_post_notice().
+	 */
+	const TYPE_NOTICE = 'comunicazione';
+
 	/** Stati. */
 	const STATUS_ACTIVE  = 'attivo';
 	const STATUS_SOLVED  = 'risolto';
@@ -121,6 +134,7 @@ class Dealer_Board {
 	const META_AREA      = '_lst_area';
 	const META_IMAGES    = '_lst_images';
 	const META_SHOW_CONT = '_lst_show_contacts';
+	const META_REPLIES_ON = '_lst_allow_replies';
 	const META_EXPIRY    = '_lst_expiry';
 	const META_STATUS    = '_lst_status';
 	const META_ORG       = '_lst_org';
@@ -182,6 +196,7 @@ class Dealer_Board {
 		return [
 			'enabled'          => 1,
 			'duration_days'    => 45,
+			'notice_duration_days' => 90,
 			'reminder_days'    => 5,
 			'max_active'       => 10,
 			'max_per_day'      => 5,
@@ -304,7 +319,7 @@ class Dealer_Board {
 			[ 'key' => self::META_STATUS, 'value' => self::STATUS_ACTIVE, 'compare' => '=' ],
 		];
 
-		if ( ! empty( $filters['type'] ) && in_array( $filters['type'], [ self::TYPE_WANTED, self::TYPE_OFFERED ], true ) ) {
+		if ( ! empty( $filters['type'] ) && array_key_exists( $filters['type'], self::all_types() ) ) {
 			$meta_query[] = [ 'key' => self::META_TYPE, 'value' => $filters['type'], 'compare' => '=' ];
 		}
 		if ( ! empty( $filters['brand'] ) ) {
@@ -317,6 +332,13 @@ class Dealer_Board {
 			// "I miei annunci": qui servono anche chiusi e scaduti, quindi il
 			// filtro sullo stato attivo salta.
 			array_shift( $meta_query );
+		} elseif ( empty( $filters['type'] ) ) {
+			// Le comunicazioni non scorrono insieme agli annunci: hanno una
+			// fascia propria in cima alla pagina (vedi pinned_notices()). Se
+			// restassero anche qui comparirebbero due volte, e a pagina due non
+			// comparirebbero piu' — che per un avviso alla rete e' il posto
+			// sbagliato. Restano raggiungibili filtrando per tipo.
+			$meta_query[] = [ 'key' => self::META_TYPE, 'value' => self::TYPE_NOTICE, 'compare' => '!=' ];
 		}
 
 		$args = [
@@ -343,6 +365,28 @@ class Dealer_Board {
 			'total' => (int) $query->found_posts,
 			'pages' => (int) $query->max_num_pages,
 		];
+	}
+
+	/**
+	 * Le comunicazioni attive, in cima alla pagina.
+	 *
+	 * Poche per definizione e senza paginazione: un avviso alla rete che
+	 * finisce a pagina due non lo legge nessuno.
+	 *
+	 * @return WP_Post[]
+	 */
+	public static function pinned_notices(): array {
+		return get_posts( [
+			'post_type'      => self::CPT,
+			'post_status'    => 'publish',
+			'posts_per_page' => 10,
+			'orderby'        => 'date',
+			'order'          => 'DESC',
+			'meta_query'     => [ // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+				[ 'key' => self::META_TYPE,   'value' => self::TYPE_NOTICE,   'compare' => '=' ],
+				[ 'key' => self::META_STATUS, 'value' => self::STATUS_ACTIVE, 'compare' => '=' ],
+			],
+		] );
 	}
 
 	/**
@@ -386,6 +430,8 @@ class Dealer_Board {
 			'author_name'   => $author ? (string) $author->display_name : '',
 			'images'        => self::image_urls( (int) $post->ID ),
 			'show_contacts' => $show_contacts,
+			'replies_on'    => self::replies_allowed( (int) $post->ID ),
+			'is_notice'     => self::TYPE_NOTICE === (string) get_post_meta( $post->ID, self::META_TYPE, true ),
 			'contacts'      => $contacts,
 			'expiry'        => $expiry,
 			'published'     => (string) get_the_date( 'd/m/Y', $post ),
@@ -394,9 +440,55 @@ class Dealer_Board {
 		];
 	}
 
+	/**
+	 * I tipi che l'utente indicato puo' pubblicare.
+	 *
+	 * @return array<string,string> slug => etichetta
+	 */
+	public static function publishable_types( ?\WP_User $user = null ): array {
+		$types = [
+			self::TYPE_WANTED  => 'Cerco',
+			self::TYPE_OFFERED => 'Offro',
+		];
+
+		if ( self::can_post_notice( $user ) ) {
+			$types[ self::TYPE_NOTICE ] = 'Comunicazione';
+		}
+
+		return $types;
+	}
+
+	/** Tutti i tipi esistenti, per filtri ed etichette. */
+	public static function all_types(): array {
+		return [
+			self::TYPE_WANTED  => 'Cerco',
+			self::TYPE_OFFERED => 'Offro',
+			self::TYPE_NOTICE  => 'Comunicazione',
+		];
+	}
+
+	/**
+	 * Chi puo' pubblicare una comunicazione alla rete.
+	 *
+	 * Stessa capability con cui si pubblicano documenti a tutta la rete: chi
+	 * gia' parla alla rete in un modo puo' farlo anche in questo. Chi non ce
+	 * l'ha non vede nemmeno l'opzione, e il server la rifiuta comunque.
+	 */
+	public static function can_post_notice( ?\WP_User $user = null ): bool {
+		$user = $user ?: wp_get_current_user();
+
+		if ( ! $user || ! $user->exists() ) {
+			return false;
+		}
+
+		return user_can( $user, 'manage_options' ) || user_can( $user, DEALER_PORTAL_CAP_UPLOAD );
+	}
+
 	/** Etichetta leggibile del tipo. */
 	public static function type_label( string $type ): string {
-		return self::TYPE_WANTED === $type ? 'Cerco' : 'Offro';
+		$all = self::all_types();
+
+		return $all[ $type ] ?? 'Offro';
 	}
 
 	/** Quanti annunci attivi ha gia' l'utente. */
@@ -457,6 +549,13 @@ class Dealer_Board {
 		$open   = absint( $_GET['b_open'] ?? 0 );
 		// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
+		// Due viste sulla stessa pagina, non due pagine WordPress: dopo la
+		// vicenda dei 404 in produzione, aggiungere un'ottava pagina da creare,
+		// proteggere e riparare sarebbe un rischio gratuito. Stesso URL, stato
+		// diverso, nessuna pagina in piu' da tenere in vita.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$view = ! empty( $_GET['b_new'] ) ? 'new' : 'list';
+
 		$result     = self::query_listings( $filters, $paged );
 		$base_url   = self::page_url();
 		$post_url   = admin_url( 'admin-post.php' );
@@ -467,6 +566,11 @@ class Dealer_Board {
 		$org_name   = self::current_org_name( $user );
 		$messages   = self::notice_text( $notice );
 		$sent_list  = self::get_sent_replies( (int) $user->ID );
+		$notices    = ( 'list' === $view && empty( $filters['mine'] ) && empty( $filters['type'] ) )
+			? self::pinned_notices()
+			: [];
+		$types      = self::publishable_types( $user );
+		$new_url    = add_query_arg( 'b_new', 1, $base_url );
 
 		// Da qui in poi le novità sono state viste. Si segna PRIMA di stampare,
 		// non dopo: se il template dovesse fallire a metà, il numerino
@@ -512,6 +616,7 @@ class Dealer_Board {
 			'err_perm'  => 'Non puoi intervenire su questo annuncio.',
 			'err_image' => 'Una o più immagini non sono state accettate: sono ammessi JPG, PNG e WEBP.',
 			'err_reply' => 'Il messaggio non è stato inviato: riprova.',
+			'err_closed' => 'Questo annuncio non accetta risposte.',
 		];
 
 		return $map[ $key ] ?? '';
@@ -579,10 +684,11 @@ class Dealer_Board {
 		update_post_meta( $post_id, self::META_CONDITION, $fields['condition'] );
 		update_post_meta( $post_id, self::META_AREA,      $fields['area'] );
 		update_post_meta( $post_id, self::META_SHOW_CONT, $fields['show_contacts'] );
+		update_post_meta( $post_id, self::META_REPLIES_ON, $fields['replies_on'] );
 		update_post_meta( $post_id, self::META_STATUS,    self::STATUS_ACTIVE );
 		update_post_meta( $post_id, self::META_ORG,       $org_id );
 		update_post_meta( $post_id, self::META_ORG_NAME,  self::current_org_name( $user ) );
-		update_post_meta( $post_id, self::META_EXPIRY,    self::default_expiry() );
+		update_post_meta( $post_id, self::META_EXPIRY,    self::default_expiry( $fields['type'] ) );
 		update_post_meta( $post_id, self::META_REPORTS,   [] );
 
 		$stored = self::store_images( (int) $post_id );
@@ -617,7 +723,7 @@ class Dealer_Board {
 
 			case 'renew':
 				update_post_meta( $post_id, self::META_STATUS, self::STATUS_ACTIVE );
-				update_post_meta( $post_id, self::META_EXPIRY, self::default_expiry() );
+				update_post_meta( $post_id, self::META_EXPIRY, self::default_expiry( (string) get_post_meta( $post_id, self::META_TYPE, true ) ) );
 				delete_post_meta( $post_id, self::META_REMINDED );
 				self::redirect( 'renewed' );
 				break;
@@ -645,6 +751,7 @@ class Dealer_Board {
 				update_post_meta( $post_id, self::META_CONDITION, $fields['condition'] );
 				update_post_meta( $post_id, self::META_AREA,      $fields['area'] );
 				update_post_meta( $post_id, self::META_SHOW_CONT, $fields['show_contacts'] );
+				update_post_meta( $post_id, self::META_REPLIES_ON, $fields['replies_on'] );
 				self::redirect( 'updated' );
 				break;
 
@@ -663,8 +770,11 @@ class Dealer_Board {
 	 */
 	private static function posted_fields(): array {
 		// phpcs:disable WordPress.Security.NonceVerification.Missing — nonce verificato dal chiamante
+		// Il tipo si valida sui tipi che QUESTO utente puo' pubblicare, non
+		// sull'elenco completo: nascondere l'opzione "Comunicazione" nel modulo
+		// non basta, chiunque puo' inviare il campo a mano.
 		$type = sanitize_key( $_POST['b_type'] ?? '' );
-		if ( ! in_array( $type, [ self::TYPE_WANTED, self::TYPE_OFFERED ], true ) ) {
+		if ( ! array_key_exists( $type, self::publishable_types() ) ) {
 			$type = self::TYPE_WANTED;
 		}
 
@@ -699,6 +809,7 @@ class Dealer_Board {
 			'condition'     => $condition,
 			'area'          => sanitize_text_field( wp_unslash( $_POST['b_area'] ?? '' ) ),
 			'show_contacts' => empty( $_POST['b_show_contacts'] ) ? 0 : 1,
+			'replies_on'    => empty( $_POST['b_replies_on'] ) ? 0 : 1,
 		];
 		// phpcs:enable WordPress.Security.NonceVerification.Missing
 
@@ -741,8 +852,19 @@ class Dealer_Board {
 		return $cut;
 	}
 
-	private static function default_expiry(): string {
+	/**
+	 * @param string $type Tipo dell'annuncio: una comunicazione alla rete resta
+	 *                     valida piu' a lungo di una richiesta di ricambio, ma
+	 *                     scade comunque — il principio che tiene pulita la
+	 *                     bacheca non ha eccezioni, si allunga solo il termine.
+	 */
+	private static function default_expiry( string $type = self::TYPE_WANTED ): string {
 		$days = max( 7, min( 180, (int) self::option( 'duration_days' ) ) );
+
+		if ( self::TYPE_NOTICE === $type ) {
+			$days = max( $days, (int) self::option( 'notice_duration_days' ) );
+		}
+
 		return gmdate( 'Y-m-d', time() + ( $days * DAY_IN_SECONDS ) );
 	}
 
@@ -1010,6 +1132,12 @@ class Dealer_Board {
 			self::redirect( 'err_reply' );
 		}
 
+		// Ricontrollato qui e non solo nascondendo il modulo: il pulsante
+		// assente non impedisce a nessuno di inviare la richiesta a mano.
+		if ( ! self::replies_allowed( $post_id ) ) {
+			self::redirect( 'err_closed', $post_id );
+		}
+
 		// phpcs:ignore WordPress.Security.NonceVerification.Missing — nonce sopra
 		$message = trim( wp_strip_all_tags( (string) wp_unslash( $_POST['b_message'] ?? '' ) ) );
 		$message = self::truncate_text( $message, 1500 );
@@ -1259,6 +1387,24 @@ class Dealer_Board {
 		return is_array( $replies ) ? array_reverse( $replies ) : [];
 	}
 
+	/**
+	 * L'annuncio accetta risposte?
+	 *
+	 * Il meta viene scritto alla pubblicazione. Gli annunci creati prima che
+	 * questa opzione esistesse non ce l'hanno: per loro vale il comportamento
+	 * di allora, cioe' risposte aperte — tranne le comunicazioni, che allora
+	 * non esistevano.
+	 */
+	public static function replies_allowed( int $post_id ): bool {
+		$stored = get_post_meta( $post_id, self::META_REPLIES_ON, true );
+
+		if ( '' === $stored ) {
+			return self::TYPE_NOTICE !== (string) get_post_meta( $post_id, self::META_TYPE, true );
+		}
+
+		return (bool) $stored;
+	}
+
 	/** Numero di risposte, senza esporne il contenuto. */
 	public static function reply_count( int $post_id ): int {
 		$replies = get_post_meta( $post_id, self::META_REPLIES, true );
@@ -1318,7 +1464,15 @@ class Dealer_Board {
 			update_post_meta( $post_id, self::META_REPORTS, $reports );
 		}
 
-		if ( count( $reports ) >= (int) self::option( 'report_threshold' ) ) {
+		// L'auto-nascondimento non vale per le comunicazioni alla rete: con la
+		// soglia a tre, tre persone potrebbero far sparire un avviso ufficiale
+		// di saimgroup, e sarebbe il contrario di cio' che questo meccanismo
+		// serve a fare. La segnalazione viene comunque registrata e
+		// l'amministratore la vede — puo' sempre intervenire lui, che di quella
+		// comunicazione e' l'autore.
+		$is_notice = self::TYPE_NOTICE === (string) get_post_meta( $post_id, self::META_TYPE, true );
+
+		if ( ! $is_notice && count( $reports ) >= (int) self::option( 'report_threshold' ) ) {
 			update_post_meta( $post_id, self::META_STATUS, self::STATUS_HIDDEN );
 		}
 
@@ -1521,6 +1675,7 @@ class Dealer_Board {
 		$options = [
 			'enabled'          => empty( $_POST['b_enabled'] ) ? 0 : 1,
 			'duration_days'    => max( 7,  min( 180, absint( $_POST['b_duration'] ?? 45 ) ) ),
+			'notice_duration_days' => max( 7, min( 365, absint( $_POST['b_notice_duration'] ?? 90 ) ) ),
 			'reminder_days'    => max( 1,  min( 30,  absint( $_POST['b_reminder'] ?? 5 ) ) ),
 			'max_active'       => max( 1,  min( 100, absint( $_POST['b_max_active'] ?? 10 ) ) ),
 			'max_per_day'      => max( 1,  min( 50,  absint( $_POST['b_max_day'] ?? 5 ) ) ),
