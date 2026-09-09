@@ -72,9 +72,9 @@ I diritti di accesso appartengono all'**organizzazione** (l'azienda dealer), non
 |---|---|
 | WordPress | 5.8 o superiore |
 | PHP | 7.4 o superiore |
-| WP Customer Area | 8.3 (infrastruttura pagine front-end riservate) |
 | SearchWP | 4.x (opzionale — abilita ricerca full-text; senza: ricerca WP nativa) |
 | Estensione PHP `zip` | opzionale — richiesta solo dal download aggregato ZIP |
+| Estensione PHP `mbstring` | opzionale — dove manca, il troncamento dei testi usa un ripiego che rispetta comunque i confini dei caratteri UTF-8 |
 
 ---
 
@@ -496,6 +496,20 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 ---
 
 ## Changelog
+
+### 1.9.4
+
+Fusione con la **1.9.2** che gira sul sito ufficiale. Quella versione non era nostra: l'ha prodotta il webmaster mettendo mano alla 1.9.0 per farla funzionare su quell'hosting, e conteneva tre correzioni reali che qui non c'erano. Sono tutte recepite. Una in particolare mostra che la diagnosi della 1.9.3 era giusta a metà.
+
+**La causa del 404 non era solo il contatore.** La 1.9.3 aveva individuato il difetto del contatore che dichiara il lavoro concluso anche quando `wp_insert_post()` fallisce, e quello resta valido. Ma sul sito reale il meccanismo era un altro: le pagine **esistono** e vengono **rese private o messe in bozza dopo l'attivazione**, plausibilmente da un plugin di area clienti che gestisce le pagine riservate. Una pagina `private` risponde 404 a chiunque non possa leggere i contenuti privati — cioè a tutti i dealer — mentre l'amministratore continua a vederla, il che spiega perché il problema fosse invisibile da wp-admin.
+
+- **Le pagine non pubblicate si ripubblicano, non si duplicano.** È la correzione più importante e viene dal webmaster. La 1.9.3, trovando una pagina non pubblicata, la considerava mancante e ne creava una nuova: avrebbe riempito il sito di doppioni (`bacheca-2`, `bacheca-3`) a ogni ripetersi della cosa, lasciando le originali dov'erano. Ora l'ID salvato viene provato per primo, e se la pagina è in bozza o privata viene riportata a pubblicata. Dal cestino e dalle bozze automatiche non si recupera: quelle sono decisioni esplicite.
+- **Attivazione robusta su hosting con `uploads` non scrivibile.** `create_protected_upload_dir()` proseguiva fino a `file_put_contents()` anche quando `wp_upload_dir()` segnalava un errore, con warning durante l'attivazione e — dove i warning diventano eccezioni — un'attivazione fallita del tutto.
+- **`mbstring` non è più una dipendenza obbligatoria.** `Dealer_Board` chiamava `mb_substr()` senza protezione: su un hosting che non ha l'estensione non è un degrado, è un errore fatale e la bacheca smette di funzionare. Il ripiego rispetta i confini dei caratteri UTF-8, perché un `substr()` secco taglierebbe a metà una lettera accentata e lascerebbe una sequenza non valida — testo illeggibile, o un `INSERT` rifiutato da una colonna `utf8mb4`.
+- **Ruoli e capability pronti già nella richiesta di attivazione**: se `init` è già passato, il costruttore di `Dealer_Roles` non viene chiamato e `setup_capability()` non troverebbe il ruolo area manager.
+- Rimosso da questi requisiti *WP Customer Area*: il plugin non ne dipende.
+
+Restano dalla 1.9.3 le parti additive: contatore scritto solo quando non manca più niente, riconciliazione su `init`, avviso in wp-admin con pulsante di riparazione, Diagnostica completa con URL reale e permalink, definizioni delle pagine in un punto solo.
 
 ### 1.9.3
 
