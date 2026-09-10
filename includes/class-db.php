@@ -354,6 +354,11 @@ class Dealer_DB {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			return;
 		}
+		// La Diagnostica ha gia' la sua sezione "Pagine" con lo stesso
+		// pulsante: li' l'avviso globale sarebbe un doppione.
+		if ( 'dealer-portal-diagnostics' === ( $_GET['page'] ?? '' ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+			return;
+		}
 
 		$missing = self::missing_pages();
 		if ( empty( $missing ) ) {

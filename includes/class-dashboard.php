@@ -141,7 +141,7 @@ class Dealer_Dashboard {
 
 		// Il logout non sta più nell'header della dashboard: vive nella barra
 		// di navigazione dell'area riservata (Dealer_Portal_Nav), che è la
-		// stessa su tutte e cinque le pagine ed è lei a chiedere di non
+		// stessa su tutte le pagine del portale ed è lei a chiedere di non
 		// stampare anche quello fluttuante. Qui non si sopprime nulla: se
 		// questo shortcode gira su una pagina che il plugin non riconosce come
 		// la propria, la barra non compare e il link fluttuante resta l'unica
@@ -154,22 +154,36 @@ class Dealer_Dashboard {
 
 	// ─── Query helper: documenti recenti ─────────────────────────────────────
 
+	/**
+	 * Stesse esclusioni della ricerca: solo versioni correnti (una versione
+	 * superata di ieri non è un "documento nuovo") e, tramite
+	 * user_can_download_post(), niente scaduti — altrimenti la lista
+	 * mostrerebbe un documento con un pulsante che il download poi rifiuta.
+	 */
 	private function get_recent_docs( \WP_User $user, array $user_lines, int $limit ): array {
+		$meta_query = [
+			'relation' => 'AND',
+			[
+				'relation' => 'OR',
+				[ 'key' => '_doc_status', 'value' => 'obsoleto', 'compare' => '!=' ],
+				[ 'key' => '_doc_status', 'compare' => 'NOT EXISTS' ],
+			],
+		];
+		if ( class_exists( 'Dealer_Versioning' ) ) {
+			$meta_query[] = Dealer_Versioning::meta_query_current_only();
+		}
+
 		$posts = get_posts( [
 			'post_type'      => 'documento_dealer',
 			'post_status'    => 'publish',
 			'numberposts'    => $limit * 4,
 			'orderby'        => 'date',
 			'order'          => 'DESC',
-			'meta_query'     => [
-				'relation' => 'OR',
-				[ 'key' => '_doc_status', 'value' => 'obsoleto', 'compare' => '!=' ],
-				[ 'key' => '_doc_status', 'compare' => 'NOT EXISTS' ],
-			],
+			'meta_query'     => $meta_query,
 		] );
 
 		$filtered = array_values( array_filter( $posts, static function ( $post ) use ( $user, $user_lines ) {
-			return Dealer_Search::user_can_access_post( $user, $user_lines, $post->ID );
+			return Dealer_Search::user_can_download_post( $user, $user_lines, $post->ID );
 		} ) );
 
 		return array_slice( $filtered, 0, $limit );
@@ -181,28 +195,35 @@ class Dealer_Dashboard {
 		$today = gmdate( 'Y-m-d' );
 		$in30  = gmdate( 'Y-m-d', strtotime( '+30 days' ) );
 
+		$meta_query = [
+			'relation' => 'AND',
+			[ 'key' => '_doc_expiry', 'value' => '',     'compare' => '!=' ],
+			[ 'key' => '_doc_expiry', 'value' => $today, 'compare' => '>=' ],
+			[ 'key' => '_doc_expiry', 'value' => $in30,  'compare' => '<=' ],
+			[
+				'relation' => 'OR',
+				[ 'key' => '_doc_status', 'value' => 'obsoleto', 'compare' => '!=' ],
+				[ 'key' => '_doc_status', 'compare' => 'NOT EXISTS' ],
+			],
+		];
+		// Solo versioni correnti, come nella ricerca: una versione superata
+		// resta scaricabile dallo storico ma non è un documento da segnalare.
+		if ( class_exists( 'Dealer_Versioning' ) ) {
+			$meta_query[] = Dealer_Versioning::meta_query_current_only();
+		}
+
 		$posts = get_posts( [
 			'post_type'   => 'documento_dealer',
 			'post_status' => 'publish',
 			'numberposts' => $limit * 4,
-			'meta_query'  => [
-				'relation' => 'AND',
-				[ 'key' => '_doc_expiry', 'value' => '',     'compare' => '!=' ],
-				[ 'key' => '_doc_expiry', 'value' => $today, 'compare' => '>=' ],
-				[ 'key' => '_doc_expiry', 'value' => $in30,  'compare' => '<=' ],
-				[
-					'relation' => 'OR',
-					[ 'key' => '_doc_status', 'value' => 'obsoleto', 'compare' => '!=' ],
-					[ 'key' => '_doc_status', 'compare' => 'NOT EXISTS' ],
-				],
-			],
-			'orderby'  => 'meta_value',
-			'meta_key' => '_doc_expiry',
-			'order'    => 'ASC',
+			'meta_query'  => $meta_query,
+			'orderby'     => 'meta_value',
+			'meta_key'    => '_doc_expiry',
+			'order'       => 'ASC',
 		] );
 
 		$filtered = array_values( array_filter( $posts, static function ( $post ) use ( $user, $user_lines ) {
-			return Dealer_Search::user_can_access_post( $user, $user_lines, $post->ID );
+			return Dealer_Search::user_can_download_post( $user, $user_lines, $post->ID );
 		} ) );
 
 		return array_slice( $filtered, 0, $limit );

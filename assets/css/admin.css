@@ -321,11 +321,30 @@
 	font-size: 11px;
 	font-weight: 700;
 	margin-right: 2px;
+	/* Colore di base per i ruoli creati da "Ruoli e Linee", che non hanno
+	   una regola dedicata: senza, comparivano come testo nudo accanto alle
+	   pillole dei tre ruoli storici. */
+	background: #646970;
+	color: #fff;
 }
 
 .dealer-role-dealer      { background: #1e6fa8; color: #fff; }
 .dealer-role-top_dealer  { background: #c0920a; color: #fff; }
 .dealer-role-part_center { background: #27ae60; color: #fff; }
+
+/* Errori di validazione del wizard (admin-upload.js: showError). Senza queste
+   regole il messaggio usciva come paragrafo qualunque e il campo non cambiava
+   aspetto: l'utente non capiva perché "Avanti" non procedesse. */
+.dealer-field-error {
+	border-color: #d63638 !important;
+	box-shadow: 0 0 0 1px #d63638;
+}
+
+.dealer-error-msg {
+	color: #d63638;
+	font-weight: 600;
+	margin: 6px 0 0;
+}
 
 /* Titolo con cui è avvenuto un download (log e archivio). Il dealer resta
    neutro: è il caso ordinario, e sono le deleghe a dover saltare all'occhio. */

@@ -224,7 +224,7 @@ require DEALER_PORTAL_PATH . 'templates/admin-org-styles.php';
 		<div class="postbox"><div class="inside">
 			<p><strong>Nessun utente del portale con questi criteri.</strong></p>
 			<p>
-				Gli utenti del portale sono quelli con ruolo Dealer, Top Dealer, Parts Center o Area Manager.
+				Gli utenti del portale sono quelli con ruolo <?php echo esc_html( implode( ', ', Dealer_Roles::labels() ) ); ?> o Area Manager.
 				Si creano da <a href="<?php echo esc_url( admin_url( 'user-new.php' ) ); ?>">Utenti → Aggiungi nuovo</a>
 				scegliendo uno di quei ruoli.
 			</p>

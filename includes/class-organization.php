@@ -407,12 +407,6 @@ class Dealer_Organization {
 		update_post_meta( $org_id, self::META_STATUS, $status );
 	}
 
-	/**
-	 * Imposta la madre impedendo i cicli: un'organizzazione non puo' diventare
-	 * figlia di una propria discendente.
-	 *
-	 * @return bool false se l'operazione creerebbe un ciclo.
-	 */
 	// ─── Migrazione dal modello per-utente ────────────────────────────────────
 
 	/**
@@ -514,6 +508,12 @@ class Dealer_Organization {
 		return $pending;
 	}
 
+	/**
+	 * Imposta la madre impedendo i cicli: un'organizzazione non puo' diventare
+	 * figlia di una propria discendente.
+	 *
+	 * @return bool false se l'operazione creerebbe un ciclo.
+	 */
 	public static function set_parent( int $org_id, int $parent_id ): bool {
 		if ( ! self::exists( $org_id ) ) {
 			return false;

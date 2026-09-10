@@ -62,9 +62,10 @@ $filters = [
 			</p>
 		<?php else : ?>
 			<p>
-				La pagina del modulo pubblico non risulta pubblicata. Creane una con lo shortcode
-				<code>[<?php echo esc_html( Dealer_Access_Request::SHORTCODE ); ?>]</code>,
-				oppure disattiva e riattiva il plugin per ricrearla automaticamente.
+				La pagina del modulo pubblico non risulta pubblicata. Il plugin la ricrea da solo al prossimo caricamento;
+				se non compare, usa il pulsante <strong>Ricrea le pagine mancanti</strong> dell'avviso in cima a wp-admin
+				(stato di ogni pagina in <a href="<?php echo esc_url( admin_url( 'admin.php?page=dealer-portal-diagnostics' ) ); ?>">Dealer Portal → Diagnostica</a>),
+				oppure crea una pagina con lo shortcode <code>[<?php echo esc_html( Dealer_Access_Request::SHORTCODE ); ?>]</code>: viene adottata.
 			</p>
 		<?php endif; ?>
 	</div>
@@ -95,7 +96,7 @@ $filters = [
 				<th>Ragione sociale</th>
 				<th style="width:200px;">Referente</th>
 				<th style="width:150px;">P. IVA</th>
-				<th style="width:90px;">Linee</th>
+				<th style="width:110px;">Già partner</th>
 				<th style="width:110px;">Stato</th>
 			</tr>
 		</thead>
@@ -124,7 +125,8 @@ $filters = [
 						<span class="description"><?php echo esc_html( $r['phone'] ); ?></span>
 					</td>
 					<td><?php echo esc_html( $r['vat'] ); ?></td>
-					<td><?php echo esc_html( (string) count( $r['lines'] ) ); ?></td>
+					<?php // Il modulo non chiede piu' le linee: la colonna che le contava mostrava sempre 0. ?>
+					<td><?php echo ! empty( $r['partner'] ) ? '<strong style="color:#00a32a;">Sì</strong>' : 'No'; ?></td>
 					<td>
 						<span style="display:inline-block;padding:2px 8px;border-radius:10px;color:#fff;font-size:11px;background:<?php echo esc_attr( $badge_bg ); ?>;">
 							<?php echo esc_html( $status_lbl ); ?>
@@ -233,7 +235,7 @@ $filters = [
 									<?php // ── Approvazione ─────────────────────────────────────── ?>
 									<h4 style="margin:0 0 6px;">Approva la richiesta</h4>
 									<p class="description" style="margin-top:0;">
-										Le linee indicate dal richiedente sono solo una proposta: conferma o correggi la selezione.
+										Il modulo pubblico non chiede le linee prodotto: scegli qui quelle da abilitare.
 										All’approvazione viene creato l’utente e gli viene inviato il link per impostare la password.
 										Nessuna password viene mai generata in chiaro.
 									</p>
@@ -275,7 +277,8 @@ $filters = [
 													</select>
 													<p class="description">
 														Tieni premuto <kbd>Ctrl</kbd> (Windows) o <kbd>Cmd</kbd> (Mac) per selezionare più linee.
-														Preselezionate quelle richieste dal dealer.
+														Se il richiedente lavora già con voi, cerca prima l’azienda in <em>Organizzazioni</em>: le linee di un utente
+														con organizzazione si ereditano da lì.
 													</p>
 												</td>
 											</tr>

@@ -344,8 +344,11 @@
 
 		var roles = [];
 		$( 'input[name="doc_roles[]"]:checked' ).each( function () {
-			var labels = { dealer: 'Dealer', top_dealer: 'Top Dealer', part_center: 'Parts Center' };
-			roles.push( labels[ $( this ).val() ] || $( this ).val() );
+			// L'etichetta viene dal markup, che la prende dai ruoli configurati:
+			// una mappa fissa qui mostrava lo slug grezzo per i ruoli nuovi e il
+			// vecchio nome per quelli rinominati.
+			var label = $.trim( $( this ).closest( 'label' ).text() );
+			roles.push( label || $( this ).val() );
 		} );
 
 		var lines = [];
@@ -680,9 +683,19 @@
 				showSelectedFile( files[ 0 ] );
 			}
 		} ).on( 'click keydown', function ( e ) {
-			if ( e.type === 'click' || e.key === 'Enter' || e.key === ' ' ) {
-				$( '#doc_file' ).trigger( 'click' );
+			if ( e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ' ) {
+				return;
 			}
+			// L'input e la sua label stanno DENTRO l'area: il loro click risale
+			// fin qui e, senza questa uscita, l'area lo rilanciava sull'input,
+			// da cui risaliva di nuovo — ricorsione fino all'esaurimento dello
+			// stack, con la finestra di scelta file che non si apriva. Per loro
+			// basta il comportamento nativo (stessa regola di dealer-am.js).
+			if ( $( e.target ).closest( 'label, input' ).length ) {
+				return;
+			}
+			e.preventDefault();
+			$( '#doc_file' ).trigger( 'click' );
 		} );
 	}
 

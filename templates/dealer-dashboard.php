@@ -4,7 +4,8 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  * Variabili da Dealer_Dashboard::render():
  * $user, $display_role, $role_labels, $last_login,
  * $recent_docs, $expiring_docs,
- * $favorite_docs    WP_Post[]  preferiti ancora accessibili
+ * $favorite_docs    WP_Post[]  preferiti ancora accessibili (primi MY_DOCS_LIMIT)
+ * $favorite_total   int        totale dei preferiti accessibili
  * $downloaded_docs  array[]    voci con post, last_download, download_count
  * $ref_nome, $ref_email, $ref_telefono
  *
@@ -52,7 +53,7 @@ $last_login_fmt = $last_login ? gmdate( 'd/m/Y \a\l\l\e H:i', strtotime( $last_l
 			<span class="dealer-card-text">Ricerca full-text nei manuali, listini, schede tecniche e certificazioni.</span>
 		</a>
 
-		<a class="dealer-card" href="<?php echo esc_url( add_query_arg( 'orderby', 'date', $search_url ) ); ?>">
+		<a class="dealer-card" href="<?php echo esc_url( add_query_arg( 'orderby', 'recent', $search_url ) ); ?>">
 			<span class="dealer-card-icon dashicons dashicons-calendar-alt"></span>
 			<span class="dealer-card-title">Documenti Recenti</span>
 			<span class="dealer-card-text">Ultimi documenti aggiunti per le tue linee di prodotto.</span>
@@ -62,7 +63,7 @@ $last_login_fmt = $last_login ? gmdate( 'd/m/Y \a\l\l\e H:i', strtotime( $last_l
 		</a>
 
 		<a class="dealer-card<?php echo empty( $expiring_docs ) ? ' dealer-card-disabled' : ''; ?>"
-			href="<?php echo $search_url; ?>">
+			href="<?php echo empty( $expiring_docs ) ? $search_url : '#dealer-scadenza'; ?>">
 			<span class="dealer-card-icon dashicons dashicons-warning"></span>
 			<span class="dealer-card-title">In Scadenza</span>
 			<span class="dealer-card-text">Documenti che scadono nei prossimi 30 giorni.</span>
@@ -75,8 +76,9 @@ $last_login_fmt = $last_login ? gmdate( 'd/m/Y \a\l\l\e H:i', strtotime( $last_l
 			<span class="dealer-card-icon dashicons dashicons-star-filled"></span>
 			<span class="dealer-card-title">I tuoi preferiti</span>
 			<span class="dealer-card-text">Etichettali, filtrali e ritrovali in una pagina dedicata.</span>
-			<?php if ( ! empty( $favorite_docs ) ) : ?>
-				<span class="dealer-card-badge"><?php echo count( $favorite_docs ); ?></span>
+			<?php // Il totale, non la lista troncata a MY_DOCS_LIMIT mostrata più sotto. ?>
+			<?php if ( $favorite_total > 0 ) : ?>
+				<span class="dealer-card-badge"><?php echo (int) $favorite_total; ?></span>
 			<?php endif; ?>
 		</a>
 
@@ -130,7 +132,7 @@ $last_login_fmt = $last_login ? gmdate( 'd/m/Y \a\l\l\e H:i', strtotime( $last_l
 
 	<!-- ── DOCUMENTI IN SCADENZA ─────────────────────────────────────────── -->
 	<?php if ( ! empty( $expiring_docs ) ) : ?>
-	<h2 class="dealer-section-title dealer-title-warn">
+	<h2 class="dealer-section-title dealer-title-warn" id="dealer-scadenza">
 		<span class="dashicons dashicons-warning"></span> Documenti in Scadenza
 	</h2>
 	<div class="dealer-doc-feed">

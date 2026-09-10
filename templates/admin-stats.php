@@ -163,9 +163,18 @@ $fmt_date = static function ( string $mysql_date ): string {
 						?>
 						<tr>
 							<td>
-								<a href="<?php echo esc_url( get_edit_user_link( $user_id ) ); ?>">
+								<?php
+								// L'area manager non modifica gli utenti: per lui il link e'
+								// vuoto e un href="" ricaricherebbe la pagina.
+								$user_edit_link = (string) get_edit_user_link( $user_id );
+								?>
+								<?php if ( $user_edit_link ) : ?>
+									<a href="<?php echo esc_url( $user_edit_link ); ?>">
+										<?php echo esc_html( $row->display_name ?: 'Utente #' . $user_id ); ?>
+									</a>
+								<?php else : ?>
 									<?php echo esc_html( $row->display_name ?: 'Utente #' . $user_id ); ?>
-								</a>
+								<?php endif; ?>
 							</td>
 							<td><?php echo esc_html( $fmt_date( (string) $row->last_download ) ); ?></td>
 							<td>
@@ -261,7 +270,7 @@ $fmt_date = static function ( string $mysql_date ): string {
 		</h2>
 		<div class="inside">
 			<p class="description">
-				Utenti con ruolo Dealer, Top Dealer o Parts Center che non scaricano da più di 90 giorni — o che non hanno mai scaricato nulla.
+				Utenti con ruolo <?php echo esc_html( implode( ', ', Dealer_Roles::labels() ) ); ?> che non scaricano da più di 90 giorni — o che non hanno mai scaricato nulla.
 			</p>
 			<?php if ( empty( $inactive_dealers ) ) : ?>
 				<p><strong>Nessun dealer inattivo:</strong> tutti hanno scaricato almeno un documento negli ultimi 90 giorni.</p>
@@ -290,7 +299,10 @@ $fmt_date = static function ( string $mysql_date ): string {
 						</td>
 						<td><?php echo esc_html( $fmt_date( (string) $dealer['last_login'] ) ); ?></td>
 						<td>
-							<a href="<?php echo esc_url( get_edit_user_link( (int) $dealer['id'] ) ); ?>" class="button button-small">Profilo</a>
+							<?php $profile_link = (string) get_edit_user_link( (int) $dealer['id'] ); ?>
+							<?php if ( $profile_link ) : ?>
+								<a href="<?php echo esc_url( $profile_link ); ?>" class="button button-small">Profilo</a>
+							<?php endif; ?>
 						</td>
 					</tr>
 				<?php endforeach; ?>

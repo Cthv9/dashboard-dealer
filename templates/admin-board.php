@@ -185,6 +185,7 @@ if ( ! Dealer_DB::user_can( DEALER_PORTAL_CAP ) ) {
 					<th style="width:20%">Azienda</th>
 					<th style="width:10%">Stato</th>
 					<th style="width:12%">Scadenza</th>
+					<th style="width:10%">Segnalazioni</th>
 					<th style="width:12%">Azioni</th>
 				</tr>
 			</thead>
@@ -196,6 +197,14 @@ if ( ! Dealer_DB::user_can( DEALER_PORTAL_CAP ) ) {
 					<td><?php echo esc_html( (string) get_post_meta( $listing->ID, Dealer_Board::META_ORG_NAME, true ) ); ?></td>
 					<td><?php echo esc_html( (string) get_post_meta( $listing->ID, Dealer_Board::META_STATUS, true ) ); ?></td>
 					<td><?php echo esc_html( (string) get_post_meta( $listing->ID, Dealer_Board::META_EXPIRY, true ) ); ?></td>
+					<?php
+					// Anche le segnalazioni che non hanno nascosto nulla: per le
+					// comunicazioni alla rete l'auto-nascondimento non vale
+					// (handle_report), e senza questa colonna l'amministratore
+					// non avrebbe modo di sapere che qualcuno le ha segnalate.
+					$listing_reports = (array) get_post_meta( $listing->ID, Dealer_Board::META_REPORTS, true );
+					?>
+					<td><?php echo esc_html( (string) count( array_filter( $listing_reports ) ) ); ?></td>
 					<td>
 						<form method="post" action="<?php echo esc_url( $post_url ); ?>">
 							<?php wp_nonce_field( 'dealer_board_moderate' ); ?>

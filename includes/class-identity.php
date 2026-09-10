@@ -55,9 +55,6 @@ class Dealer_Identity {
 	/** Ruolo dell'area manager. */
 	const ROLE_AREA_MANAGER = 'area_manager';
 
-	/** Ruoli dealer, allineati a Dealer_Search. */
-	const DEALER_ROLES = [ 'dealer', 'top_dealer', 'part_center' ];
-
 	/** Titolo con cui avviene un accesso: finisce nel log dei download. */
 	const CONTEXT_ADMIN        = 'admin';
 	const CONTEXT_AREA_MANAGER = 'area_manager';
@@ -96,7 +93,7 @@ class Dealer_Identity {
 		// Nessuna organizzazione: modello storico.
 		if ( ! $org_id ) {
 			$legacy = get_user_meta( $user->ID, self::META_LEGACY_LINES, true );
-			return is_array( $legacy ) ? array_values( array_filter( $legacy ) ) : [];
+			return self::only_valid( is_array( $legacy ) ? $legacy : [] );
 		}
 
 		// Organizzazione sospesa: nessun accesso, nemmeno ai documenti senza
@@ -113,7 +110,30 @@ class Dealer_Identity {
 			$lines = array_values( array_intersect( $lines, $limit ) );
 		}
 
-		return $lines;
+		return self::only_valid( $lines );
+	}
+
+	/**
+	 * Tiene solo le linee che esistono nel catalogo.
+	 *
+	 * I meta vengono filtrati al momento della scrittura, ma il catalogo puo'
+	 * cambiare dopo: una linea ritirata da Dealer Portal → Ruoli e Linee
+	 * restava nei diritti di chi ce l'aveva, mentre l'avviso mostrato
+	 * all'amministratore in quel salvataggio (vedi Dealer_Admin::
+	 * save_product_lines()) gli dice che da quel momento sparisce. La
+	 * promessa si mantiene qui, allo stesso modo di get_scope_lines(): il
+	 * catalogo e' l'unica fonte di cio' che una linea "e'", e un diritto su
+	 * una linea che non esiste piu' non e' un diritto.
+	 *
+	 * @param string[] $lines
+	 * @return string[]
+	 */
+	private static function only_valid( array $lines ): array {
+		$lines = array_values( array_filter( array_map( 'strval', $lines ) ) );
+		if ( empty( $lines ) || ! class_exists( 'Dealer_Admin' ) ) {
+			return $lines;
+		}
+		return array_values( array_intersect( $lines, Dealer_Admin::get_valid_lines() ) );
 	}
 
 	/**

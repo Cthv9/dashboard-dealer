@@ -3,8 +3,6 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class Dealer_Search {
 
-	private static array $dealer_roles = [ 'dealer', 'top_dealer', 'part_center' ];
-
 	/** Tetto massimo di documenti recuperati con una sola query (base per i facet). */
 	const MAX_RESULTS = 300;
 
@@ -1207,9 +1205,11 @@ class Dealer_Search {
 			wp_die( esc_html__( 'Non hai i permessi per scaricare questo documento.', 'dealer-portal' ), '', [ 'response' => 403 ] );
 		}
 
-		// Verifica che il documento non sia scaduto.
-		$expiry = get_post_meta( $post_id, '_doc_expiry', true );
-		if ( $expiry && strtotime( $expiry ) < time() ) {
+		// Verifica che il documento non sia scaduto. Stessa regola della
+		// ricerca (is_expired_doc): un documento che scade oggi è ancora
+		// scaricabile, altrimenti comparirebbe nei risultati con un pulsante
+		// che poi rifiuta.
+		if ( self::is_expired_doc( $post_id ) ) {
 			wp_die(
 				esc_html__( 'Questo documento è scaduto e non è più disponibile per il download.', 'dealer-portal' ),
 				'',
@@ -1264,7 +1264,7 @@ class Dealer_Search {
 		}
 
 		header( 'Content-Type: '        . $mime_type );
-		header( 'Content-Disposition: ' . $disposition . '; filename="' . rawurlencode( $filename ) . '"' );
+		header( self::content_disposition( $disposition, $filename ) );
 		header( 'Content-Length: '      . $file_size );
 		header( 'X-Content-Type-Options: nosniff' );
 		header( 'Cache-Control: no-store, no-cache, must-revalidate, max-age=0' );
@@ -1274,6 +1274,26 @@ class Dealer_Search {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_readfile
 		readfile( $real_file );
 		exit;
+	}
+
+	/**
+	 * Header Content-Disposition con il nome file in due forme: quella ASCII
+	 * (`filename=`) per i client più vecchi e quella RFC 5987 (`filename*=`)
+	 * per tutti gli altri. Con il solo `filename="…"` percent-encoded, come
+	 * era prima, Firefox salvava "Listino%20prezzi.pdf" con i %20 nel nome.
+	 */
+	private static function content_disposition( string $disposition, string $filename ): string {
+		$ascii = sanitize_file_name( remove_accents( $filename ) );
+		$ascii = preg_replace( '/[^\x20-\x7E]/', '', (string) $ascii );
+		$ascii = str_replace( [ '"', '\\' ], '', (string) $ascii );
+		if ( '' === trim( pathinfo( $ascii, PATHINFO_FILENAME ) ) ) {
+			$ext   = pathinfo( $ascii, PATHINFO_EXTENSION );
+			$ascii = 'documento' . ( '' !== $ext ? '.' . $ext : '' );
+		}
+
+		return 'Content-Disposition: ' . $disposition
+			. '; filename="' . $ascii . '"'
+			. "; filename*=UTF-8''" . rawurlencode( $filename );
 	}
 
 	// ─── Preferiti: fallback senza JavaScript ────────────────────────────────
@@ -1659,7 +1679,7 @@ class Dealer_Search {
 		}
 
 		header( 'Content-Type: application/zip' );
-		header( 'Content-Disposition: attachment; filename="' . rawurlencode( $archive_name ) . '"' );
+		header( self::content_disposition( 'attachment', $archive_name ) );
 		header( 'Content-Length: ' . $size );
 		header( 'X-Content-Type-Options: nosniff' );
 		header( 'Cache-Control: no-store, no-cache, must-revalidate, max-age=0' );
@@ -1820,11 +1840,12 @@ class Dealer_Search {
 	/**
 	 * Markup dei pulsanti di azione su un documento — "Vedi" (solo se
 	 * previewable) e "Scarica" (sempre). Unico punto che li genera: gli stessi
-	 * due pulsanti compaiono nella griglia di ricerca, nella dashboard, nei
-	 * preferiti e nell'area di lavoro dell'area manager, e duplicare il
-	 * markup in ognuno significherebbe aggiornarlo in quattro posti diversi
-	 * a ogni ritocco (esattamente il tipo di divergenza che questo plugin
-	 * cerca sempre di evitare sui punti che decidono un accesso).
+	 * due pulsanti compaiono nella griglia di ricerca, nella dashboard e nei
+	 * preferiti, e duplicare il markup in ognuno significherebbe aggiornarlo
+	 * in tre posti diversi a ogni ritocco (esattamente il tipo di divergenza
+	 * che questo plugin cerca sempre di evitare sui punti che decidono un
+	 * accesso). L'area di lavoro dell'area manager ha un proprio layout e usa
+	 * direttamente get_download_url() / get_view_url().
 	 *
 	 * @param int    $post_id
 	 * @param string $filename    Nome file originale — decide solo se mostrare
@@ -1886,15 +1907,24 @@ class Dealer_Search {
 
 	public static function is_expiring_doc( int $post_id ): bool {
 		$expiry = get_post_meta( $post_id, '_doc_expiry', true );
-		if ( ! $expiry ) { return false; }
-		$diff = strtotime( $expiry ) - time();
-		return $diff > 0 && $diff < ( 30 * DAY_IN_SECONDS );
+		if ( ! $expiry || self::is_expired_doc( $post_id ) ) { return false; }
+		return ( strtotime( $expiry ) - time() ) < ( 30 * DAY_IN_SECONDS );
 	}
 
+	/**
+	 * Scaduto = data di scadenza PRECEDENTE a oggi: lo stesso confronto per
+	 * giorno (`_doc_expiry >= Y-m-d`) con cui la query della ricerca decide
+	 * cosa mostrare e con cui il cron delle notifiche decide cosa segnalare.
+	 * Un confronto sull'istante (strtotime < time) considerava scaduto già a
+	 * mezzanotte un documento che la ricerca proponeva ancora per tutto il
+	 * giorno: risultato visibile, download rifiutato.
+	 */
 	public static function is_expired_doc( int $post_id ): bool {
 		$expiry = get_post_meta( $post_id, '_doc_expiry', true );
 		if ( ! $expiry ) { return false; }
-		return strtotime( $expiry ) < time();
+		$ts = strtotime( (string) $expiry );
+		if ( false === $ts ) { return false; }
+		return gmdate( 'Y-m-d', $ts ) < gmdate( 'Y-m-d' );
 	}
 }
 

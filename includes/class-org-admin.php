@@ -91,7 +91,7 @@ class Dealer_Org_Admin {
 	// ─── Menu ─────────────────────────────────────────────────────────────────
 
 	public function register_menu(): void {
-// Registrata con 'manage_options' e non con una capability del plugin: la
+		// Registrata con 'manage_options' e non con una capability del plugin: la
 		// diagnostica su un sito reale ha mostrato il ruolo administrator CON le
 		// nostre capability e l'utente administrator SENZA — qualcosa le nega a
 		// runtime. Quando succede add_submenu_page() non registra la voce e non
@@ -391,6 +391,7 @@ class Dealer_Org_Admin {
 
 			$is_am  = Dealer_Identity::is_area_manager( $user );
 			$org_id = Dealer_Identity::get_org_id( $user );
+			$tier   = $is_am ? '' : Dealer_Identity::get_effective_tier( $user );
 
 			// Per un area manager le linee sono il perimetro di PUBBLICAZIONE;
 			// per un dealer sono le linee che VEDE. Due significati diversi: la
@@ -408,9 +409,12 @@ class Dealer_Org_Admin {
 				'name'       => (string) $user->display_name,
 				'email'      => (string) $user->user_email,
 				'is_am'      => $is_am,
+				// Etichetta dai ruoli configurati, non dal seme ROLES: un ruolo
+				// rinominato compariva col vecchio nome e uno creato da "Ruoli e
+				// Linee" con un trattino, proprio nella schermata che li gestisce.
 				'role'       => $is_am
 					? 'Area Manager'
-					: ( Dealer_Roles::ROLES[ Dealer_Identity::get_effective_tier( $user ) ] ?? '—' ),
+					: ( '' !== $tier ? Dealer_Roles::label( $tier ) : '—' ),
 				'org_id'     => $org_id,
 				'org_name'   => $org_id ? Dealer_Organization::get_name( $org_id ) : '',
 				'function'   => $org_id
@@ -429,10 +433,12 @@ class Dealer_Org_Admin {
 			];
 		}
 
+		// Stesso insieme di $portal_roles: i ruoli attivi, con le etichette
+		// correnti. Con il seme ROLES un ruolo nuovo non era filtrabile.
 		$role_options = [
 			''                                 => 'Tutti i ruoli',
 			Dealer_Identity::ROLE_AREA_MANAGER => 'Area Manager',
-		] + Dealer_Roles::ROLES;
+		] + Dealer_Roles::labels();
 
 		$base_url = self::roles_page_url();
 		$orgs_url = self::page_url();
@@ -1065,6 +1071,13 @@ class Dealer_Org_Admin {
 				Dealer_Organization::set_parent( $child, $dest );
 			}
 
+			// Gli area manager che seguivano la sorgente seguono ora la
+			// destinazione: e' li' che sono finiti i loro dealer. Senza questo
+			// passaggio l'eliminazione della sorgente li lascerebbe con un
+			// perimetro piu' stretto, in silenzio, e i log/utenti di quei
+			// dealer sparirebbero dalla loro vista.
+			self::reassign_am_scope( $source_id, $dest );
+
 			// Si elimina solo cio' che e' rimasto davvero vuoto.
 			if ( empty( Dealer_Organization::get_users( $source_id ) ) && empty( Dealer_Organization::get_children( $source_id ) ) ) {
 				wp_delete_post( $source_id, true );
@@ -1073,6 +1086,31 @@ class Dealer_Org_Admin {
 		}
 
 		$this->redirect( 'merged', [ 'view' => 'edit', 'org' => $dest, 'moved' => $moved, 'gone' => $deleted ] );
+	}
+
+	/**
+	 * Sostituisce $from con $to nel perimetro di ogni area manager che lo
+	 * segue. Passa da set_am_scope(), unico punto di scrittura del meta.
+	 */
+	private static function reassign_am_scope( int $from, int $to ): void {
+		$managers = get_users( [
+			'role'       => 'area_manager',
+			'meta_key'   => Dealer_Identity::META_AM_ORGS,
+			'fields'     => 'ID',
+			'number'     => -1,
+		] );
+
+		foreach ( $managers as $am_id ) {
+			$am_id = (int) $am_id;
+			$orgs  = array_map( 'intval', (array) get_user_meta( $am_id, Dealer_Identity::META_AM_ORGS, true ) );
+			if ( ! in_array( $from, $orgs, true ) ) {
+				continue;
+			}
+			$orgs   = array_diff( $orgs, [ $from ] );
+			$orgs[] = $to;
+			$lines  = (array) get_user_meta( $am_id, Dealer_Identity::META_AM_LINES, true );
+			Dealer_Identity::set_am_scope( $am_id, $orgs, $lines );
+		}
 	}
 
 	// ─── Handler: assegnazione utente ─────────────────────────────────────────

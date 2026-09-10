@@ -185,11 +185,19 @@ $versionable = Dealer_Versioning::get_versionable_documents();
 				<tr>
 					<th>Ruoli autorizzati <span class="required">*</span></th>
 					<td>
-						<fieldset>
+						<?php
+						// Dai ruoli configurati, non da un elenco fisso: dalla 1.5.0
+						// l'amministratore li rinomina, li disattiva e ne crea di
+						// nuovi, e un ruolo che qui non compare non e' assegnabile a
+						// nessun documento. L'id sul fieldset e' quello a cui
+						// admin-upload.js aggancia l'errore "seleziona almeno un
+						// ruolo": senza, il pulsante Avanti restava muto.
+						?>
+						<fieldset id="doc_roles_group">
 							<legend class="screen-reader-text">Seleziona i ruoli che possono vedere questo documento</legend>
-							<label><input type="checkbox" name="doc_roles[]" value="dealer"> <strong>Dealer</strong> — accesso base</label><br>
-							<label><input type="checkbox" name="doc_roles[]" value="top_dealer"> <strong>Top Dealer</strong> — accesso esteso</label><br>
-							<label><input type="checkbox" name="doc_roles[]" value="part_center"> <strong>Parts Center</strong> — ricambi e tecnico</label>
+							<?php foreach ( Dealer_Roles::labels() as $role_slug => $role_label ) : ?>
+								<label><input type="checkbox" name="doc_roles[]" value="<?php echo esc_attr( $role_slug ); ?>"> <strong><?php echo esc_html( $role_label ); ?></strong></label><br>
+							<?php endforeach; ?>
 						</fieldset>
 						<p class="description">Seleziona almeno un ruolo.</p>
 					</td>

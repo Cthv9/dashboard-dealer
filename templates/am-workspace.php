@@ -117,21 +117,27 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 	.dealer-am-grid > label > span em{font-weight:400;font-style:normal;color:var(--am-muted);}
 	.dealer-am-grid input[type="text"]{width:100%;padding:10px 12px;border:1px solid var(--am-border);
 		border-radius:6px;font:inherit;font-size:.93rem;box-sizing:border-box;}
-	.dealer-am-lines{margin:0 0 18px;padding:16px 18px;border:1px solid var(--am-border);
-		border-radius:var(--am-radius);background:var(--am-gray);}
-	.dealer-am-lines legend{padding:0 6px;font-weight:700;font-size:.82rem;letter-spacing:.05em;
-		text-transform:uppercase;color:var(--am-muted);}
+	/* Il fieldset delle linee e' ancorato a .dealer-am-neworg: .dealer-am-lines
+	   e' anche il riquadro scorrevole delle caselle nei moduli d'invito e nel
+	   wizard (regole piu' sotto), e una regola globale qui lo ridisegnava. */
+	.dealer-am-neworg .dealer-am-lines{margin:0 0 18px;padding:16px 18px;max-height:none;
+		border-radius:var(--am-radius);}
+	.dealer-am-neworg .dealer-am-lines legend{padding:0 6px;font-weight:700;font-size:.82rem;
+		letter-spacing:.05em;text-transform:uppercase;color:var(--am-muted);}
 	.dealer-am-lineopts{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px 18px;}
 	.dealer-am-lineopt{display:flex;align-items:flex-start;gap:8px;font-size:.9rem;}
 	.dealer-am-submit{display:flex;justify-content:flex-end;padding-top:16px;
 		border-top:1px solid var(--am-border);}
 	.dealer-am-btn-primary{background:var(--am-blue);color:#fff;}
-	.dealer-am-check{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;
-		border:1px solid var(--am-border);border-radius:8px;background:var(--am-gray);
+	/* Casella "titolare" del modulo d'invito: un riquadro con spiegazione,
+	   ancorato al suo contenitore perche' .dealer-am-check e' la casella
+	   compatta di ogni linea prodotto. */
+	.dealer-am-titolare .dealer-am-check{display:flex;align-items:flex-start;gap:10px;margin:0;
+		padding:12px 14px;border:1px solid var(--am-border);border-radius:8px;background:var(--am-gray);
 		font-size:.92rem;line-height:1.45;cursor:pointer;}
-	.dealer-am-check input{margin-top:3px;}
-	.dealer-am-check em{display:block;margin-top:4px;font-style:normal;font-size:.85rem;
-		color:var(--am-muted);}
+	.dealer-am-titolare .dealer-am-check input{margin-top:3px;}
+	.dealer-am-titolare .dealer-am-check em{display:block;margin-top:4px;font-style:normal;
+		font-size:.85rem;color:var(--am-muted);}
 	@media(max-width:700px){.dealer-am-grid{grid-template-columns:1fr;}
 		.dealer-am-submit{justify-content:stretch;}
 		.dealer-am-submit .dealer-am-btn{flex:1 1 auto;text-align:center;}}

@@ -237,7 +237,7 @@ Le pagine del portale sono cinque e ognuna, in origine, sapeva tornare solo alla
 `Dealer_Portal_Nav` sostituisce quei link con **una sola barra**, agganciata a `the_content` sulle pagine riconosciute dal plugin (per ID salvato in opzione, non per slug):
 
 - vale anche per le **schermate di cortesia** — "accesso non autorizzato", "quest'area è riservata al titolare", "il tuo perimetro non è ancora configurato", "organizzazione sospesa" — che sono solo una stringa restituita dallo shortcode e non passano da nessun template. Erano esattamente i vicoli ciechi trovati in collaudo;
-- mostra a ciascuno **solo le voci che per lui funzionano**: il dealer vede Dashboard, Cerca Documenti e Preferiti; il titolare anche Collaboratori; l'area manager la propria area di lavoro; l'amministratore ciò che il plugin gli lascia aprire. Un link che porta a "accesso non autorizzato" è peggio di un link assente;
+- mostra a ciascuno **solo le voci che per lui funzionano**: il dealer vede Dashboard, Cerca Documenti e Preferiti; il titolare anche Collaboratori; l'area manager la propria area di lavoro; l'amministratore ciò che il plugin gli lascia aprire. La Bacheca, se attiva, compare per tutti, con il contatore delle novità. Un link che porta a "accesso non autorizzato" è peggio di un link assente;
 - contiene **sempre "Esci"**, per chiunque sia autenticato. Il link fluttuante di `Dealer_Access_Guard` è condizionato a `is_portal_user()`, che è falsa per l'amministratore: chi collauda cambiando ruolo restava senza via d'uscita proprio quando gli serviva.
 
 Lo stile è stampato con la barra, non nel foglio comune: i template del portale non condividono un unico CSS e le schermate di cortesia vengono restituite prima che gli asset siano accodati.
@@ -279,9 +279,9 @@ In **Dealer Portal → Bacheca** l'amministratore trova la coda dei segnalati, g
 
 È il modo in cui si entra nel portale senza che un amministratore crei l'utente a mano. La pagina esiste ed è pubblica: `richiesta-accesso`, con lo shortcode `[dealer_access_request]`, creata in automatico come le altre.
 
-1. Il visitatore compila il modulo. Non viene creato **nessun** utente: nasce solo una richiesta nel CPT privato `dealer_access_req`, in stato *in attesa*.
+1. Il visitatore compila il modulo: ragione sociale, referente, email, telefono, partita IVA, la domanda **«Lavori già con noi?»** (obbligatoria) con un campo per il referente o il codice cliente, e una nota. Le linee prodotto non vengono chieste. Non viene creato **nessun** utente: nasce solo una richiesta nel CPT privato `dealer_access_req`, in stato *in attesa*.
 2. Gli amministratori ricevono la notifica e la trovano in **Dealer Portal → Richieste Accesso**, con il badge dei contenuti in attesa.
-3. All'approvazione l'amministratore sceglie **ruolo e linee prodotto definitivi** — quelli richiesti sono una proposta, non un impegno.
+3. All'approvazione l'amministratore sceglie **ruolo e linee prodotto** (il ruolo fra quelli dealer attivi in "Ruoli e Linee"). Se il richiedente ha dichiarato di essere già partner, la coda ricorda di cercare prima l'azienda in *Organizzazioni*.
 4. Solo a quel punto l'utente WordPress viene creato, con le linee assegnate, e riceve un link per impostare la propria password. Nessuna password in chiaro viene mai generata né inviata.
 
 Il punto di ingresso è la schermata di login (`wp-login.php`), dove il plugin aggiunge da sé il link "Non hai ancora un accesso? Richiedilo qui": è l'unico posto dove chi vuole entrare arriva sicuramente da solo, e non richiede che qualcuno si ricordi di mettere un link nel menu del sito. L'URL della pagina è comunque mostrato in cima a **Richieste Accesso**, pronto da copiare dove serve.
@@ -428,6 +428,7 @@ Indici su `user_id`, `post_id`, `download_date`. `access_context` è stata aggiu
 | `_dar_company` / `_dar_vat` | string | Ragione sociale e P. IVA, dalla richiesta di accesso |
 | `_dealer_invited_by` / `_dealer_invited_at` | int / string | Chi e quando ha invitato un collaboratore |
 | `_dealer_deactivated_by` / `_dealer_deactivated_at` | int / string | Chi e quando ha disattivato un collaboratore |
+| `_dealer_board_sent` / `_dealer_board_seen` | array / string | Bacheca: copia delle risposte inviate e datetime dell'ultimo passaggio (base del contatore "novità" nella barra) |
 
 `Dealer_Identity::get_effective_lines()` è l'unico punto che va interrogato per sapere cosa un utente può vedere: risolve `_dealer_org` quando presente (organizzazione ∩ `_dealer_line_limit`) e ricade su `_dealer_lines` altrimenti. Nessun altro codice dovrebbe leggere questi meta direttamente per decidere un accesso.
 
@@ -450,6 +451,10 @@ Indici su `user_id`, `post_id`, `download_date`. `access_context` è stata aggiu
 | `dealer_portal_schema_revision` | Contatore di revisione dello schema della tabella log, stesso meccanismo delle capability |
 | `dealer_portal_media_revision` | Contatore di revisione della marcatura degli allegati dei documenti, per toglierli dalla Libreria Media anche su un'installazione già attiva |
 | `dealer_portal_pages_revision` | Contatore di revisione dell'elenco delle pagine del portale: crea quelle mancanti su un'installazione già attiva, senza richiedere la riattivazione |
+| `dealer_portal_roles` | Mappa dei ruoli dealer (etichette, attivi/disattivi, ruoli creati dall'amministratore) da "Ruoli e Linee" |
+| `dealer_portal_product_lines` | Catalogo brand → linee prodotto, modificabile da "Ruoli e Linee" |
+
+Tutte queste opzioni, insieme ai transient del plugin, vengono rimosse da `uninstall.php`.
 
 ### Capability
 
@@ -469,6 +474,7 @@ Nessuna capability ne implica un'altra: la mappa in `Dealer_DB::capability_map()
 | `dealer_portal_process_mail_queue` | evento singolo, si riprogramma | Worker della coda email |
 | `dealer_portal_dealer_expiry_digest` | settimanale | Digest scadenze ai dealer |
 | `dealer_portal_admin_expiry_report` | giornaliero | Report scadenze agli admin |
+| `dealer_portal_board_sweep` | giornaliero | Scadenza degli annunci della bacheca e promemoria ai loro autori (solo a bacheca attiva) |
 
 Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono rimossi alla disattivazione e alla disinstallazione.
 
@@ -502,6 +508,32 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 ---
 
 ## Changelog
+
+### 1.13.0
+
+Revisione completa prima della versione finale: cinque revisori indipendenti, uno per perimetro (pagine dealer, bacheca, delega titolare/area manager, back-office wp-admin, infrastruttura e accesso), con la consegna di enumerare ogni punto d'ingresso — shortcode, form, link, pulsante, AJAX, cron — e seguirlo fino all'handler. Verifica statica: nessun file è stato eseguito su un WordPress reale, quindi resta l'elenco delle prove da fare a mano nel sito. Corretto quello che è emerso.
+
+**Bloccava.**
+- **Wizard di caricamento, passo 3 senza ruoli:** «Avanti» non faceva nulla e non compariva nessun messaggio (il JS cercava un `id` che nel modulo non c'era).
+- **Con i permalink «semplici» (`?page_id=N`)** il modulo di ricerca senza JavaScript e il selettore di ordinamento dei Preferiti finivano sulla ricerca del tema o sulla home: un form GET scarta la query string dell'`action`. I parametri del permalink viaggiano ora come campi nascosti.
+
+**Degradava.**
+- **Un documento che scade *oggi*** compariva in ricerca e dashboard con «Scarica», ma il click rispondeva «documento scaduto»: ricerca e cron confrontavano per giorno, il download per istante. Un'unica regola per tutti e tre.
+- «Ultimi documenti aggiunti» in dashboard poteva elencare un documento scaduto o, il giorno di un aggiornamento, anche la versione superata.
+- Il click sull'area tratteggiata del wizard (non sulla etichetta) entrava in una ricorsione infinita e la finestra file non si apriva.
+- Un **ruolo creato o rinominato in «Ruoli e Linee»** non compariva nel wizard admin, nel modulo dell'area manager, nel filtro dell'archivio né nella tabella di «Ruoli e Linee»: elenchi scritti a mano invece di `Dealer_Roles::labels()`.
+- **Fusione di organizzazioni:** un area manager che seguiva la sorgente la perdeva in silenzio. Ora segue la destinazione, dove sono finiti i suoi dealer.
+- Modulo pubblico: «Lavori già con noi?» era obbligatorio solo a parole; senza risposta il server assumeva «no». Ora è validato.
+- Coda richieste: la colonna «Linee» segnava sempre 0 (il modulo non le chiede più) → sostituita da «Già partner».
+- Bacheca: il rinnovo di un annuncio ignorava lo stato «nascosto» e il tetto di annunci attivi; le segnalazioni sulle comunicazioni non erano visibili in amministrazione; le foto scattate da telefono potevano comparire ruotate; il contatore restava acceso anche sulla pagina della Bacheca.
+- Delega: `get_effective_lines()` non intersecava più con il catalogo dopo la rimozione di una linea; la creazione azienda dell'area manager usava `check_admin_referer` (schermata bianca invece del messaggio) → nonce PRG.
+- Per l'area manager, in Log e Statistiche, i link «Modifica» puntavano a `href=""` (ricarica della pagina).
+- Disinstallazione: restava pianificato il cron della bacheca e restavano transient e meta di appoggio.
+- Nome del file scaricato con spazi o accenti (`Listino%20prezzi.pdf` su Firefox) → `filename*=UTF-8''`.
+
+**Piccolezze.** Badge «I tuoi preferiti» limitato a 8; card «In scadenza» che portava alla ricerca generica; chi clicca «Accedi» dalla Bacheca torna alla Bacheca e non alla dashboard; avviso «pagine mancanti» doppio nella Diagnostica; Diagnostica che non elencava `Dealer_Board` e `Dealer_Portal_Nav`; stili CSS in collisione tra bacheca e area manager; costanti di ruolo scritte a mano e mai usate, rimosse; commenti e testi non più veri.
+
+**Non cambiato, da sapere.** Il ripiego `wp_new_user_notification()` (se la mail del plugin fallisce) parte dal mittente predefinito di WordPress. Il tetto giornaliero della bacheca si azzera a mezzanotte UTC.
 
 ### 1.12.1
 

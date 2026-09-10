@@ -37,8 +37,10 @@ class Dealer_Access_Request {
 	const STATUS_APPROVED = 'approved';
 	const STATUS_REJECTED = 'rejected';
 
-	/** Ruoli assegnabili in approvazione. Mai accettare altro dal POST. */
-	const ALLOWED_ROLES = [ 'dealer', 'top_dealer', 'part_center' ];
+	// I ruoli assegnabili in approvazione NON sono una costante: sono i ruoli
+	// dealer attivi di Dealer_Roles::dealer_slugs(), che l'amministratore puo'
+	// ampliare da "Ruoli e Linee". Un elenco scritto qui avrebbe rifiutato
+	// proprio i ruoli creati da lui (vedi handle_approve()).
 
 	/** Anti-spam: massimo di richieste per IP nella finestra temporale. */
 	const RATE_LIMIT_MAX    = 3;
@@ -170,7 +172,6 @@ class Dealer_Access_Request {
 
 		$title          = (string) $atts['titolo'];
 		$is_logged_in   = is_user_logged_in();
-		$lines_by_brand = Dealer_Admin::get_product_lines();
 		$prefill        = isset( $feedback['data'] ) && is_array( $feedback['data'] ) ? $feedback['data'] : [];
 		$form_time      = time();
 		$form_time_hash = self::time_hash( $form_time );
@@ -255,6 +256,13 @@ class Dealer_Access_Request {
 			$errors[] = 'La partita IVA è obbligatoria.';
 		} elseif ( ! preg_match( '/^[A-Za-z0-9]{8,20}$/', str_replace( [ ' ', '.', '-' ], '', $data['vat'] ) ) ) {
 			$errors[] = 'La partita IVA non sembra valida (da 8 a 20 caratteri alfanumerici).';
+		}
+		// Il modulo la segna come obbligatoria (e ha novalidate, quindi il
+		// browser non la impone): senza questo controllo un invio senza
+		// risposta passava come "no" in silenzio, e chi approva avrebbe aperto
+		// una nuova azienda a un partner gia' in archivio.
+		if ( ! in_array( sanitize_key( self::post_string( 'dar_partner' ) ), [ 'si', 'no' ], true ) ) {
+			$errors[] = 'Indica se lavori già con noi.';
 		}
 		// Le linee NON si chiedono piu' a chi si presenta: chi scrive non sa
 		// come e' organizzato il nostro catalogo, e comunque l'assegnazione

@@ -179,6 +179,13 @@ class Dealer_Board {
 		add_filter( 'query_vars',        [ $this, 'add_query_vars' ] );
 		add_action( 'template_redirect', [ $this, 'serve_image' ] );
 
+		// Le novita' si segnano viste gia' qui, prima che il tema stampi
+		// qualcosa: la barra di navigazione gira su the_content a priorita' 5,
+		// lo shortcode a 11, e se il segno arrivasse solo da render() la
+		// barra sulla bacheca stessa mostrerebbe ancora il numerino di cio'
+		// che l'utente ha gia' sotto gli occhi. Vedi mark_seen_early().
+		add_action( 'template_redirect', [ $this, 'mark_seen_early' ] );
+
 		// Manutenzione: scadenze e promemoria.
 		add_action( self::CRON_SWEEP, [ __CLASS__, 'run_sweep' ] );
 
@@ -635,9 +642,12 @@ class Dealer_Board {
 			'err_day'   => 'Hai pubblicato troppi annunci per oggi: riprova domani.',
 			'err_field' => 'Mancano dei dati obbligatori: l’annuncio non è stato pubblicato.',
 			'err_perm'  => 'Non puoi intervenire su questo annuncio.',
-			'err_image' => 'Una o più immagini non sono state accettate: sono ammessi JPG, PNG e WEBP.',
+			'err_image' => 'Annuncio pubblicato, ma una o più immagini non sono state accettate: '
+				. 'sono ammessi JPG, PNG e WEBP.',
 			'err_reply' => 'Il messaggio non è stato inviato: riprova.',
 			'err_closed' => 'Questo annuncio non accetta risposte.',
+			'err_hidden' => 'Questo annuncio è stato nascosto dopo alcune segnalazioni: '
+				. 'può ripristinarlo solo l’amministratore.',
 		];
 
 		return $map[ $key ] ?? '';
@@ -743,6 +753,18 @@ class Dealer_Board {
 				break;
 
 			case 'renew':
+				// Un annuncio nascosto dalle segnalazioni torna attivo solo per
+				// mano dell'amministratore (vedi handle_moderate): se bastasse
+				// "Ripubblica", l'auto-nascondimento sarebbe un pulsante da
+				// premere per annullarlo. Il tetto sugli attivi vale come alla
+				// pubblicazione: rimettere in bacheca e' pubblicare di nuovo.
+				if ( self::STATUS_HIDDEN === (string) get_post_meta( $post_id, self::META_STATUS, true )
+					&& ! Dealer_DB::user_can( DEALER_PORTAL_CAP ) ) {
+					self::redirect( 'err_hidden' );
+				}
+				if ( self::active_count( (int) get_post_field( 'post_author', $post_id ) ) >= (int) self::option( 'max_active' ) ) {
+					self::redirect( 'err_limit' );
+				}
 				update_post_meta( $post_id, self::META_STATUS, self::STATUS_ACTIVE );
 				update_post_meta( $post_id, self::META_EXPIRY, self::default_expiry( (string) get_post_meta( $post_id, self::META_TYPE, true ) ) );
 				delete_post_meta( $post_id, self::META_REMINDED );
@@ -1030,6 +1052,15 @@ class Dealer_Board {
 		$editor = wp_get_image_editor( $path );
 		if ( is_wp_error( $editor ) ) {
 			return;
+		}
+
+		// La foto scattata col telefono in verticale e' spesso salvata di lato,
+		// con l'orientamento giusto scritto solo nell'EXIF. La riscrittura
+		// qui sotto toglie l'EXIF — e' lo scopo — quindi la rotazione va
+		// applicata ai pixel PRIMA, altrimenti l'annuncio mostrerebbe il pezzo
+		// coricato. method_exists: il metodo esiste da WordPress 5.3.
+		if ( method_exists( $editor, 'maybe_exif_rotate' ) ) {
+			$editor->maybe_exif_rotate();
 		}
 
 		$size = $editor->get_size();
@@ -1380,6 +1411,27 @@ class Dealer_Board {
 	private static function mark_seen( int $user_id ): void {
 		update_user_meta( $user_id, self::USER_SEEN, current_time( 'mysql' ) );
 		delete_transient( 'dealer_board_unread_' . $user_id );
+	}
+
+	/**
+	 * Vedi il commento sull'aggancio in __construct(). Stesse condizioni di
+	 * render(): si segna solo cio' che l'utente sta davvero per vedere. La
+	 * chiamata dentro render() resta, come rete di sicurezza.
+	 */
+	public function mark_seen_early(): void {
+		if ( is_admin() || ! is_page() || ! is_user_logged_in() || ! self::is_enabled() ) {
+			return;
+		}
+
+		$page_id = (int) get_option( 'dealer_portal_board_page_id' );
+		if ( ! $page_id || (int) get_queried_object_id() !== $page_id ) {
+			return;
+		}
+
+		$user = wp_get_current_user();
+		if ( self::user_can_use( $user ) ) {
+			self::mark_seen( (int) $user->ID );
+		}
 	}
 
 	/**
