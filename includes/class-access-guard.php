@@ -50,6 +50,17 @@ class Dealer_Access_Guard {
 		add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_layout_helper' ] );
 		add_action( 'wp_footer', [ $this, 'render_floating_logout' ] );
 		add_filter( 'body_class', [ $this, 'add_body_class' ] );
+
+		// Alcuni plugin di area riservata filtrano la query principale in base
+		// al ruolo e trasformano in 404 anche pagine WordPress pubbliche. Le
+		// pagine di Dealer Portal sono volutamente pubbliche come contenitore:
+		// i dati riservati sono protetti dagli shortcode, non dallo stato della
+		// pagina. Se la richiesta punta ESATTAMENTE a una nostra pagina
+		// pubblicata, si ripristina solo quella. (Diagnosi e correzione
+		// arrivate dalla build in produzione: era questa la causa reale dei 404
+		// sul sito ufficiale, non lo stato delle pagine.)
+		add_filter( 'the_posts',      [ $this, 'restore_plugin_page_query' ], PHP_INT_MAX, 2 );
+		add_filter( 'pre_handle_404', [ $this, 'prevent_plugin_page_404' ],   PHP_INT_MAX, 2 );
 		// Rete di sicurezza sul foglio di stile: vedi inline_stylesheet_fallback().
 		add_filter( 'the_content', [ $this, 'inline_stylesheet_fallback' ], 4 );
 		add_action( 'template_redirect', [ $this, 'route_dashboard' ] );
@@ -73,12 +84,18 @@ class Dealer_Access_Guard {
 	 * il link "Accedi", che funziona ed è meno brusco.
 	 */
 	public function route_dashboard(): void {
-		if ( is_admin() || ! is_page() ) {
+		// Niente is_page() qui: quando un filtro esterno azzera la query
+		// principale quel controllo e' falso proprio sulla pagina che stiamo
+		// cercando di salvare. L'identificazione passa dall'URL richiesto.
+		if ( is_admin() ) {
 			return;
 		}
 
 		$dashboard_id = (int) get_option( 'dealer_portal_dashboard_page_id' );
-		if ( ! $dashboard_id || get_queried_object_id() !== $dashboard_id ) {
+		$requested_id = self::requested_plugin_page_id();
+		$current_id   = $requested_id ?: (int) get_queried_object_id();
+
+		if ( ! $dashboard_id || $current_id !== $dashboard_id ) {
 			return;
 		}
 
@@ -94,6 +111,121 @@ class Dealer_Access_Guard {
 			wp_safe_redirect( Dealer_DB::area_manager_url() );
 			exit;
 		}
+	}
+
+	/**
+	 * ID della pagina Dealer Portal richiesta dall'URL corrente.
+	 *
+	 * Il confronto avviene sul path del permalink reale, non sullo slug. Questo
+	 * evita falsi positivi e continua a funzionare con WordPress in sottocartella
+	 * o con pagine rinominate. Restituisce soltanto pagine ancora pubblicate.
+	 */
+	private static function requested_plugin_page_id(): int {
+		// Memorizzata: la chiamano tre agganci diversi nella stessa richiesta
+		// (the_posts, pre_handle_404, route_dashboard) e ognuno costerebbe fino
+		// a sette get_permalink(). L'URL richiesto non cambia in corsa.
+		static $memo = null;
+		if ( null !== $memo ) {
+			return $memo;
+		}
+		$memo = 0;
+
+		if ( is_admin() || empty( $_SERVER['REQUEST_URI'] ) ) {
+			return $memo;
+		}
+
+		$request_uri  = esc_url_raw( wp_unslash( $_SERVER['REQUEST_URI'] ) );
+		$request_path = (string) wp_parse_url( $request_uri, PHP_URL_PATH );
+		$request_path = '/' . ltrim( rawurldecode( $request_path ), '/' );
+		$request_path = untrailingslashit( $request_path );
+		if ( '' === $request_path ) {
+			$request_path = '/';
+		}
+
+		$options = [
+			'dealer_portal_dashboard_page_id',
+			'dealer_portal_search_page_id',
+			'dealer_portal_team_page_id',
+			'dealer_portal_am_page_id',
+			'dealer_portal_fav_page_id',
+			'dealer_portal_board_page_id',
+			'dealer_portal_request_page_id',
+		];
+
+		foreach ( $options as $option ) {
+			$page_id = (int) get_option( $option );
+			if ( ! $page_id || 'page' !== get_post_type( $page_id ) || 'publish' !== get_post_status( $page_id ) ) {
+				continue;
+			}
+			$permalink = get_permalink( $page_id );
+			if ( ! $permalink ) {
+				continue;
+			}
+			$page_path = (string) wp_parse_url( $permalink, PHP_URL_PATH );
+			$page_path = '/' . ltrim( rawurldecode( $page_path ), '/' );
+			$page_path = untrailingslashit( $page_path );
+			if ( '' === $page_path ) {
+				$page_path = '/';
+			}
+			if ( $request_path === $page_path ) {
+				$memo = $page_id;
+				return $memo;
+			}
+		}
+
+		return $memo;
+	}
+
+	/**
+	 * Ripristina esclusivamente una pagina del plugin che un filtro esterno ha
+	 * rimosso dalla query principale. Non rende accessibile nessun altro post e
+	 * non salta i controlli del portale: quelli restano dentro gli shortcode.
+	 */
+	public function restore_plugin_page_query( array $posts, \WP_Query $query ): array {
+		if ( is_admin() || ! $query->is_main_query() ) {
+			return $posts;
+		}
+
+		$page_id = self::requested_plugin_page_id();
+		if ( ! $page_id ) {
+			return $posts;
+		}
+
+		foreach ( $posts as $post ) {
+			if ( $post instanceof \WP_Post && (int) $post->ID === $page_id ) {
+				return $posts;
+			}
+		}
+
+		$page = get_post( $page_id );
+		if ( ! $page instanceof \WP_Post || 'page' !== $page->post_type || 'publish' !== $page->post_status ) {
+			return $posts;
+		}
+
+		$query->posts             = [ $page ];
+		$query->post_count        = 1;
+		$query->found_posts       = 1;
+		$query->max_num_pages     = 1;
+		$query->queried_object    = $page;
+		$query->queried_object_id = $page_id;
+		$query->is_404            = false;
+		$query->is_page           = true;
+		$query->is_singular       = true;
+		$query->is_home           = false;
+		$query->is_archive        = false;
+		$query->is_search         = false;
+		$query->is_feed           = false;
+		$query->set( 'page_id', $page_id );
+
+		return [ $page ];
+	}
+
+	/** Impedisce a WP::handle_404() di riapplicare il 404 a una pagina ripristinata. */
+	public function prevent_plugin_page_404( $preempt, \WP_Query $query ) {
+		if ( is_admin() || ! $query->is_main_query() ) {
+			return $preempt;
+		}
+		return self::requested_plugin_page_id() ? true : $preempt;
 	}
 
 	/**
@@ -118,6 +250,7 @@ class Dealer_Access_Guard {
 				get_option( 'dealer_portal_am_page_id' ),
 				get_option( 'dealer_portal_fav_page_id' ),
 				get_option( 'dealer_portal_board_page_id' ),
+				get_option( 'dealer_portal_request_page_id' ),
 			] ) );
 		}
 

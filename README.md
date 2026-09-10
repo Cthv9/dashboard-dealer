@@ -503,6 +503,25 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 
 ## Changelog
 
+### 1.11.0
+
+Fusione con la build completa condivisa dal webmaster (etichettata 1.10.0, ma basata sulla nostra **1.9.0**: il numero di versione è una collisione, non una discendenza). Nove file toccati da loro, tutti recepiti. Due contengono la risposta a domande che questa versione aveva risolto solo in parte.
+
+**La causa vera dei 404 non era lo stato delle pagine.** Le pagine ci sono e sono pubblicate: è **la query principale** a perderle. Un plugin di area riservata la filtra in base al ruolo e trasforma in 404 anche pagine WordPress pubbliche. Le pagine del portale sono volutamente pubbliche *come contenitore* — quello che protegge i dati è lo shortcode, non lo stato della pagina — e finivano sotto quel filtro.
+
+- `Dealer_Access_Guard::restore_plugin_page_query()` su `the_posts` rimette nella query **soltanto** la pagina del portale corrispondente all'URL richiesto, se un filtro esterno l'ha rimossa; `prevent_plugin_page_404()` impedisce a `WP::handle_404()` di riapplicare il 404. Il riconoscimento avviene sul *path del permalink reale*, non sullo slug: continua a funzionare con WordPress in sottocartella e con pagine rinominate. Nessun altro contenuto diventa accessibile e nessun controllo del portale viene saltato.
+- `route_dashboard()` non si affida più a `is_page()`, che è falso proprio quando la query è stata azzerata.
+- La ricerca dell'ID è memorizzata: tre agganci diversi la chiamano nella stessa richiesta e ognuno costerebbe fino a sette `get_permalink()`.
+- La pagina pubblica di richiesta accesso entra fra quelle riconosciute.
+
+**Questo spiega anche la grafica mancante**: senza la pagina nella query principale, `wp_enqueue_scripts` non riconosceva la pagina della dashboard e `dealer.css` non veniva mai accodato. Il ripiego in linea della 1.10.3 resta come difesa in profondità, per gli altri modi in cui un foglio di stile può non arrivare.
+
+Altre correzioni recepite:
+
+- **Profilo utente di chi appartiene a un'organizzazione.** Mostrava il campo *Linee Prodotto Assegnate* che scrive `_dealer_lines` — un meta che per quell'utente **non viene mai letto**: la stessa trappola già chiusa per l'area manager. Ora mostra l'organizzazione, il perimetro aziendale come tetto massimo, e permette solo di *restringerlo* per il singolo utente. Il salvataggio scrive dove serve: restrizione personale per chi ha un'organizzazione, meta storico per chi non ce l'ha, niente per l'area manager.
+- **Etichette dei ruoli nell'archivio documenti** prese da `Dealer_Roles::label()` invece che da una mappa fissa `D`/`TD`/`PC`: dalla 1.5.0 i ruoli si possono creare e rinominare, e quelli nuovi comparivano con lo slug grezzo.
+- Testo di aiuto dell'assegnazione massiva allineato al comportamento reale.
+
 ### 1.10.3
 
 Fix di un difetto visto solo in produzione: **le pagine dell'area riservata uscivano con i contenuti giusti e senza alcuna impaginazione**, mentre in locale erano corrette.
