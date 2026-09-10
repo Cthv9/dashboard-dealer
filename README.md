@@ -503,6 +503,21 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 
 ## Changelog
 
+### 1.11.1
+
+Fix segnalato dal collaudo in produzione: **il caricamento documenti dell'area manager non faceva niente**, mentre in ambiente di test funziona.
+
+Il wizard dell'area manager è l'unica pagina del portale con JavaScript che **non accodava i propri asset in anticipo**: `dealer-am.js` veniva accodato soltanto dallo shortcode, cioè dentro `the_content`, quando l'head è già stato stampato. Arrivava alla pagina solo grazie agli script tardivi del footer — lo stesso percorso che sul sito ufficiale non funziona, la stessa causa per cui non arrivava `dealer.css`.
+
+Il risultato era il modo peggiore possibile di fallire: il wizard visibile, i pulsanti che rispondono al click, e **niente che accade**. Nessun errore, nessun messaggio. L'area manager non aveva modo di capire che il problema non era suo.
+
+- **Asset accodati in anticipo** su `wp_enqueue_scripts`, riconoscendo la pagina dall'ID salvato in opzione — non dallo slug e non da `has_shortcode()`, che fallisce con i page builder. Così `dealer-am.js` entra nella pipeline di WordPress insieme a jQuery, da cui il wizard dipende. La chiamata dentro `render()` resta come rete di sicurezza.
+- Stesso trattamento per la **Bacheca**, che accodava `dealer.css` solo dallo shortcode.
+- **Il fallimento silenzioso non è più silenzioso**: se a fine pagina lo script risulta non caricato, l'area manager vede un avviso rosso che dice che il caricamento non è disponibile e perché, invece di un modulo muto. Da qui non si può rimediare — il wizard dipende da jQuery e dal proprio file — ma si può smettere di far credere che l'invio sia partito.
+- **Diagnostica**: la sezione è ora *Asset del front-end* e include lo script dell'area manager, con l'URL da aprire per verificarlo.
+
+Va detto che questo difetto ha con ogni probabilità la stessa radice dei 404 e della grafica mancante, già corretta nella 1.11.0: senza la pagina nella query principale, nessun asset viene riconosciuto e accodato. Le due correzioni sono indipendenti e si rafforzano a vicenda.
+
 ### 1.11.0
 
 Fusione con la build completa condivisa dal webmaster (etichettata 1.10.0, ma basata sulla nostra **1.9.0**: il numero di versione è una collisione, non una discendenza). Nove file toccati da loro, tutti recepiti. Due contengono la risposta a domande che questa versione aveva risolto solo in parte.

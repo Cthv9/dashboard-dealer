@@ -450,7 +450,7 @@ class Dealer_Admin {
 				</form>
 			<?php endif; ?>
 
-			<h2>Foglio di stile</h2>
+			<h2>Asset del front-end</h2>
 			<?php
 			$dp_css_file = DEALER_PORTAL_PATH . 'assets/css/dealer.css';
 			$dp_css_ok   = is_readable( $dp_css_file );
@@ -473,6 +473,20 @@ class Dealer_Admin {
 					<td><a href="<?php echo esc_url( DEALER_PORTAL_URL . 'assets/css/dealer.css' ); ?>" target="_blank" rel="noopener">
 						<?php echo esc_html( DEALER_PORTAL_URL . 'assets/css/dealer.css' ); ?></a>
 						<br><small>Aprilo: se non si vede il CSS, l'URL non e' raggiungibile e il ripiego in linea e' l'unica via.</small></td></tr>
+				<?php
+				$dp_js_file = DEALER_PORTAL_PATH . 'assets/js/dealer-am.js';
+				$dp_js_ok   = is_readable( $dp_js_file );
+				?>
+				<tr><td>Script dell'area manager</td>
+					<td><?php echo $dp_js_ok
+						? '<span style="color:#00a32a;">leggibile</span>'
+						: '<strong style="color:#d63638;">assente o non leggibile</strong>'; ?>
+						— <a href="<?php echo esc_url( DEALER_PORTAL_URL . 'assets/js/dealer-am.js' ); ?>" target="_blank" rel="noopener">apri l'URL</a>
+						<br><small>
+							E' il file che fa funzionare il wizard di caricamento dell'area manager. Se non
+							arriva alla pagina, i pulsanti del wizard non fanno nulla: dalla 1.11.1 in quel
+							caso l'area manager vede un avviso rosso invece di un modulo muto.
+						</small></td></tr>
 			</tbody></table>
 
 			<h2>Permalink</h2>
