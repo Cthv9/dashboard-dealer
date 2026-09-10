@@ -503,6 +503,16 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 
 ## Changelog
 
+### 1.10.2
+
+Vista di pubblicazione della bacheca, secondo giro sulla grafica.
+
+- **Modulo a piena ampiezza.** La 1.10.1 lo aveva incolonnato stretto e centrato: correggeva l'allineamento ma sprecava lo schermo. Ora sta nella stessa fascia da 1440px che `.dealer-board-wrap` ritaglia per tutte le pagine del portale, senza `max-width` propri.
+- **Due pannelli affiancati invece di una pila di righe.** A piena larghezza un campo per riga diventa una barra lunga mezza pagina: lo spazio si spende affiancando ciò che si *scrive* (tipo, titolo, descrizione) a ciò che si *sceglie* (codice, quantità, stato, brand, linea, zona), non allungando i controlli.
+- **Impianto a CSS grid al posto del flex per riga.** Con il flex ogni riga ridistribuiva lo spazio per conto suo e i bordi destri non tornavano mai fra una riga e l'altra; con la grid le colonne si dichiarano una volta sul pannello e tutti i campi ci si allineano. `.dealer-board-row` resta, ma ora la usa solo il modulo di modifica dentro la scheda.
+- **Campi non più attaccati.** Il ritmo ha una sorgente sola — il `gap` del pannello — invece di sommare `gap` e `margin-bottom`, che in verticale si cumulavano e in orizzontale no: da lì l'effetto "attaccati" fra colonne. *Quantità* limita il proprio `input`, non la cella, così la griglia resta regolare.
+- Le larghezze passano da una variabile CSS (`--dp-span`) letta da un'unica regola, invece che da classi che dovevano vincere per specificità contro `.dealer-board-row > label`: le media query la riscrivono senza rincorrere nessuno. Sotto i 600px la griglia va a colonna singola e gli `span` residui vengono riscritti esplicitamente, altrimenti creerebbero una colonna implicita e il campo uscirebbe dal modulo.
+
 ### 1.10.1
 
 Grafica della vista di pubblicazione, dallo screenshot del collaudo.

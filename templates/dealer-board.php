@@ -47,14 +47,15 @@ if ( ! function_exists( 'dealer_board_card' ) ) {
 
 	<!-- ══ VISTA: pubblica un annuncio ═══════════════════════════════════ -->
 	<?php
-	// Un modulo non e' un elenco: incolonnarlo su tutta la larghezza dello
-	// schermo lo renderebbe illeggibile (l'occhio deve tornare indietro di
-	// mezzo metro fra un campo e l'altro). Qui la colonna e' stretta e
-	// CENTRATA, intestazione compresa: prima l'intestazione era larga quanto
-	// la pagina e il modulo appoggiato a sinistra, con mezzo schermo vuoto a
-	// destra.
+	// Il modulo occupa tutta la larghezza della pagina, come l'elenco annunci e
+	// come le altre pagine del portale: il wrapper .dealer-board-wrap limita
+	// gia' il contenuto a 1440px e lo centra col padding, quindi qui non serve
+	// (e non deve tornare) nessuna colonna piu' stretta.
+	// Lo spazio in piu' non va speso allungando i campi ma affiancando i due
+	// blocchi del modulo: quello che si SCRIVE (tipo, titolo, descrizione) e
+	// quello che si SCEGLIE (codice, quantita', stato, brand, linea, zona).
+	// Le misure stanno in dealer.css, blocco "Vista di pubblicazione".
 	?>
-	<div class="dealer-board-column">
 	<div class="dealer-board-head">
 		<div>
 			<h2 class="dealer-board-title">Pubblica un annuncio</h2>
@@ -78,114 +79,135 @@ if ( ! function_exists( 'dealer_board_card' ) ) {
 				<?php wp_nonce_field( 'dealer_board_publish' ); ?>
 				<input type="hidden" name="action" value="dealer_board_publish">
 
-				<h4 class="dealer-board-legend">Cosa pubblichi</h4>
+				<?php
+				// Due pannelli affiancati invece di una pila di righe: a piena
+				// larghezza un campo per riga diventerebbe una barra lunga mezza
+				// pagina. A sinistra il testo che si scrive, a destra i dettagli che
+				// si scelgono; ogni pannello e' una griglia che dichiara le proprie
+				// colonne, quindi i campi si allineano fra una riga e l'altra.
+				?>
+				<div class="dealer-board-panels">
 
-				<div class="dealer-board-row">
-					<label class="dealer-board-w-type">
-						<span>Tipo</span>
-						<select name="b_type" id="dealer-board-type">
-							<?php foreach ( $types as $t_key => $t_label ) : ?>
-								<option value="<?php echo esc_attr( $t_key ); ?>"><?php echo esc_html( $t_label ); ?></option>
-							<?php endforeach; ?>
-						</select>
-					</label>
-					<label class="dealer-board-grow">
-						<span>Titolo</span>
-						<input type="text" name="b_title" maxlength="120" required
-							placeholder="Es. Elica di manovra 24V — cerco urgente">
-					</label>
+					<div class="dealer-board-panel dealer-board-panel-main">
+						<h4 class="dealer-board-legend">Cosa pubblichi</h4>
+
+						<label>
+							<span>Tipo</span>
+							<select name="b_type" id="dealer-board-type">
+								<?php foreach ( $types as $t_key => $t_label ) : ?>
+									<option value="<?php echo esc_attr( $t_key ); ?>"><?php echo esc_html( $t_label ); ?></option>
+								<?php endforeach; ?>
+							</select>
+						</label>
+
+						<label>
+							<span>Titolo</span>
+							<input type="text" name="b_title" maxlength="120" required
+								placeholder="Es. Elica di manovra 24V — cerco urgente">
+						</label>
+
+						<?php if ( isset( $types[ Dealer_Board::TYPE_NOTICE ] ) ) : ?>
+							<p class="dealer-board-hint">
+								<strong>Comunicazione</strong> è riservata a chi pubblica per conto della rete:
+								compare in evidenza in cima alla bacheca, non scorre con gli annunci e resta
+								visibile <?php echo esc_html( (string) $options['notice_duration_days'] ); ?> giorni.
+							</p>
+						<?php endif; ?>
+
+						<label class="dealer-board-f-body">
+							<span>Descrizione</span>
+							<textarea name="b_body" rows="6" maxlength="1500" required
+								placeholder="Cosa ti serve o cosa hai disponibile. Niente prezzi: quelli si concordano in privato."></textarea>
+						</label>
+					</div>
+
+					<div class="dealer-board-panel dealer-board-panel-details">
+						<h4 class="dealer-board-legend">Dettagli <em>(tutti facoltativi)</em></h4>
+
+						<label class="dealer-board-f-code">
+							<span>Codice articolo</span>
+							<input type="text" name="b_code" maxlength="60">
+						</label>
+
+						<label class="dealer-board-f-qty">
+							<span>Quantità</span>
+							<input type="number" name="b_qty" min="0" max="9999" value="1">
+						</label>
+
+						<label class="dealer-board-f-cond">
+							<span>Stato</span>
+							<select name="b_condition">
+								<?php foreach ( Dealer_Board::CONDITIONS as $c_key => $c_label ) : ?>
+									<option value="<?php echo esc_attr( $c_key ); ?>"><?php echo esc_html( $c_label ); ?></option>
+								<?php endforeach; ?>
+							</select>
+						</label>
+
+						<label class="dealer-board-f-brand">
+							<span>Brand</span>
+							<select name="b_brand">
+								<option value="">—</option>
+								<?php foreach ( array_keys( $lines ) as $b_brand ) : ?>
+									<option value="<?php echo esc_attr( $b_brand ); ?>"><?php echo esc_html( $b_brand ); ?></option>
+								<?php endforeach; ?>
+							</select>
+						</label>
+
+						<label class="dealer-board-f-line">
+							<span>Linea</span>
+							<select name="b_line">
+								<option value="">—</option>
+								<?php foreach ( $lines as $b_brand => $b_lines ) : ?>
+									<optgroup label="<?php echo esc_attr( $b_brand ); ?>">
+										<?php foreach ( (array) $b_lines as $b_line ) : ?>
+											<option value="<?php echo esc_attr( $b_line ); ?>"><?php echo esc_html( $b_line ); ?></option>
+										<?php endforeach; ?>
+									</optgroup>
+								<?php endforeach; ?>
+							</select>
+						</label>
+
+						<label class="dealer-board-f-area">
+							<span>Zona</span>
+							<input type="text" name="b_area" maxlength="60" placeholder="Es. Liguria">
+						</label>
+
+						<label class="dealer-board-file">
+							<span>Foto <em>(fino a <?php echo esc_html( (string) Dealer_Board::MAX_IMAGES ); ?>, JPG/PNG/WEBP)</em></span>
+							<input type="file" name="b_images[]" accept="image/jpeg,image/png,image/webp" multiple>
+						</label>
+					</div>
+
 				</div>
 
-				<?php if ( isset( $types[ Dealer_Board::TYPE_NOTICE ] ) ) : ?>
-					<p class="dealer-board-hint">
-						<strong>Comunicazione</strong> è riservata a chi pubblica per conto della rete:
-						compare in evidenza in cima alla bacheca, non scorre con gli annunci e resta
-						visibile <?php echo esc_html( (string) $options['notice_duration_days'] ); ?> giorni.
-					</p>
-				<?php endif; ?>
+				<?php
+				// Le due opzioni stanno sotto i pannelli e affiancate fra loro: sono
+				// scelte con una spiegazione lunga, e in colonna singola a piena
+				// larghezza il testo correrebbe per tutta la pagina.
+				?>
+				<div class="dealer-board-panel dealer-board-panel-options">
+					<h4 class="dealer-board-legend">Opzioni</h4>
 
-				<label>
-					<span>Descrizione</span>
-					<textarea name="b_body" rows="5" maxlength="1500" required
-						placeholder="Cosa ti serve o cosa hai disponibile. Niente prezzi: quelli si concordano in privato."></textarea>
-				</label>
-
-				<h4 class="dealer-board-legend">Dettagli <em>(tutti facoltativi)</em></h4>
-
-				<div class="dealer-board-row">
-					<label class="dealer-board-grow">
-						<span>Codice articolo</span>
-						<input type="text" name="b_code" maxlength="60">
+					<label class="dealer-board-check">
+						<input type="checkbox" name="b_replies_on" value="1" checked>
+						<span>
+							Accetta risposte.
+							<em>Togli la spunta se non vuoi essere contattato tramite la bacheca — utile per
+							una comunicazione che non richiede risposta. Il pulsante “Rispondi” non comparirà.</em>
+						</span>
 					</label>
-					<label class="dealer-board-w-qty">
-						<span>Quantità</span>
-						<input type="number" name="b_qty" min="0" max="9999" value="1">
-					</label>
-					<label class="dealer-board-w-cond">
-						<span>Stato</span>
-						<select name="b_condition">
-							<?php foreach ( Dealer_Board::CONDITIONS as $c_key => $c_label ) : ?>
-								<option value="<?php echo esc_attr( $c_key ); ?>"><?php echo esc_html( $c_label ); ?></option>
-							<?php endforeach; ?>
-						</select>
+
+					<label class="dealer-board-check">
+						<input type="checkbox" name="b_show_contacts" value="1">
+						<span>
+							Mostra i miei recapiti nell’annuncio.
+							<em>Se lasci la casella vuota nessuno vedrà la tua email o il tuo telefono: chi è
+							interessato ti scriverà tramite il portale e riceverai il messaggio per email.
+							Se la spunti, email e telefono del referente saranno visibili a tutti gli utenti
+							registrati del portale.</em>
+						</span>
 					</label>
 				</div>
-
-				<div class="dealer-board-row">
-					<label>
-						<span>Brand</span>
-						<select name="b_brand">
-							<option value="">—</option>
-							<?php foreach ( array_keys( $lines ) as $b_brand ) : ?>
-								<option value="<?php echo esc_attr( $b_brand ); ?>"><?php echo esc_html( $b_brand ); ?></option>
-							<?php endforeach; ?>
-						</select>
-					</label>
-					<label>
-						<span>Linea</span>
-						<select name="b_line">
-							<option value="">—</option>
-							<?php foreach ( $lines as $b_brand => $b_lines ) : ?>
-								<optgroup label="<?php echo esc_attr( $b_brand ); ?>">
-									<?php foreach ( (array) $b_lines as $b_line ) : ?>
-										<option value="<?php echo esc_attr( $b_line ); ?>"><?php echo esc_html( $b_line ); ?></option>
-									<?php endforeach; ?>
-								</optgroup>
-							<?php endforeach; ?>
-						</select>
-					</label>
-					<label>
-						<span>Zona</span>
-						<input type="text" name="b_area" maxlength="60" placeholder="Es. Liguria">
-					</label>
-				</div>
-
-				<label class="dealer-board-file">
-					<span>Foto <em>(fino a <?php echo esc_html( (string) Dealer_Board::MAX_IMAGES ); ?>, JPG/PNG/WEBP)</em></span>
-					<input type="file" name="b_images[]" accept="image/jpeg,image/png,image/webp" multiple>
-				</label>
-
-				<h4 class="dealer-board-legend">Opzioni</h4>
-
-				<label class="dealer-board-check">
-					<input type="checkbox" name="b_replies_on" value="1" checked>
-					<span>
-						Accetta risposte.
-						<em>Togli la spunta se non vuoi essere contattato tramite la bacheca — utile per
-						una comunicazione che non richiede risposta. Il pulsante “Rispondi” non comparirà.</em>
-					</span>
-				</label>
-
-				<label class="dealer-board-check">
-					<input type="checkbox" name="b_show_contacts" value="1">
-					<span>
-						Mostra i miei recapiti nell’annuncio.
-						<em>Se lasci la casella vuota nessuno vedrà la tua email o il tuo telefono: chi è
-						interessato ti scriverà tramite il portale e riceverai il messaggio per email.
-						Se la spunti, email e telefono del referente saranno visibili a tutti gli utenti
-						registrati del portale.</em>
-					</span>
-				</label>
 
 				<p class="dealer-board-signature">
 					Pubblicherai come <strong><?php echo esc_html( $org_name ); ?></strong> —
@@ -199,7 +221,6 @@ if ( ! function_exists( 'dealer_board_card' ) ) {
 			</form>
 		</section>
 	<?php endif; ?>
-	</div>
 
 <?php else : ?>
 
