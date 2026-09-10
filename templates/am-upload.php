@@ -197,9 +197,17 @@ $am_year           = (int) ( $upload['year'] ?? (int) gmdate( 'Y' ) );
 				<div class="dealer-am-field">
 					<label>Livelli destinatari</label>
 					<div>
-						<label class="dealer-am-check"><input type="checkbox" name="doc_roles[]" value="dealer"> Dealer</label>
-						<label class="dealer-am-check"><input type="checkbox" name="doc_roles[]" value="top_dealer"> Top Dealer</label>
-						<label class="dealer-am-check"><input type="checkbox" name="doc_roles[]" value="part_center"> Parts Center</label>
+						<?php
+						// Dal registro dei ruoli, come fa ajax_save_document() per
+						// validarli: un livello rinominato o disattivato in Dealer
+						// Portal → Ruoli e Linee sparirebbe altrimenti dal server
+						// ma non da qui, e la casella resterebbe senza effetto.
+						foreach ( Dealer_Roles::labels() as $am_role_slug => $am_role_label ) : ?>
+							<label class="dealer-am-check">
+								<input type="checkbox" name="doc_roles[]" value="<?php echo esc_attr( $am_role_slug ); ?>">
+								<?php echo esc_html( $am_role_label ); ?>
+							</label>
+						<?php endforeach; ?>
 					</div>
 					<p class="dealer-am-error" data-error="doc_roles" hidden></p>
 				</div>

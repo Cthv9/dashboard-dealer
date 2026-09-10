@@ -8,10 +8,12 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  * nonce contestualizzato sull'ID bersaglio, ma il nonce non è un permesso: gli
  * handler di Dealer_Area_Manager ricontrollano ruolo e perimetro da capo.
  *
- * Cosa NON c'è, deliberatamente: nessun campo per scegliere ruolo o funzione. Il
- * ruolo WordPress deriva dal livello commerciale dell'organizzazione e la
- * funzione è sempre "collaboratore", scritta nel codice. Non esiste un percorso
- * che da qui produca un titolare, un altro area manager o un amministratore.
+ * Cosa NON c'è, deliberatamente: nessun campo per scegliere il ruolo. Il ruolo
+ * WordPress deriva dal livello commerciale dell'organizzazione. L'unica scelta
+ * sulla funzione è la casella "titolare" del modulo d'invito, che compare solo
+ * finché l'azienda non ne ha uno e che il server ricontrolla: non esiste un
+ * percorso che da qui produca un secondo titolare, un area manager o un
+ * amministratore.
  */
 ?>
 
@@ -50,11 +52,11 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 			</p>
 		<?php else : ?>
 			<form method="post" action="<?php echo esc_url( $form_action ); ?>" class="dealer-am-form">
-				<?php wp_nonce_field( Dealer_Area_Manager::NONCE_CREATE_ORG ); ?>
 				<input type="hidden" name="am_action" value="create_org">
+				<?php wp_nonce_field( Dealer_Area_Manager::NONCE_CREATE_ORG, 'am_nonce', false ); ?>
 
 				<div class="dealer-am-grid">
-					<label class="dealer-am-grow">
+					<label>
 						<span>Ragione sociale</span>
 						<input type="text" name="org_name" maxlength="150" required
 							placeholder="Es. Nautica Rossi S.r.l.">

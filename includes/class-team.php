@@ -696,15 +696,20 @@ class Dealer_Team {
 		return is_array( $feedback ) ? $feedback : [];
 	}
 
-	/** URL corrente senza il token gia' consumato. */
+	/**
+	 * URL corrente senza il token gia' consumato.
+	 *
+	 * Fuori da una pagina singola (shortcode in un widget, in un archivio) si
+	 * ripiega sulla pagina del titolare risolta da Dealer_DB, come fa
+	 * Dealer_Area_Manager: ricostruire l'URL da HTTP_HOST e REQUEST_URI
+	 * rimandava il modulo a un indirizzo che il plugin non riconosce e che
+	 * dietro un proxy puo' anche non essere quello pubblico.
+	 */
 	private function current_url(): string {
 		$permalink = is_singular() ? get_permalink() : '';
 
 		if ( ! $permalink ) {
-			$scheme = is_ssl() ? 'https://' : 'http://';
-			$host   = isset( $_SERVER['HTTP_HOST'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_HOST'] ) ) : '';
-			$uri    = isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '/';
-			$permalink = '' !== $host ? esc_url_raw( $scheme . $host . $uri ) : home_url( '/' );
+			$permalink = Dealer_DB::team_url();
 		}
 
 		return remove_query_arg( 'dt_ref', $permalink );
@@ -763,15 +768,23 @@ class Dealer_Team {
 	/**
 	 * URL della pagina che ospita [dealer_team].
 	 *
-	 * Si cerca la pagina che contiene lo shortcode e si tiene il risultato in
-	 * cache; un filtro permette di forzarla quando l'installazione non segue la
-	 * convenzione. Stringa vuota se non esiste: in quel caso la dashboard non
-	 * mostra nessun collegamento rotto.
+	 * Prima di tutto la pagina registrata dal plugin, dal suo ID in opzione:
+	 * e' quella che Dealer_Access_Guard riconosce e che la barra di
+	 * navigazione gia' collega, e Dealer_DB e' l'unico punto che risolve gli
+	 * URL del portale. La ricerca dello shortcode resta come ripiego per
+	 * un'installazione che ha messo [dealer_team] su una pagina propria; un
+	 * filtro permette di forzarla. Stringa vuota se non esiste nessuna delle
+	 * due: in quel caso la dashboard non mostra nessun collegamento rotto.
 	 */
 	public static function team_page_url(): string {
 		$forced = (string) apply_filters( 'dealer_team_page_url', '' );
 		if ( '' !== $forced ) {
 			return $forced;
+		}
+
+		$page_id = (int) get_option( 'dealer_portal_team_page_id' );
+		if ( $page_id && 'publish' === get_post_status( $page_id ) ) {
+			return Dealer_DB::team_url();
 		}
 
 		$cached = get_transient( 'dealer_team_page_url' );

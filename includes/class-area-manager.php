@@ -31,11 +31,14 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  *  3. Le linee si scrivono solo con Dealer_Identity::set_line_limit(), che
  *     interseca gia' con le linee dell'organizzazione. Qui dentro non si scrive
  *     mai a mano _dealer_line_limit ne' _dealer_lines.
- *  4. Un invito produce SEMPRE un collaboratore: la funzione e' una costante
- *     scritta nel codice e il ruolo WordPress deriva dal livello commerciale
- *     dell'organizzazione, filtrato contro la whitelist dei tre ruoli dealer.
- *     Nessun percorso di questo modulo puo' produrre un titolare, un area
- *     manager o un amministratore.
+ *  4. Un invito produce un collaboratore, oppure — solo finche' l'azienda
+ *     non ne ha uno — il suo titolare: e' cosi' che la delega si chiude
+ *     (amministratore → area manager → titolare → collaboratori), e la
+ *     condizione "nessun titolare" si ricontrolla nell'handler, non nel
+ *     modulo. Il ruolo WordPress deriva dal livello commerciale
+ *     dell'organizzazione, filtrato contro la whitelist dei ruoli dealer.
+ *     Nessun percorso di questo modulo puo' produrre un secondo titolare, un
+ *     area manager o un amministratore.
  *  5. Nessuna password in chiaro: link di reset, come in Dealer_Team.
  *  6. Disattivare non e' eliminare: si revoca il ruolo e si toglie l'utente
  *     dall'organizzazione, l'account resta con tutto il suo storico di download.
@@ -982,13 +985,19 @@ class Dealer_Area_Manager {
 		}
 	}
 
-	// ─── Azione: invito ───────────────────────────────────────────────────────
+	// ─── Azione: crea azienda ─────────────────────────────────────────────────
 
-	/**
-	 * Crea un collaboratore in un'organizzazione del perimetro e gli manda il
-	 * link per impostare la password. Nessuna password in chiaro viene
-	 * generata, mostrata o spedita.
-	 */
+	/** L'azienda ha gia' qualcuno con funzione titolare? */
+	private static function org_has_titolare( int $org_id ): bool {
+		foreach ( Dealer_Organization::get_users( $org_id ) as $member ) {
+			if ( $member instanceof \WP_User && Dealer_Identity::is_titolare( $member ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	/**
 	 * L'area manager crea un'azienda della rete, che entra nel suo perimetro.
 	 *
@@ -1005,19 +1014,14 @@ class Dealer_Area_Manager {
 	 * sottoinsieme di quelle dell'area manager, e su tutto il resto della rete
 	 * lui continua a non poter mettere le mani.
 	 */
-	/** L'azienda ha gia' qualcuno con funzione titolare? */
-	private static function org_has_titolare( int $org_id ): bool {
-		foreach ( Dealer_Organization::get_users( $org_id ) as $member ) {
-			if ( $member instanceof \WP_User && Dealer_Identity::is_titolare( $member ) ) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
 	private function handle_create_org( \WP_User $manager, string $redirect ): void {
-		check_admin_referer( self::NONCE_CREATE_ORG );
+		// Stesso campo e stesso esito degli altri tre moduli: un nonce scaduto
+		// torna alla scheda con un messaggio, non sulla schermata grigia
+		// "Il link che hai seguito e' scaduto" di check_admin_referer(), che
+		// da qui non ha nessun modo di tornare all'area di lavoro.
+		if ( ! wp_verify_nonce( self::post_string( 'am_nonce' ), self::NONCE_CREATE_ORG ) ) {
+			$this->redirect_with_feedback( $redirect, 'error', 'La sessione del modulo è scaduta. Ricarica la pagina e riprova.' );
+		}
 
 		$scope_lines = Dealer_Identity::get_scope_lines( $manager );
 		if ( empty( $scope_lines ) ) {
@@ -1028,7 +1032,7 @@ class Dealer_Area_Manager {
 			);
 		}
 
-		// phpcs:disable WordPress.Security.NonceVerification.Missing — nonce sopra
+		// phpcs:disable WordPress.Security.NonceVerification.Missing — nonce verificato sopra
 		$name  = sanitize_text_field( (string) wp_unslash( $_POST['org_name'] ?? '' ) );
 		$vat   = sanitize_text_field( (string) wp_unslash( $_POST['org_vat'] ?? '' ) );
 		$lines = isset( $_POST['org_lines'] ) ? (array) wp_unslash( $_POST['org_lines'] ) : [];
@@ -1078,6 +1082,13 @@ class Dealer_Area_Manager {
 		);
 	}
 
+	// ─── Azione: invito ───────────────────────────────────────────────────────
+
+	/**
+	 * Crea un collaboratore (o il titolare, se l'azienda non ne ha) in
+	 * un'organizzazione del perimetro e gli manda il link per impostare la
+	 * password. Nessuna password in chiaro viene generata, mostrata o spedita.
+	 */
 	private function handle_invite( \WP_User $manager, string $redirect ): void {
 		// Ricontrollo difensivo: nessun handler si fida di essere stato
 		// raggiunto solo dal dispatcher.
@@ -1159,8 +1170,7 @@ class Dealer_Area_Manager {
 		}
 		$user_id = (int) $user_id;
 
-		// Sempre collaboratore: la costante e' scritta qui, non arriva dal POST.
-		// Titolare o collaboratore.
+		// Titolare o collaboratore: la funzione si decide qui, non arriva dal POST.
 		//
 		// Un'azienda senza titolare non puo' gestirsi da sola: nessuno al suo
 		// interno vede "Gestione Collaboratori", e ogni aggiunta o rimozione
