@@ -503,6 +503,15 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 
 ## Changelog
 
+### 1.12.1
+
+Due cose, dal collaudo: un errore mio e una domanda che ha scoperto un buco nel modello.
+
+- **Il modulo «crea azienda» non faceva niente.** Mandava il campo `dealer_am_action`, mentre il dispatcher dell'area manager legge `am_action`: la richiesta non veniva riconosciuta e si tornava alla pagina senza un errore. Corretto, e aggiunto un controllo eseguito che verifica che ogni azione dichiarata nei moduli sia accettata dal dispatcher e abbia il proprio handler — così un refuso del genere non passa più inosservato.
+- **Le aziende create dall'area manager nascevano senza titolare, quindi non potevano gestirsi da sole.** `handle_invite()` assegnava sempre la funzione *collaboratore*: nessuno, dentro quell'azienda, vedeva «Gestione Collaboratori», e ogni persona da aggiungere o togliere doveva passare per sempre dall'area manager o dall'amministratore. Ora, **finché l'azienda non ha un titolare**, il modulo d'invito mostra una casella per nominare quella persona titolare. La condizione è ricontrollata dal server, non solo nascosta nel modulo: due titolari non si possono creare inviando il campo a mano.
+
+Con questo la delega si chiude per intero: **amministratore → area manager → titolare → collaboratori**. Ogni livello aggiunge il successivo e nessuno può scavalcare il proprio perimetro.
+
 ### 1.12.0
 
 Revisione generale prima della consegna, più tre interventi richiesti dal collaudo.

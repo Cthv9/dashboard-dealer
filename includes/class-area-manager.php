@@ -815,7 +815,8 @@ class Dealer_Area_Manager {
 				continue;
 			}
 
-			$active    = Dealer_Organization::is_active( $org_id );
+			$active       = Dealer_Organization::is_active( $org_id );
+			$has_titolare = false;
 			$org_lines = Dealer_Organization::get_effective_lines( $org_id );
 			$tier      = Dealer_Organization::get_tier( $org_id );
 
@@ -825,7 +826,8 @@ class Dealer_Area_Manager {
 					continue;
 				}
 
-				$is_titolare = Dealer_Identity::is_titolare( $member );
+				$is_titolare  = Dealer_Identity::is_titolare( $member );
+				$has_titolare = $has_titolare || $is_titolare;
 				$limit       = get_user_meta( $member->ID, Dealer_Identity::META_LINE_LIMIT, true );
 				$limit       = is_array( $limit ) ? array_values( array_filter( $limit ) ) : [];
 
@@ -866,6 +868,7 @@ class Dealer_Area_Manager {
 				'members'        => $members,
 				'members_count'  => count( $members ),
 				'max_members'    => Dealer_Team::MAX_MEMBERS,
+				'has_titolare'   => $has_titolare,
 				'can_invite'     => $active
 					&& count( $members ) < Dealer_Team::MAX_MEMBERS
 					&& ! empty( $org_lines ),
@@ -1002,6 +1005,17 @@ class Dealer_Area_Manager {
 	 * sottoinsieme di quelle dell'area manager, e su tutto il resto della rete
 	 * lui continua a non poter mettere le mani.
 	 */
+	/** L'azienda ha gia' qualcuno con funzione titolare? */
+	private static function org_has_titolare( int $org_id ): bool {
+		foreach ( Dealer_Organization::get_users( $org_id ) as $member ) {
+			if ( $member instanceof \WP_User && Dealer_Identity::is_titolare( $member ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	private function handle_create_org( \WP_User $manager, string $redirect ): void {
 		check_admin_referer( self::NONCE_CREATE_ORG );
 
@@ -1146,7 +1160,25 @@ class Dealer_Area_Manager {
 		$user_id = (int) $user_id;
 
 		// Sempre collaboratore: la costante e' scritta qui, non arriva dal POST.
-		Dealer_Identity::set_org( $user_id, $org_id, Dealer_Identity::FUNCTION_COLLABORATORE );
+		// Titolare o collaboratore.
+		//
+		// Un'azienda senza titolare non puo' gestirsi da sola: nessuno al suo
+		// interno vede "Gestione Collaboratori", e ogni aggiunta o rimozione
+		// deve passare per sempre dall'area manager o dall'amministratore. Le
+		// aziende create da qui nascevano tutte cosi'. Il titolare e' il modo
+		// in cui la delega si chiude: amministratore → area manager →
+		// titolare → collaboratori.
+		//
+		// La promozione e' possibile SOLO se l'azienda non ha gia' un titolare,
+		// e la condizione si ricontrolla qui e non nel modulo: cosi' non si
+		// possono creare due titolari inviando il campo a mano.
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing — nonce verificato dal chiamante
+		$wants_titolare = ! empty( $_POST['as_titolare'] );
+		$function       = ( $wants_titolare && ! self::org_has_titolare( $org_id ) )
+			? Dealer_Identity::FUNCTION_TITOLARE
+			: Dealer_Identity::FUNCTION_COLLABORATORE;
+
+		Dealer_Identity::set_org( $user_id, $org_id, $function );
 
 		// Unico canale ammesso per le linee: interseca gia' con quelle
 		// dell'organizzazione, quindi non c'e' modo di concedere di piu'.
