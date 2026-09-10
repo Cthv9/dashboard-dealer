@@ -76,13 +76,20 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 					<button class="dealer-board-btn" name="op" value="solve">
 						<?php echo $d['is_notice'] ? 'Ritira' : 'Segna come risolto'; ?>
 					</button>
-				<?php else : ?>
+				<?php elseif ( Dealer_Board::STATUS_HIDDEN !== $d['status'] || Dealer_DB::user_can( DEALER_PORTAL_CAP ) ) : ?>
+					<?php // Nascosto dalle segnalazioni: lo riattiva solo l'amministratore (handle_update rifiuta comunque). ?>
 					<button class="dealer-board-btn" name="op" value="renew">Ripubblica</button>
 				<?php endif; ?>
 				<button class="dealer-board-btn dealer-board-btn-quiet" name="op" value="delete"
 					onclick="return confirm('Eliminare definitivamente questo annuncio?');">Elimina</button>
 			</form>
-			<span class="dealer-board-expiry">Scade il <?php echo esc_html( $d['expiry'] ); ?></span>
+			<span class="dealer-board-expiry">
+				<?php if ( Dealer_Board::STATUS_HIDDEN === $d['status'] ) : ?>
+					Nascosto dopo alcune segnalazioni: in attesa dell’amministratore.
+				<?php else : ?>
+					Scade il <?php echo esc_html( '' !== $d['expiry'] ? mysql2date( 'd/m/Y', $d['expiry'] ) : '—' ); ?>
+				<?php endif; ?>
+			</span>
 
 			<?php
 			// Le risposte ricevute: le vede solo chi ha pubblicato l'annuncio.
