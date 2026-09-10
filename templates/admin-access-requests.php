@@ -146,6 +146,23 @@ $filters = [
 										<tr><td><strong>Telefono</strong></td><td><?php echo esc_html( $r['phone'] ); ?></td></tr>
 										<tr><td><strong>Partita IVA</strong></td><td><?php echo esc_html( $r['vat'] ); ?></td></tr>
 										<tr>
+											<td><strong>Già partner</strong></td>
+											<td>
+												<?php if ( ! empty( $r['partner'] ) ) : ?>
+													<strong style="color:#00a32a;">Sì, dichiara di lavorare già con noi</strong>
+													<p class="description" style="margin:4px 0 0;">
+														Prima di creare una nuova azienda, cerca se esiste già in
+														<em>Organizzazioni</em>: in quel caso l’utente va aggiunto a quella.
+													</p>
+												<?php else : ?>
+													No, primo contatto
+												<?php endif; ?>
+												<?php if ( '' !== (string) ( $r['partner_ref'] ?? '' ) ) : ?>
+													<br><em>Riferimento indicato:</em> <?php echo esc_html( (string) $r['partner_ref'] ); ?>
+												<?php endif; ?>
+											</td>
+										</tr>
+										<tr>
 											<td><strong>Linee richieste</strong></td>
 											<td>
 												<?php if ( $r['lines'] ) : ?>

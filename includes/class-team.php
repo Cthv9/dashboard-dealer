@@ -639,7 +639,9 @@ class Dealer_Team {
 		$body .= "Linee prodotto abilitate:\n  - " . $line_list . "\n\n";
 		$body .= "Se non ti aspettavi questa email, ignorala.\n";
 
-		if ( wp_mail( $user->user_email, $subject, $body ) ) {
+		// Stesso mittente configurato di tutte le altre email del portale: vedi
+		// Dealer_Notifications::send_plain().
+		if ( Dealer_Notifications::send_plain( (string) $user->user_email, $subject, $body ) ) {
 			return true;
 		}
 

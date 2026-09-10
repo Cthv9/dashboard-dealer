@@ -25,6 +25,8 @@ $p_phone   = isset( $prefill['phone'] )   ? (string) $prefill['phone']   : '';
 $p_vat     = isset( $prefill['vat'] )     ? (string) $prefill['vat']     : '';
 $p_notes   = isset( $prefill['notes'] )   ? (string) $prefill['notes']   : '';
 $p_lines   = ( isset( $prefill['lines'] ) && is_array( $prefill['lines'] ) ) ? $prefill['lines'] : [];
+$p_partner     = isset( $prefill['partner'] ) ? (string) $prefill['partner'] : '';
+$p_partner_ref = isset( $prefill['partner_ref'] ) ? (string) $prefill['partner_ref'] : '';
 
 $fb_status  = isset( $feedback['status'] )  ? (string) $feedback['status']  : '';
 $fb_message = isset( $feedback['message'] ) ? (string) $feedback['message'] : '';
@@ -101,6 +103,16 @@ $submitted  = ( 'success' === $fb_status );
 		}
 		.dar-field textarea { min-height: 96px; resize: vertical; }
 		.dar-hint { font-size: .82rem; color: var(--dar-muted); margin-top: 6px; }
+		/* "Lavori gia' con noi?": due opzioni affiancate, riquadrate come i campi.
+		   E' la domanda che cambia cosa fa chi riceve la richiesta, quindi deve
+		   pesare quanto un campo, non essere un paio di pallini in mezzo al testo. */
+		.dar-choice { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+			gap: 10px; margin-top: 4px; }
+		.dar-choice-opt { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px;
+			border: 1px solid var(--dar-border); border-radius: 8px; background: #fff;
+			cursor: pointer; font-size: .93rem; line-height: 1.4; }
+		.dar-choice-opt:hover { border-color: var(--dar-blue); }
+		.dar-choice-opt input { margin-top: 2px; }
 		.dar-lines {
 			border: 1px solid var(--dar-border);
 			border-radius: 6px;
@@ -208,31 +220,41 @@ $submitted  = ( 'success' === $fb_status );
 							<span class="dar-hint">Da 8 a 20 caratteri alfanumerici.</span>
 						</div>
 
+						<?php
+						// La domanda che cambia davvero cosa fa chi riceve la
+						// richiesta: se e' gia' un partner si cerca l'azienda
+						// esistente, non se ne apre una nuova. Le linee prodotto
+						// NON si chiedono piu': chi scrive non sa com'e'
+						// organizzato il catalogo, e l'assegnazione la decide
+						// comunque chi approva.
+						?>
 						<div class="dar-field dar-field-full">
-							<label>Brand e linee di interesse <span class="dar-req">*</span></label>
-							<div class="dar-lines">
-								<?php foreach ( $lines_by_brand as $brand => $brand_lines ) : ?>
-									<div class="dar-brand">
-										<div class="dar-brand-name"><?php echo esc_html( $brand ); ?></div>
-										<div class="dar-line-opts">
-											<?php foreach ( $brand_lines as $line ) :
-												$value = $brand . '|' . $line;
-												?>
-												<label class="dar-line-opt">
-													<input type="checkbox" name="dar_lines[]" value="<?php echo esc_attr( $value ); ?>"<?php echo in_array( $value, $p_lines, true ) ? ' checked' : ''; ?>>
-													<span><?php echo esc_html( $line ); ?></span>
-												</label>
-											<?php endforeach; ?>
-										</div>
-									</div>
-								<?php endforeach; ?>
+							<label>Lavori già con noi? <span class="dar-req">*</span></label>
+							<div class="dar-choice">
+								<label class="dar-choice-opt">
+									<input type="radio" name="dar_partner" value="si" <?php checked( 'si', $p_partner ); ?> required>
+									<span>Sì, siamo già vostri clienti o partner</span>
+								</label>
+								<label class="dar-choice-opt">
+									<input type="radio" name="dar_partner" value="no" <?php checked( 'no', $p_partner ); ?>>
+									<span>No, è il primo contatto</span>
+								</label>
 							</div>
-							<span class="dar-hint">Seleziona almeno una linea. L’assegnazione definitiva viene confermata dal nostro staff.</span>
+						</div>
+
+						<div class="dar-field dar-field-full">
+							<label for="dar_partner_ref">Referente o codice cliente</label>
+							<input type="text" id="dar_partner_ref" name="dar_partner_ref"
+								value="<?php echo esc_attr( $p_partner_ref ); ?>" maxlength="120"
+								placeholder="Es. il nome del vostro referente commerciale, o il codice cliente">
+							<span class="dar-hint">
+								Se lavorate già con noi, questo ci aiuta a ritrovarvi. Se non lo sai, lascia vuoto.
+							</span>
 						</div>
 
 						<div class="dar-field dar-field-full">
 							<label for="dar_notes">Note</label>
-							<textarea id="dar_notes" name="dar_notes" maxlength="2000" placeholder="Raccontaci brevemente la tua attività o eventuali esigenze particolari."><?php echo esc_textarea( $p_notes ); ?></textarea>
+							<textarea id="dar_notes" name="dar_notes" maxlength="2000" placeholder="Di cosa vi occupate e di quali prodotti avete bisogno. Bastano due righe."><?php echo esc_textarea( $p_notes ); ?></textarea>
 						</div>
 					</div>
 

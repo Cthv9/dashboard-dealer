@@ -102,6 +102,33 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 	.dealer-am-btn-ghost:hover{background:var(--am-gray);color:var(--am-blue-dk);}
 	.dealer-am-btn-danger{background:#fff;color:var(--am-danger);border:1px solid #e0b4b4;}
 	.dealer-am-btn-danger:hover{background:#fdf4f4;color:var(--am-danger);}
+	/* ── Crea azienda ────────────────────────────────────────────────────
+	   Stesso impianto usato nel modulo della bacheca: una griglia che dichiara
+	   le proprie colonne, cosi' i campi si allineano fra una riga e l'altra e
+	   ognuno ha la misura del dato che contiene, invece di essere stirato per
+	   riempire la riga. */
+	.dealer-am-neworg summary{cursor:pointer;font-size:1rem;color:var(--am-navy);}
+	.dealer-am-neworg[open] summary{margin-bottom:14px;}
+	.dealer-am-form{margin-top:4px;}
+	.dealer-am-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);
+		gap:18px 22px;margin-bottom:18px;}
+	.dealer-am-grid > label{display:block;font-size:.9rem;}
+	.dealer-am-grid > label > span{display:block;margin-bottom:6px;font-weight:600;color:var(--am-navy);}
+	.dealer-am-grid > label > span em{font-weight:400;font-style:normal;color:var(--am-muted);}
+	.dealer-am-grid input[type="text"]{width:100%;padding:10px 12px;border:1px solid var(--am-border);
+		border-radius:6px;font:inherit;font-size:.93rem;box-sizing:border-box;}
+	.dealer-am-lines{margin:0 0 18px;padding:16px 18px;border:1px solid var(--am-border);
+		border-radius:var(--am-radius);background:var(--am-gray);}
+	.dealer-am-lines legend{padding:0 6px;font-weight:700;font-size:.82rem;letter-spacing:.05em;
+		text-transform:uppercase;color:var(--am-muted);}
+	.dealer-am-lineopts{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px 18px;}
+	.dealer-am-lineopt{display:flex;align-items:flex-start;gap:8px;font-size:.9rem;}
+	.dealer-am-submit{display:flex;justify-content:flex-end;padding-top:16px;
+		border-top:1px solid var(--am-border);}
+	.dealer-am-btn-primary{background:var(--am-blue);color:#fff;}
+	@media(max-width:700px){.dealer-am-grid{grid-template-columns:1fr;}
+		.dealer-am-submit{justify-content:stretch;}
+		.dealer-am-submit .dealer-am-btn{flex:1 1 auto;text-align:center;}}
 	.dealer-am-btn-sm{padding:7px 14px;font-size:.85rem;}
 	.dealer-am-lines{border:1px solid var(--am-border);border-radius:6px;padding:12px 14px;
 		background:var(--am-gray);max-height:280px;overflow:auto;}
