@@ -167,6 +167,13 @@ class Dealer_Board {
 		add_action( 'admin_post_dealer_board_reply',   [ $this, 'handle_reply' ] );
 		add_action( 'admin_post_dealer_board_report',  [ $this, 'handle_report' ] );
 
+		// Asset accodati prima del rendering, non solo dallo shortcode: dentro
+		// the_content l'head e' gia' stato stampato e il foglio arriva alla
+		// pagina solo grazie agli stili tardivi del footer, che su un sito
+		// reale possono non arrivare mai. La chiamata dentro render() resta
+		// come rete di sicurezza.
+		add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_early' ] );
+
 		// Le immagini non stanno in una cartella pubblica: si servono da qui,
 		// dopo aver verificato chi sta guardando. Vedi serve_image().
 		add_filter( 'query_vars',        [ $this, 'add_query_vars' ] );
@@ -597,6 +604,20 @@ class Dealer_Board {
 	public static function enqueue_assets(): void {
 		wp_enqueue_style( 'dashicons' );
 		wp_enqueue_style( 'dealer-portal-dealer', DEALER_PORTAL_URL . 'assets/css/dealer.css', [], DEALER_PORTAL_VERSION );
+	}
+
+	/** Vedi il commento sull'aggancio in __construct(). */
+	public function enqueue_early(): void {
+		if ( is_admin() || ! is_page() ) {
+			return;
+		}
+
+		$page_id = (int) get_option( 'dealer_portal_board_page_id' );
+		if ( ! $page_id || (int) get_queried_object_id() !== $page_id ) {
+			return;
+		}
+
+		self::enqueue_assets();
 	}
 
 	/** Testo dell'avviso dopo un'azione (pattern PRG). */

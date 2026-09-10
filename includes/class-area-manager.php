@@ -129,12 +129,81 @@ class Dealer_Area_Manager {
 
 	// ─── Constructor ──────────────────────────────────────────────────────────
 
+	/** True quando la pagina ha stampato il wizard e quindi il JS le serve. */
+	private static $needs_script = false;
+
 	public function __construct() {
 		add_shortcode( self::SHORTCODE, [ $this, 'render' ] );
 
 		// Gli invii si intercettano prima di qualsiasi output, cosi' ogni
 		// operazione si chiude con un redirect (PRG) e un refresh non la ripete.
 		add_action( 'template_redirect', [ $this, 'maybe_handle_submission' ] );
+
+		// Asset accodati PRIMA del rendering, non solo dallo shortcode: vedi
+		// enqueue_early() e verify_script_loaded().
+		add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_early' ] );
+		add_action( 'wp_footer',          [ $this, 'verify_script_loaded' ], PHP_INT_MAX );
+	}
+
+	/**
+	 * Accoda gli asset dell'area di lavoro sulla propria pagina.
+	 *
+	 * Fino alla 1.11.1 il JS del wizard veniva accodato SOLTANTO dallo
+	 * shortcode, cioe' dentro the_content, quando l'head e' gia' stato
+	 * stampato: arrivava alla pagina solo grazie agli script tardivi del
+	 * footer. Su un sito reale quel percorso e' saltato — la stessa causa per
+	 * cui non arrivava dealer.css — e il risultato e' stato il peggiore
+	 * possibile: il wizard di caricamento visibile, i pulsanti che rispondono
+	 * al click e NIENTE che accade, senza un errore, senza un messaggio.
+	 * L'area manager non aveva modo di capire che il problema non era suo.
+	 *
+	 * Questa e' la via normale: la pagina si riconosce dall'ID salvato in
+	 * opzione — non dallo slug e non da has_shortcode(), che fallisce con i
+	 * page builder — e gli asset entrano nella pipeline di WordPress insieme a
+	 * jQuery, da cui il wizard dipende. La chiamata dentro render() resta come
+	 * rete di sicurezza per chi mette lo shortcode su una pagina qualunque.
+	 */
+	public function enqueue_early(): void {
+		if ( is_admin() || ! is_page() ) {
+			return;
+		}
+
+		$am_page = (int) get_option( 'dealer_portal_am_page_id' );
+		if ( ! $am_page || (int) get_queried_object_id() !== $am_page ) {
+			return;
+		}
+
+		self::enqueue_assets();
+	}
+
+	/**
+	 * Se il JS non e' arrivato, dirlo invece di lasciare pulsanti muti.
+	 *
+	 * Non si puo' rimediare da qui: il wizard dipende da jQuery e dal proprio
+	 * file, e se la pagina non stampa gli script accodati non li stampera'
+	 * nemmeno adesso. Quello che si puo' fare — e che prima non si faceva — e'
+	 * non far credere a chi sta lavorando che il caricamento sia partito.
+	 */
+	public function verify_script_loaded(): void {
+		if ( is_admin() || ! self::$needs_script ) {
+			return;
+		}
+		if ( wp_script_is( 'dealer-portal-am', 'done' ) ) {
+			return;
+		}
+
+		printf(
+			'<div style="position:fixed;left:16px;right:16px;bottom:16px;z-index:99998;padding:14px 18px;'
+			. 'border-radius:8px;background:#fef2f2;border:1px solid #dc2626;color:#7f1d1d;'
+			. 'font:14px/1.5 -apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;">'
+			. '<strong>Caricamento documenti non disponibile.</strong> %s</div>',
+			esc_html(
+				'Lo script di questa pagina non è stato caricato, quindi il wizard non può inviare nulla: '
+				. 'i pulsanti non risponderebbero e il documento non verrebbe salvato. '
+				. 'Segnala questo messaggio all’amministratore del portale, che lo trova spiegato '
+				. 'in Dealer Portal → Diagnostica.'
+			)
+		);
 	}
 
 	// ─── Contesto autorizzativo ───────────────────────────────────────────────
@@ -385,6 +454,7 @@ class Dealer_Area_Manager {
 		// Rete di sicurezza sugli asset: se lo shortcode gira, la pagina ne ha
 		// bisogno, qualunque sia il sistema che l'ha costruita.
 		self::enqueue_assets();
+		self::$needs_script = true;
 
 		$tab         = $this->current_tab();
 		$tabs        = self::TABS;
