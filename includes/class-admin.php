@@ -450,6 +450,31 @@ class Dealer_Admin {
 				</form>
 			<?php endif; ?>
 
+			<h2>Foglio di stile</h2>
+			<?php
+			$dp_css_file = DEALER_PORTAL_PATH . 'assets/css/dealer.css';
+			$dp_css_ok   = is_readable( $dp_css_file );
+			?>
+			<p class="description" style="max-width:760px;">
+				Se sul front-end le pagine escono senza impaginazione ma con i contenuti giusti, il foglio
+				non sta arrivando alla pagina. Dalla 1.10.3 il plugin se ne accorge e lo stampa dentro il
+				contenuto, quindi il sintomo non dovrebbe piu' presentarsi; questa tabella serve a capire
+				se il file c'e' e da dove viene servito.
+			</p>
+			<table class="widefat striped" style="max-width:760px;"><tbody>
+				<tr><td style="width:340px;">File su disco</td>
+					<td><?php echo $dp_css_ok
+						? '<span style="color:#00a32a;">leggibile</span>'
+						: '<strong style="color:#d63638;">assente o non leggibile</strong>'; ?>
+						— <code><?php echo esc_html( $dp_css_file ); ?></code></td></tr>
+				<tr><td>Dimensione</td>
+					<td><?php echo esc_html( $dp_css_ok ? size_format( (int) filesize( $dp_css_file ) ) : '—' ); ?></td></tr>
+				<tr><td>URL pubblico</td>
+					<td><a href="<?php echo esc_url( DEALER_PORTAL_URL . 'assets/css/dealer.css' ); ?>" target="_blank" rel="noopener">
+						<?php echo esc_html( DEALER_PORTAL_URL . 'assets/css/dealer.css' ); ?></a>
+						<br><small>Aprilo: se non si vede il CSS, l'URL non e' raggiungibile e il ripiego in linea e' l'unica via.</small></td></tr>
+			</tbody></table>
+
 			<h2>Permalink</h2>
 			<table class="widefat striped" style="max-width:760px;"><tbody>
 				<tr><td style="width:340px;">Struttura permalink</td>
@@ -1974,7 +1999,19 @@ class Dealer_Admin {
 			return;
 		}
 
-		$dealer_lines = get_user_meta( $user->ID, '_dealer_lines', true );
+		// Un dealer collegato a un'organizzazione eredita le linee dall'azienda:
+		// il meta storico _dealer_lines per lui non viene MAI letto da
+		// get_effective_lines(). Mostrarglielo qui sarebbe la stessa trappola
+		// gia' chiusa per l'area manager — il posto piu' ovvio dove cercare,
+		// che accetta la modifica, la salva e non produce alcun effetto.
+		// (Correzione arrivata dalla build in produzione.)
+		$org_id = Dealer_Identity::get_org_id( $user );
+		if ( $org_id ) {
+			$this->render_organization_user_profile_panel( $user, $org_id );
+			return;
+		}
+
+		$dealer_lines = get_user_meta( $user->ID, Dealer_Identity::META_LEGACY_LINES, true );
 		if ( ! is_array( $dealer_lines ) ) { $dealer_lines = []; }
 
 		$ref_nome     = get_user_meta( $user->ID, '_referente_nome',     true );
@@ -2005,6 +2042,75 @@ class Dealer_Admin {
 						<?php endforeach; ?>
 					</select>
 					<p class="description">Tieni premuto <kbd>Ctrl</kbd> (Windows) o <kbd>Cmd</kbd> (Mac) per selezionare più linee.</p>
+				</td>
+			</tr>
+			<tr>
+				<th><label for="referente_nome">Referente – Nome</label></th>
+				<td><input type="text" id="referente_nome" name="referente_nome" value="<?php echo esc_attr( $ref_nome ); ?>" class="regular-text"></td>
+			</tr>
+			<tr>
+				<th><label for="referente_email">Referente – Email</label></th>
+				<td><input type="email" id="referente_email" name="referente_email" value="<?php echo esc_attr( $ref_email ); ?>" class="regular-text"></td>
+			</tr>
+			<tr>
+				<th><label for="referente_telefono">Referente – Telefono</label></th>
+				<td><input type="tel" id="referente_telefono" name="referente_telefono" value="<?php echo esc_attr( $ref_telefono ); ?>" class="regular-text"></td>
+			</tr>
+		</table>
+		<?php
+	}
+
+	/**
+	 * Profilo di un utente appartenente a un'organizzazione.
+	 *
+	 * Le linee dell'organizzazione sono il tetto massimo; questo form puo'
+	 * soltanto restringerle per il singolo utente. Il meta legacy _dealer_lines
+	 * non viene mai scritto in questo percorso perche' non sarebbe letto da
+	 * Dealer_Identity::get_effective_lines().
+	 */
+	private function render_organization_user_profile_panel( \WP_User $user, int $org_id ): void {
+		$org_lines = Dealer_Organization::get_effective_lines( $org_id );
+		$limit     = get_user_meta( $user->ID, Dealer_Identity::META_LINE_LIMIT, true );
+		$restricted = is_array( $limit ) && ! empty( $limit );
+		$selected   = $restricted ? array_values( array_intersect( $limit, $org_lines ) ) : $org_lines;
+
+		$ref_nome     = get_user_meta( $user->ID, '_referente_nome', true );
+		$ref_email    = get_user_meta( $user->ID, '_referente_email', true );
+		$ref_telefono = get_user_meta( $user->ID, '_referente_telefono', true );
+		$org_url       = class_exists( 'Dealer_Org_Admin' )
+			? add_query_arg( [ 'view' => 'users', 'org' => $org_id ], Dealer_Org_Admin::page_url() )
+			: admin_url( 'admin.php?page=dealer-portal-organizations' );
+		?>
+		<h2>Impostazioni Dealer Portal</h2>
+		<?php wp_nonce_field( 'dealer_user_meta_nonce', 'dealer_user_meta_nonce_field' ); ?>
+		<table class="form-table">
+			<tr>
+				<th>Organizzazione</th>
+				<td>
+					<strong><?php echo esc_html( Dealer_Organization::get_name( $org_id ) ); ?></strong>
+					&nbsp; <a href="<?php echo esc_url( $org_url ); ?>">Gestisci organizzazione</a>
+					<p class="description">Il livello commerciale e il perimetro massimo delle linee appartengono all'organizzazione.</p>
+				</td>
+			</tr>
+			<tr>
+				<th>Linee accessibili</th>
+				<td>
+					<label style="display:block;margin-bottom:6px;">
+						<input type="radio" name="dealer_line_scope_mode" value="all"<?php checked( ! $restricted ); ?>>
+						Tutte le linee dell'organizzazione
+					</label>
+					<label style="display:block;margin-bottom:8px;">
+						<input type="radio" name="dealer_line_scope_mode" value="subset"<?php checked( $restricted ); ?>>
+						Limita alle linee selezionate
+					</label>
+					<select name="dealer_lines[]" id="dealer_lines" multiple style="min-width:320px;min-height:130px;">
+						<?php foreach ( $org_lines as $key ) : ?>
+							<option value="<?php echo esc_attr( $key ); ?>"<?php selected( in_array( $key, $selected, true ) ); ?>>
+								<?php echo esc_html( str_replace( '|', ' › ', $key ) ); ?>
+							</option>
+						<?php endforeach; ?>
+					</select>
+					<p class="description">La selezione non puo' ampliare il perimetro aziendale. Se scegli “Limita”, seleziona almeno una linea.</p>
 				</td>
 			</tr>
 			<tr>
@@ -2115,6 +2221,15 @@ class Dealer_Admin {
 			return;
 		}
 
+		// L'area manager non ha campi linee su questo profilo: il suo perimetro
+		// vive in _am_lines e si imposta altrove (vedi
+		// render_area_manager_profile_panel). Scrivere qui gli farebbe salvare
+		// un meta che nessuno legge.
+		$user = get_user_by( 'id', $user_id );
+		if ( ! $user || Dealer_Identity::is_area_manager( $user ) ) {
+			return;
+		}
+
 		$lines = isset( $_POST['dealer_lines'] )
 			? array_values( array_intersect(
 				array_map( 'sanitize_text_field', (array) wp_unslash( $_POST['dealer_lines'] ) ),
@@ -2122,7 +2237,41 @@ class Dealer_Admin {
 			) )
 			: [];
 
-		update_user_meta( $user_id, '_dealer_lines',      $lines );
+		// Dove finiscono le linee dipende dal modello a cui l'utente appartiene:
+		// per chi ha un'organizzazione sono una RESTRIZIONE dentro il perimetro
+		// aziendale, per chi non ce l'ha sono il meta storico. Scriverle sempre
+		// nel meta storico — come faceva prima — non aveva alcun effetto sui
+		// primi. (Correzione arrivata dalla build in produzione.)
+		$org_id = Dealer_Identity::get_org_id( $user );
+
+		if ( $org_id ) {
+			$mode = sanitize_key( (string) wp_unslash( $_POST['dealer_line_scope_mode'] ?? 'all' ) );
+
+			if ( 'subset' === $mode ) {
+				// Una selezione vuota non deve diventare per sbaglio "tutte le
+				// linee": nel modello corrente un limite vuoto significa
+				// nessun limite.
+				if ( ! empty( $lines ) ) {
+					$org_lines = Dealer_Organization::get_effective_lines( $org_id );
+					$usable    = array_values( array_intersect( $lines, $org_lines ) );
+					$org_cmp   = array_values( array_unique( $org_lines ) );
+					$use_cmp   = array_values( array_unique( $usable ) );
+					sort( $org_cmp );
+					sort( $use_cmp );
+
+					if ( $org_cmp === $use_cmp ) {
+						delete_user_meta( $user_id, Dealer_Identity::META_LINE_LIMIT );
+					} elseif ( ! empty( $usable ) ) {
+						Dealer_Identity::set_line_limit( $user_id, $usable );
+					}
+				}
+			} else {
+				delete_user_meta( $user_id, Dealer_Identity::META_LINE_LIMIT );
+			}
+		} else {
+			update_user_meta( $user_id, Dealer_Identity::META_LEGACY_LINES, $lines );
+		}
+
 		update_user_meta( $user_id, '_referente_nome',     sanitize_text_field( wp_unslash( $_POST['referente_nome']     ?? '' ) ) );
 		update_user_meta( $user_id, '_referente_email',    sanitize_email(      wp_unslash( $_POST['referente_email']    ?? '' ) ) );
 		update_user_meta( $user_id, '_referente_telefono', sanitize_text_field( wp_unslash( $_POST['referente_telefono'] ?? '' ) ) );

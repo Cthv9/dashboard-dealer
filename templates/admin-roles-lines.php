@@ -124,10 +124,11 @@ require DEALER_PORTAL_PATH . 'templates/admin-org-styles.php';
 		<div class="postbox-header"><h2 class="hndle" style="padding:8px 12px;">3 · Assegnazione massiva utenti</h2></div>
 		<div class="inside">
 			<p class="description">
-				Seleziona uno o più utenti nella tabella qui sotto e applica in blocco ruolo e linee prodotto.
-				Le linee valgono per gli utenti <strong>senza organizzazione</strong> (modello storico): per chi ne ha
-				una i diritti li detiene l'azienda, e scriverli sull'utente non avrebbe effetto — quegli utenti
-				vengono saltati e contati a parte.
+				Seleziona uno o più utenti nella tabella qui sotto e applica in blocco ruolo e/o linee prodotto.
+				Per i dealer senza organizzazione le linee vengono assegnate direttamente; per i dealer collegati
+				a un'organizzazione diventano una <strong>restrizione personale</strong> dentro le linee aziendali;
+				per gli <strong>Area Manager</strong> aggiornano il perimetro di pubblicazione. Il cambio ruolo massivo
+				non modifica il tier di un'organizzazione e non trasforma un Area Manager in dealer.
 			</p>
 			<form method="post" action="<?php echo esc_url( $post_url ); ?>" id="dealer-bulk-assign">
 				<?php wp_nonce_field( 'dealer_bulk_assign' ); ?>

@@ -235,9 +235,14 @@ $colspan      = $can_manage ? 9 : 8;
 				<td><?php echo esc_html( $year ); ?></td>
 				<td>
 					<?php foreach ( $roles as $r ) :
-						$r_labels = [ 'dealer' => 'D', 'top_dealer' => 'TD', 'part_center' => 'PC' ];
+						// L'etichetta viene dai ruoli configurati, non da una
+						// mappa fissa D/TD/PC: dalla 1.5.0 l'amministratore puo'
+						// crearne di nuovi e rinominarli, e quelli comparivano
+						// qui con lo slug grezzo. (Correzione arrivata dalla
+						// build in produzione.)
+						$role_label = Dealer_Roles::label( (string) $r );
 						?>
-						<span class="dealer-role-pill dealer-role-<?php echo esc_attr( $r ); ?>" title="<?php echo esc_attr( ucfirst( str_replace( '_', ' ', $r ) ) ); ?>"><?php echo esc_html( $r_labels[ $r ] ?? $r ); ?></span>
+						<span class="dealer-role-pill dealer-role-<?php echo esc_attr( $r ); ?>" title="<?php echo esc_attr( $role_label ); ?>"><?php echo esc_html( $role_label ); ?></span>
 					<?php endforeach; ?>
 				</td>
 				<td>

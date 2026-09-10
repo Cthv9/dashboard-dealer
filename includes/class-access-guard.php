@@ -50,6 +50,19 @@ class Dealer_Access_Guard {
 		add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_layout_helper' ] );
 		add_action( 'wp_footer', [ $this, 'render_floating_logout' ] );
 		add_filter( 'body_class', [ $this, 'add_body_class' ] );
+
+		// Alcuni plugin di area riservata filtrano la query principale in base
+		// al ruolo e trasformano in 404 anche pagine WordPress pubbliche. Le
+		// pagine di Dealer Portal sono volutamente pubbliche come contenitore:
+		// i dati riservati sono protetti dagli shortcode, non dallo stato della
+		// pagina. Se la richiesta punta ESATTAMENTE a una nostra pagina
+		// pubblicata, si ripristina solo quella. (Diagnosi e correzione
+		// arrivate dalla build in produzione: era questa la causa reale dei 404
+		// sul sito ufficiale, non lo stato delle pagine.)
+		add_filter( 'the_posts',      [ $this, 'restore_plugin_page_query' ], PHP_INT_MAX, 2 );
+		add_filter( 'pre_handle_404', [ $this, 'prevent_plugin_page_404' ],   PHP_INT_MAX, 2 );
+		// Rete di sicurezza sul foglio di stile: vedi inline_stylesheet_fallback().
+		add_filter( 'the_content', [ $this, 'inline_stylesheet_fallback' ], 4 );
 		add_action( 'template_redirect', [ $this, 'route_dashboard' ] );
 	}
 
@@ -71,12 +84,18 @@ class Dealer_Access_Guard {
 	 * il link "Accedi", che funziona ed è meno brusco.
 	 */
 	public function route_dashboard(): void {
-		if ( is_admin() || ! is_page() ) {
+		// Niente is_page() qui: quando un filtro esterno azzera la query
+		// principale quel controllo e' falso proprio sulla pagina che stiamo
+		// cercando di salvare. L'identificazione passa dall'URL richiesto.
+		if ( is_admin() ) {
 			return;
 		}
 
 		$dashboard_id = (int) get_option( 'dealer_portal_dashboard_page_id' );
-		if ( ! $dashboard_id || get_queried_object_id() !== $dashboard_id ) {
+		$requested_id = self::requested_plugin_page_id();
+		$current_id   = $requested_id ?: (int) get_queried_object_id();
+
+		if ( ! $dashboard_id || $current_id !== $dashboard_id ) {
 			return;
 		}
 
@@ -92,6 +111,121 @@ class Dealer_Access_Guard {
 			wp_safe_redirect( Dealer_DB::area_manager_url() );
 			exit;
 		}
+	}
+
+	/**
+	 * ID della pagina Dealer Portal richiesta dall'URL corrente.
+	 *
+	 * Il confronto avviene sul path del permalink reale, non sullo slug. Questo
+	 * evita falsi positivi e continua a funzionare con WordPress in sottocartella
+	 * o con pagine rinominate. Restituisce soltanto pagine ancora pubblicate.
+	 */
+	private static function requested_plugin_page_id(): int {
+		// Memorizzata: la chiamano tre agganci diversi nella stessa richiesta
+		// (the_posts, pre_handle_404, route_dashboard) e ognuno costerebbe fino
+		// a sette get_permalink(). L'URL richiesto non cambia in corsa.
+		static $memo = null;
+		if ( null !== $memo ) {
+			return $memo;
+		}
+		$memo = 0;
+
+		if ( is_admin() || empty( $_SERVER['REQUEST_URI'] ) ) {
+			return $memo;
+		}
+
+		$request_uri  = esc_url_raw( wp_unslash( $_SERVER['REQUEST_URI'] ) );
+		$request_path = (string) wp_parse_url( $request_uri, PHP_URL_PATH );
+		$request_path = '/' . ltrim( rawurldecode( $request_path ), '/' );
+		$request_path = untrailingslashit( $request_path );
+		if ( '' === $request_path ) {
+			$request_path = '/';
+		}
+
+		$options = [
+			'dealer_portal_dashboard_page_id',
+			'dealer_portal_search_page_id',
+			'dealer_portal_team_page_id',
+			'dealer_portal_am_page_id',
+			'dealer_portal_fav_page_id',
+			'dealer_portal_board_page_id',
+			'dealer_portal_request_page_id',
+		];
+
+		foreach ( $options as $option ) {
+			$page_id = (int) get_option( $option );
+			if ( ! $page_id || 'page' !== get_post_type( $page_id ) || 'publish' !== get_post_status( $page_id ) ) {
+				continue;
+			}
+			$permalink = get_permalink( $page_id );
+			if ( ! $permalink ) {
+				continue;
+			}
+			$page_path = (string) wp_parse_url( $permalink, PHP_URL_PATH );
+			$page_path = '/' . ltrim( rawurldecode( $page_path ), '/' );
+			$page_path = untrailingslashit( $page_path );
+			if ( '' === $page_path ) {
+				$page_path = '/';
+			}
+			if ( $request_path === $page_path ) {
+				$memo = $page_id;
+				return $memo;
+			}
+		}
+
+		return $memo;
+	}
+
+	/**
+	 * Ripristina esclusivamente una pagina del plugin che un filtro esterno ha
+	 * rimosso dalla query principale. Non rende accessibile nessun altro post e
+	 * non salta i controlli del portale: quelli restano dentro gli shortcode.
+	 */
+	public function restore_plugin_page_query( array $posts, \WP_Query $query ): array {
+		if ( is_admin() || ! $query->is_main_query() ) {
+			return $posts;
+		}
+
+		$page_id = self::requested_plugin_page_id();
+		if ( ! $page_id ) {
+			return $posts;
+		}
+
+		foreach ( $posts as $post ) {
+			if ( $post instanceof \WP_Post && (int) $post->ID === $page_id ) {
+				return $posts;
+			}
+		}
+
+		$page = get_post( $page_id );
+		if ( ! $page instanceof \WP_Post || 'page' !== $page->post_type || 'publish' !== $page->post_status ) {
+			return $posts;
+		}
+
+		$query->posts             = [ $page ];
+		$query->post_count        = 1;
+		$query->found_posts       = 1;
+		$query->max_num_pages     = 1;
+		$query->queried_object    = $page;
+		$query->queried_object_id = $page_id;
+		$query->is_404            = false;
+		$query->is_page           = true;
+		$query->is_singular       = true;
+		$query->is_home           = false;
+		$query->is_archive        = false;
+		$query->is_search         = false;
+		$query->is_feed           = false;
+		$query->set( 'page_id', $page_id );
+
+		return [ $page ];
+	}
+
+	/** Impedisce a WP::handle_404() di riapplicare il 404 a una pagina ripristinata. */
+	public function prevent_plugin_page_404( $preempt, \WP_Query $query ) {
+		if ( is_admin() || ! $query->is_main_query() ) {
+			return $preempt;
+		}
+		return self::requested_plugin_page_id() ? true : $preempt;
 	}
 
 	/**
@@ -116,6 +250,7 @@ class Dealer_Access_Guard {
 				get_option( 'dealer_portal_am_page_id' ),
 				get_option( 'dealer_portal_fav_page_id' ),
 				get_option( 'dealer_portal_board_page_id' ),
+				get_option( 'dealer_portal_request_page_id' ),
 			] ) );
 		}
 
@@ -132,6 +267,91 @@ class Dealer_Access_Guard {
 			$classes[] = 'dealer-portal-page';
 		}
 		return $classes;
+	}
+
+	/** True quando il foglio di stile e' gia' stato messo in linea. */
+	private static $css_inlined = false;
+
+	/**
+	 * Stampa dealer.css dentro il contenuto quando non e' arrivato nell'head.
+	 *
+	 * Su un'installazione reale e' emerso il caso peggiore possibile: la pagina
+	 * dell'area riservata usciva con il contenuto giusto e SENZA stile. La
+	 * barra di navigazione, unica cosa impaginata correttamente, e' anche
+	 * l'unica il cui CSS e' stampato in linea insieme al proprio markup; tutto
+	 * il resto dipende dal foglio accodato con wp_enqueue_style() e non
+	 * arrivava. Il file c'era ed era quello giusto: semplicemente non
+	 * raggiungeva la pagina.
+	 *
+	 * Le cause possibili sono molte e non si possono distinguere da qui: un
+	 * tema o un plugin di area riservata che stampa la pagina senza passare da
+	 * wp_head(), un ottimizzatore che concatena e perde gli stili accodati
+	 * tardi, una CDN che non serve l'URL del plugin, un percorso di
+	 * installazione che rende sbagliato plugin_dir_url(). Diagnosticarle a
+	 * distanza significherebbe chiedere a chi amministra quel sito, e non e'
+	 * una strada percorribile.
+	 *
+	 * La difesa che regge in tutti quei casi e' una sola, ed e' quella che sul
+	 * sito vero gia' funziona: mettere il CSS dentro il contenuto. Si legge il
+	 * file dal disco — quindi funziona anche quando l'URL non e' raggiungibile
+	 * — e lo si stampa solo quando serve davvero: se il foglio e' gia' stato
+	 * emesso nell'head, qui non si fa nulla e non si duplica niente.
+	 *
+	 * Priorita' 4: prima della barra di navigazione, che sta su 5.
+	 */
+	public function inline_stylesheet_fallback( $content ) {
+		if ( is_admin() || self::$css_inlined || is_feed() || doing_action( 'wp_head' ) ) {
+			return $content;
+		}
+		if ( ! is_page() ) {
+			return $content;
+		}
+
+		$page_id = (int) get_the_ID();
+		if ( ! $page_id || $page_id !== (int) get_queried_object_id() || ! self::is_plugin_page( $page_id ) ) {
+			return $content;
+		}
+
+		// Gia' emesso nell'head dal normale accodamento: e' il caso sano, e qui
+		// non c'e' niente da fare.
+		if ( wp_style_is( 'dealer-portal-dealer', 'done' ) ) {
+			self::$css_inlined = true;
+			return $content;
+		}
+
+		$css = self::stylesheet_contents();
+		if ( '' === $css ) {
+			return $content;
+		}
+
+		self::$css_inlined = true;
+
+		return '<style id="dealer-portal-inline-css">' . $css . '</style>' . $content;
+	}
+
+	/**
+	 * Contenuto di dealer.css, letto una volta sola per richiesta.
+	 *
+	 * Nessun escape sul CSS: e' un file del plugin, non un dato di nessuno.
+	 * Vengono tolti solo gli eventuali "</style>", che chiuderebbero il blocco
+	 * in anticipo — non possono esserci in un foglio di stile valido, ma il
+	 * costo del controllo e' nullo.
+	 */
+	private static function stylesheet_contents(): string {
+		static $css = null;
+
+		if ( null !== $css ) {
+			return $css;
+		}
+
+		$file = DEALER_PORTAL_PATH . 'assets/css/dealer.css';
+		$css  = is_readable( $file ) ? (string) file_get_contents( $file ) : ''; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+
+		if ( '' !== $css ) {
+			$css = str_ireplace( '</style', '', $css );
+		}
+
+		return $css;
 	}
 
 	/** Vedi $logout_shown_elsewhere. */
