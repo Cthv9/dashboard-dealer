@@ -83,6 +83,7 @@ class Dealer_Area_Manager {
 	 * contesto, cosi' un nonce ottenuto per un utente non vale per un altro.
 	 */
 	const NONCE_INVITE     = 'dealer_am_invite';
+	const NONCE_CREATE_ORG = 'dealer_am_create_org';
 	const NONCE_LINES      = 'dealer_am_lines';
 	const NONCE_DEACTIVATE = 'dealer_am_deactivate';
 
@@ -481,6 +482,9 @@ class Dealer_Area_Manager {
 
 			case self::TAB_USERS:
 				$organizations = $this->collect_organizations( $user );
+				// Le linee del perimetro servono al modulo "crea azienda": sono
+				// il tetto massimo di cio' che l'area manager puo' assegnarle.
+				$scope_lines   = Dealer_Identity::get_scope_lines( $user );
 				break;
 
 			case self::TAB_ACTIVITY:
@@ -943,7 +947,7 @@ class Dealer_Area_Manager {
 		}
 
 		$action = sanitize_key( self::post_string( 'am_action' ) );
-		if ( ! in_array( $action, [ 'invite', 'set_lines', 'deactivate' ], true ) ) {
+		if ( ! in_array( $action, [ 'invite', 'set_lines', 'deactivate', 'create_org' ], true ) ) {
 			return;
 		}
 
@@ -959,6 +963,10 @@ class Dealer_Area_Manager {
 		$user = $context['user'];
 
 		switch ( $action ) {
+			case 'create_org':
+				$this->handle_create_org( $user, $redirect );
+				break;
+
 			case 'invite':
 				$this->handle_invite( $user, $redirect );
 				break;
@@ -978,6 +986,84 @@ class Dealer_Area_Manager {
 	 * link per impostare la password. Nessuna password in chiaro viene
 	 * generata, mostrata o spedita.
 	 */
+	/**
+	 * L'area manager crea un'azienda della rete, che entra nel suo perimetro.
+	 *
+	 * Era il pezzo mancante, e rendeva inutile tutto il resto: le persone si
+	 * invitano DENTRO un'organizzazione, l'elenco delle organizzazioni viene dal
+	 * perimetro dell'area manager, e il perimetro lo assegnava solo
+	 * l'amministratore. Un area manager appena nominato, con le sue linee ma
+	 * senza organizzazioni, apriva la scheda "Persone" e non aveva nulla da
+	 * fare — mentre esiste proprio per togliere lavoro agli amministratori.
+	 *
+	 * Chi crea segue: l'organizzazione appena creata viene aggiunta a _am_orgs,
+	 * cosi' il perimetro si costruisce da se' senza passare da nessuno. Il
+	 * modello non si allarga: le linee della nuova azienda sono per forza un
+	 * sottoinsieme di quelle dell'area manager, e su tutto il resto della rete
+	 * lui continua a non poter mettere le mani.
+	 */
+	private function handle_create_org( \WP_User $manager, string $redirect ): void {
+		check_admin_referer( self::NONCE_CREATE_ORG );
+
+		$scope_lines = Dealer_Identity::get_scope_lines( $manager );
+		if ( empty( $scope_lines ) ) {
+			$this->redirect_with_feedback(
+				$redirect,
+				'error',
+				'Non hai ancora linee prodotto assegnate: senza quelle non puoi creare aziende.'
+			);
+		}
+
+		// phpcs:disable WordPress.Security.NonceVerification.Missing — nonce sopra
+		$name  = sanitize_text_field( (string) wp_unslash( $_POST['org_name'] ?? '' ) );
+		$vat   = sanitize_text_field( (string) wp_unslash( $_POST['org_vat'] ?? '' ) );
+		$lines = isset( $_POST['org_lines'] ) ? (array) wp_unslash( $_POST['org_lines'] ) : [];
+		// phpcs:enable WordPress.Security.NonceVerification.Missing
+
+		if ( '' === trim( $name ) ) {
+			$this->redirect_with_feedback( $redirect, 'error', 'Serve la ragione sociale dell’azienda.' );
+		}
+
+		// Mai piu' di cio' che l'area manager ha: l'intersezione restringe, non
+		// amplia. E' la stessa regola del modello a organizzazioni.
+		$lines = array_values( array_intersect(
+			array_map( 'sanitize_text_field', $lines ),
+			$scope_lines
+		) );
+
+		if ( empty( $lines ) ) {
+			$this->redirect_with_feedback(
+				$redirect,
+				'error',
+				'Seleziona almeno una linea prodotto fra quelle del tuo perimetro.'
+			);
+		}
+
+		$org_id = Dealer_Organization::create( $name, [ 'lines' => $lines, 'tier' => 'dealer' ] );
+
+		if ( ! $org_id ) {
+			$this->redirect_with_feedback( $redirect, 'error', 'L’azienda non è stata creata: riprova.' );
+		}
+
+		if ( '' !== $vat ) {
+			update_post_meta( $org_id, '_org_vat', $vat );
+		}
+
+		// Chi crea segue: senza questo l'azienda esisterebbe e lui non la
+		// vedrebbe, che e' esattamente il vicolo cieco da cui si parte.
+		$roots = (array) get_user_meta( $manager->ID, Dealer_Identity::META_AM_ORGS, true );
+		$roots = array_values( array_unique( array_merge( array_map( 'intval', array_filter( $roots ) ), [ $org_id ] ) ) );
+		Dealer_Identity::set_am_scope( (int) $manager->ID, $roots, $scope_lines );
+
+		do_action( 'dealer_am_org_created', $org_id, (int) $manager->ID );
+
+		$this->redirect_with_feedback(
+			$redirect,
+			'success',
+			sprintf( 'Azienda «%s» creata e aggiunta al tuo perimetro: ora puoi invitarci le persone.', $name )
+		);
+	}
+
 	private function handle_invite( \WP_User $manager, string $redirect ): void {
 		// Ricontrollo difensivo: nessun handler si fida di essere stato
 		// raggiunto solo dal dispatcher.
@@ -1252,7 +1338,7 @@ class Dealer_Area_Manager {
 		$body .= "Linee prodotto abilitate:\n  - " . $line_list . "\n\n";
 		$body .= "Se non ti aspettavi questa email, ignorala.\n";
 
-		if ( wp_mail( $user->user_email, $subject, $body ) ) {
+		if ( Dealer_Notifications::send_plain( (string) $user->user_email, $subject, $body ) ) {
 			return true;
 		}
 

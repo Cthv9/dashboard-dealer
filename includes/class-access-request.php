@@ -256,9 +256,11 @@ class Dealer_Access_Request {
 		} elseif ( ! preg_match( '/^[A-Za-z0-9]{8,20}$/', str_replace( [ ' ', '.', '-' ], '', $data['vat'] ) ) ) {
 			$errors[] = 'La partita IVA non sembra valida (da 8 a 20 caratteri alfanumerici).';
 		}
-		if ( empty( $data['lines'] ) ) {
-			$errors[] = 'Seleziona almeno una linea prodotto di interesse.';
-		}
+		// Le linee NON si chiedono piu' a chi si presenta: chi scrive non sa
+		// come e' organizzato il nostro catalogo, e comunque l'assegnazione
+		// definitiva la decide chi approva. Il modulo serve a capire CHI e' e
+		// se e' gia' un partner della rete, non a fargli compilare la sua
+		// scheda anagrafica al posto nostro.
 
 		if ( $errors ) {
 			$this->redirect_with_feedback( $redirect_base, 'error', implode( ' ', $errors ), $data );
@@ -310,6 +312,13 @@ class Dealer_Access_Request {
 	 * la whitelist server-side: quello che arriva dal client non è affidabile.
 	 */
 	private function collect_input(): array {
+		// Gia' cliente/partner della rete? E' la sola domanda che cambia
+		// davvero cosa fa chi riceve la richiesta: se dice di si', si cerca
+		// l'azienda invece di aprirne una nuova.
+		$partner     = sanitize_key( (string) wp_unslash( $_POST['dar_partner'] ?? '' ) );
+		$partner     = in_array( $partner, [ 'si', 'no' ], true ) ? $partner : 'no';
+		$partner_ref = sanitize_text_field( (string) wp_unslash( $_POST['dar_partner_ref'] ?? '' ) );
+
 		$raw_lines = isset( $_POST['dar_lines'] ) ? (array) wp_unslash( $_POST['dar_lines'] ) : [];
 		$lines     = array_values( array_intersect(
 			array_map( 'sanitize_text_field', $raw_lines ),
@@ -324,6 +333,8 @@ class Dealer_Access_Request {
 			'vat'     => sanitize_text_field(     self::post_string( 'dar_vat' ) ),
 			'notes'   => sanitize_textarea_field( self::post_string( 'dar_notes' ) ),
 			'lines'   => $lines,
+			'partner' => $partner,
+			'partner_ref' => $partner_ref,
 		];
 	}
 
@@ -371,6 +382,8 @@ class Dealer_Access_Request {
 			'_dar_vat'           => $data['vat'],
 			'_dar_notes'         => $data['notes'],
 			'_dar_lines'         => $data['lines'],
+			'_dar_partner'       => $data['partner'],
+			'_dar_partner_ref'   => $data['partner_ref'],
 			'_dar_status'        => self::STATUS_PENDING,
 			'_dar_submitted'     => current_time( 'mysql' ),
 			'_dar_ip'            => $this->client_ip(),
@@ -530,7 +543,13 @@ class Dealer_Access_Request {
 		$body .= 'Email: '           . $data['email']   . "\n";
 		$body .= 'Telefono: '        . $data['phone']   . "\n";
 		$body .= 'Partita IVA: '     . $data['vat']     . "\n";
-		$body .= 'Linee richieste: ' . $lines . "\n";
+		$body .= 'Gia\' partner della rete: ' . ( 'si' === ( $data['partner'] ?? 'no' ) ? 'SI' : 'no' ) . "\n";
+		if ( '' !== (string) ( $data['partner_ref'] ?? '' ) ) {
+			$body .= 'Riferimento indicato: ' . $data['partner_ref'] . "\n";
+		}
+		if ( $data['lines'] ) {
+			$body .= 'Linee indicate: ' . $lines . "\n";
+		}
 		if ( '' !== $data['notes'] ) {
 			$body .= "Note:\n" . $data['notes'] . "\n";
 		}
@@ -540,7 +559,9 @@ class Dealer_Access_Request {
 		}
 		$body .= "\nEsamina la richiesta qui:\n" . $queue_url . "\n";
 
-		wp_mail( $recipients, $subject, $body );
+		// Dal mittente configurato, non da wordpress@dominio: vedi
+		// Dealer_Notifications::send_plain().
+		Dealer_Notifications::send_plain_many( (array) $recipients, $subject, $body );
 	}
 
 	// ─── Admin: menu ──────────────────────────────────────────────────────────
@@ -804,7 +825,7 @@ class Dealer_Access_Request {
 		$body .= "Linee prodotto abilitate:\n  - " . $line_list . "\n\n";
 		$body .= "Se non hai richiesto questo accesso, ignora questa email.\n";
 
-		if ( wp_mail( $user->user_email, $subject, $body ) ) {
+		if ( Dealer_Notifications::send_plain( (string) $user->user_email, $subject, $body ) ) {
 			return true;
 		}
 
@@ -852,7 +873,7 @@ class Dealer_Access_Request {
 					$body .= "\nNota dallo staff:\n" . $reason . "\n";
 				}
 				$body .= "\nPer qualsiasi chiarimento puoi rispondere a questa email.\n";
-				wp_mail( $email, $subject, $body );
+				Dealer_Notifications::send_plain( (string) $email, $subject, $body );
 			}
 		}
 
@@ -956,6 +977,8 @@ class Dealer_Access_Request {
 			'email'          => (string) get_post_meta( $post_id, '_dar_email', true ),
 			'phone'          => (string) get_post_meta( $post_id, '_dar_phone', true ),
 			'vat'            => (string) get_post_meta( $post_id, '_dar_vat', true ),
+			'partner'        => 'si' === (string) get_post_meta( $post_id, '_dar_partner', true ),
+			'partner_ref'    => (string) get_post_meta( $post_id, '_dar_partner_ref', true ),
 			'notes'          => (string) get_post_meta( $post_id, '_dar_notes', true ),
 			'lines'          => $lines,
 			'status'         => (string) get_post_meta( $post_id, '_dar_status', true ),

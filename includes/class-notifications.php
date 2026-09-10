@@ -815,6 +815,61 @@ class Dealer_Notifications {
 		return self::send_html( $to, $subject, self::wrap_html( $title, $body_html ), $text );
 	}
 
+	/**
+	 * Email di solo testo da un altro modulo del plugin.
+	 *
+	 * Esiste per una ragione precisa. Quattro messaggi — la notifica agli
+	 * amministratori di una nuova richiesta di accesso, la conferma a chi l'ha
+	 * inviata, l'email di approvazione con il link per la password e l'invito
+	 * dell'area manager — partivano con wp_mail() diretto, quindi con il
+	 * mittente predefinito di WordPress: wordpress@dominio. Su un dominio vero
+	 * quell'indirizzo di norma non e' autorizzato a spedire (SPF/DKIM), e il
+	 * risultato e' che proprio i messaggi piu' importanti del portale — quelli
+	 * senza i quali un utente nuovo non entra mai — finiscono nello spam o
+	 * vengono rifiutati, mentre le notifiche dei documenti arrivano.
+	 *
+	 * Da qui passano invece dallo stesso mittente configurato in
+	 * Notifiche → Impostazioni, come tutto il resto.
+	 */
+	public static function send_plain( string $to, string $subject, string $text ): bool {
+		if ( ! is_email( $to ) ) {
+			return false;
+		}
+
+		$options       = self::get_options();
+		$has_from      = is_email( (string) $options['from_email'] );
+		$has_from_name = '' !== (string) $options['from_name'];
+
+		if ( $has_from ) {
+			add_filter( 'wp_mail_from', [ __CLASS__, 'filter_from_email' ] );
+		}
+		if ( $has_from_name ) {
+			add_filter( 'wp_mail_from_name', [ __CLASS__, 'filter_from_name' ] );
+		}
+
+		try {
+			$sent = wp_mail( $to, $subject, $text );
+		} finally {
+			if ( $has_from ) {
+				remove_filter( 'wp_mail_from', [ __CLASS__, 'filter_from_email' ] );
+			}
+			if ( $has_from_name ) {
+				remove_filter( 'wp_mail_from_name', [ __CLASS__, 'filter_from_name' ] );
+			}
+		}
+
+		return (bool) $sent;
+	}
+
+	/** Come send_plain(), per piu' destinatari (notifiche interne). */
+	public static function send_plain_many( array $recipients, string $subject, string $text ): bool {
+		$sent = false;
+		foreach ( $recipients as $to ) {
+			$sent = self::send_plain( (string) $to, $subject, $text ) || $sent;
+		}
+		return $sent;
+	}
+
 	/** Involucro grafico condiviso, per i moduli che compongono da soli il corpo. */
 	public static function render_shared_template( string $slug, array $data ): string {
 		return self::render_template( $slug, $data );

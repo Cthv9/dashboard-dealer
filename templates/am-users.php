@@ -25,15 +25,69 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 	</p>
 </div>
 
-<?php if ( empty( $organizations ) ) : ?>
+<?php
+// ── Crea una nuova azienda ────────────────────────────────────────────────
+// Finche' questo modulo non esisteva, un area manager senza organizzazioni
+// arrivava qui e non aveva niente da fare: le persone si invitano dentro
+// un'azienda, e le aziende gliele assegnava solo l'amministratore. Ora se le
+// crea, e cio' che crea entra nel suo perimetro.
+?>
+<div class="dealer-am-panel">
+	<details class="dealer-am-neworg"<?php echo empty( $organizations ) ? ' open' : ''; ?>>
+		<summary><strong>Aggiungi un’azienda alla rete</strong></summary>
 
-	<div class="dealer-am-panel">
-		<p class="dealer-am-empty">
-			Non ti risulta assegnata nessuna organizzazione. Contatta l’amministratore del portale.
-		</p>
-	</div>
+		<?php if ( empty( $organizations ) ) : ?>
+			<p class="dealer-am-hint">
+				Non segui ancora nessuna azienda. Creane una qui: entrerà subito nel tuo perimetro
+				e potrai invitarci le persone, senza passare dall’amministratore.
+			</p>
+		<?php endif; ?>
 
-<?php endif; ?>
+		<?php if ( empty( $scope_lines ) ) : ?>
+			<p class="dealer-am-empty">
+				Non hai ancora linee prodotto assegnate: senza quelle non puoi creare aziende.
+				Contatta l’amministratore del portale.
+			</p>
+		<?php else : ?>
+			<form method="post" action="<?php echo esc_url( $form_action ); ?>" class="dealer-am-form">
+				<?php wp_nonce_field( Dealer_Area_Manager::NONCE_CREATE_ORG ); ?>
+				<input type="hidden" name="dealer_am_action" value="create_org">
+
+				<div class="dealer-am-grid">
+					<label class="dealer-am-grow">
+						<span>Ragione sociale</span>
+						<input type="text" name="org_name" maxlength="150" required
+							placeholder="Es. Nautica Rossi S.r.l.">
+					</label>
+					<label>
+						<span>Partita IVA <em>(facoltativa)</em></span>
+						<input type="text" name="org_vat" maxlength="20">
+					</label>
+				</div>
+
+				<fieldset class="dealer-am-lines">
+					<legend>Linee prodotto dell’azienda</legend>
+					<p class="dealer-am-hint">
+						Puoi assegnare solo linee del tuo perimetro: quello che l’azienda riceve
+						non può superare quello che hai tu.
+					</p>
+					<div class="dealer-am-lineopts">
+						<?php foreach ( $scope_lines as $am_line ) : ?>
+							<label class="dealer-am-lineopt">
+								<input type="checkbox" name="org_lines[]" value="<?php echo esc_attr( $am_line ); ?>">
+								<span><?php echo esc_html( str_replace( '|', ' › ', $am_line ) ); ?></span>
+							</label>
+						<?php endforeach; ?>
+					</div>
+				</fieldset>
+
+				<div class="dealer-am-submit">
+					<button type="submit" class="dealer-am-btn dealer-am-btn-primary">Crea azienda</button>
+				</div>
+			</form>
+		<?php endif; ?>
+	</details>
+</div>
 
 <?php foreach ( $organizations as $am_org ) : ?>
 

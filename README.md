@@ -503,6 +503,18 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 
 ## Changelog
 
+### 1.12.0
+
+Revisione generale prima della consegna, più tre interventi richiesti dal collaudo.
+
+**Le email transazionali partivano dal mittente sbagliato.** Quattro messaggi — la notifica agli amministratori di una nuova richiesta di accesso, la conferma a chi l'ha inviata, l'email di approvazione con il link per la password, l'invito dell'area manager — e l'invito del titolare usavano `wp_mail()` diretto, quindi il mittente predefinito di WordPress: `wordpress@dominio`. Su un dominio vero quell'indirizzo di norma non è autorizzato a spedire (SPF/DKIM): il risultato è che proprio i messaggi senza i quali un utente nuovo **non entra mai** finiscono nello spam o vengono rifiutati, mentre le notifiche dei documenti — che passano dal mittente configurato — arrivano. Ora passano tutte da `Dealer_Notifications::send_plain()`, con lo stesso mittente impostato in *Notifiche → Impostazioni*. Nel plugin non resta nessun `wp_mail()` diretto.
+
+**L'area manager può creare le aziende della rete.** Era il pezzo mancante, e rendeva inutile tutto il resto: le persone si invitano *dentro* un'organizzazione, l'elenco delle organizzazioni viene dal perimetro dell'area manager, e il perimetro lo assegnava soltanto l'amministratore. Un area manager appena nominato, con le sue linee ma senza organizzazioni, apriva *Persone* e non aveva nulla da fare — mentre esiste proprio per togliere lavoro agli amministratori. Ora crea l'azienda dalla propria area e **chi crea segue**: la nuova organizzazione entra automaticamente nel suo perimetro, così può invitarci subito le persone. Il modello non si allarga: le linee assegnabili all'azienda sono per forza un sottoinsieme delle sue, e sul resto della rete continua a non poter mettere le mani.
+
+**La richiesta di accesso non chiede più le linee prodotto.** Chi si presenta non sa com'è organizzato il catalogo, e l'assegnazione la decide comunque chi approva: chiederle era far compilare all'esterno una scheda che è nostra. Al loro posto c'è la domanda che cambia davvero cosa fa chi riceve la richiesta — **«Lavori già con noi?»** con un campo per il referente o il codice cliente. In coda, se la risposta è sì, l'amministratore vede l'avvertenza di cercare l'azienda esistente in *Organizzazioni* invece di aprirne una nuova.
+
+Grafica: il modulo «crea azienda» e la domanda sul partner usano l'impianto a griglia introdotto nella bacheca — le colonne dichiarate una volta sul contenitore, ogni campo della misura del proprio dato invece che stirato per riempire la riga.
+
 ### 1.11.2
 
 Regressione introdotta dalla 1.11.0 e trovata subito in collaudo: **ogni pagina del portale mostrava la Dashboard**.
