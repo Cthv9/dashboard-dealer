@@ -51,7 +51,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 		<?php else : ?>
 			<form method="post" action="<?php echo esc_url( $form_action ); ?>" class="dealer-am-form">
 				<?php wp_nonce_field( Dealer_Area_Manager::NONCE_CREATE_ORG ); ?>
-				<input type="hidden" name="dealer_am_action" value="create_org">
+				<input type="hidden" name="am_action" value="create_org">
 
 				<div class="dealer-am-grid">
 					<label class="dealer-am-grow">
@@ -152,6 +152,30 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 									placeholder="nome@azienda.it">
 							</div>
 						</div>
+
+						<?php if ( empty( $am_org['has_titolare'] ) ) : ?>
+							<?php
+							// Un'azienda senza titolare non puo' gestirsi da sola: nessuno
+							// al suo interno vede "Gestione Collaboratori" e ogni aggiunta
+							// deve passare per sempre da qui. La casella compare solo
+							// finche' il posto e' libero, e il server ricontrolla la
+							// condizione: due titolari non si possono creare.
+							?>
+							<div class="dealer-am-field dealer-am-titolare">
+								<label class="dealer-am-check">
+									<input type="checkbox" name="as_titolare" value="1">
+									<span>
+										<strong>Rendi questa persona il titolare dell’azienda.</strong>
+										<em>
+											Questa azienda non ha ancora un titolare, quindi non può gestirsi da sola:
+											ogni collaboratore da aggiungere o rimuovere deve passare da te. Il titolare
+											vede «Gestione Collaboratori» nella propria area e se ne occupa lui, dentro
+											le linee dell’azienda. Puoi nominarne uno solo.
+										</em>
+									</span>
+								</label>
+							</div>
+						<?php endif; ?>
 
 						<div class="dealer-am-field">
 							<label>Limita alle linee di competenza <em>(facoltativo)</em></label>

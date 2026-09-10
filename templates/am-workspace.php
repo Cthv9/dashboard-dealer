@@ -126,6 +126,12 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 	.dealer-am-submit{display:flex;justify-content:flex-end;padding-top:16px;
 		border-top:1px solid var(--am-border);}
 	.dealer-am-btn-primary{background:var(--am-blue);color:#fff;}
+	.dealer-am-check{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;
+		border:1px solid var(--am-border);border-radius:8px;background:var(--am-gray);
+		font-size:.92rem;line-height:1.45;cursor:pointer;}
+	.dealer-am-check input{margin-top:3px;}
+	.dealer-am-check em{display:block;margin-top:4px;font-style:normal;font-size:.85rem;
+		color:var(--am-muted);}
 	@media(max-width:700px){.dealer-am-grid{grid-template-columns:1fr;}
 		.dealer-am-submit{justify-content:stretch;}
 		.dealer-am-submit .dealer-am-btn{flex:1 1 auto;text-align:center;}}
