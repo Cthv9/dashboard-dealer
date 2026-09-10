@@ -503,6 +503,16 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 
 ## Changelog
 
+### 1.11.2
+
+Regressione introdotta dalla 1.11.0 e trovata subito in collaudo: **ogni pagina del portale mostrava la Dashboard**.
+
+Il ripristino della query identificava la pagina richiesta confrontando il *path* dell'URL con il path del permalink di ciascuna delle sette pagine. Con i permalink **«semplici»** (`?page_id=N`) — quelli del container di collaudo — il path di ogni pagina del sito è identico: `/`. Il confronto faceva quindi combaciare la **prima** pagina dell'elenco, la Dashboard, con qualunque richiesta; e `restore_plugin_page_query()` riscriveva la query con quella. Sul sito ufficiale, che usa i permalink «nome articolo», il difetto non si vedeva.
+
+- **Identificazione corretta in entrambi gli schemi**: quando l'ID viaggia nella query string lo si legge da lì, che è anche il confronto più diretto possibile; il confronto sul path resta per i permalink descrittivi. Un permalink che si riduce alla radice non identifica più nulla — o il sito usa i permalink semplici, o quella pagina è la home: in entrambi i casi confrontarlo farebbe combaciare qualunque richiesta.
+- **Il ripristino interviene solo su una query vuota**, che è la firma di «un filtro esterno ha rimosso la pagina». Se qualcosa c'è già, non è compito nostro sostituirlo. La versione precedente interveniva ogni volta che la nostra pagina non compariva fra i risultati: è quella condizione, unita all'identificazione ambigua, ad aver riscritto ogni pagina con la Dashboard. Meglio non ripristinare un caso raro che rompere quello normale.
+- **`pre_handle_404` non impedisce più il 404 a prescindere**: senza contenuti da mostrare la richiesta finirebbe su una pagina vuota invece che su un errore onesto.
+
 ### 1.11.1
 
 Fix segnalato dal collaudo in produzione: **il caricamento documenti dell'area manager non faceva niente**, mentre in ambiente di test funziona.

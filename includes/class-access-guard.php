@@ -142,6 +142,20 @@ class Dealer_Access_Guard {
 			$request_path = '/';
 		}
 
+		// Con i permalink "semplici" (?page_id=N) il PATH di ogni pagina del
+		// sito e' identico: "/". Confrontare i soli path farebbe combaciare la
+		// prima pagina dell'elenco — la dashboard — con qualunque richiesta, e
+		// restore_plugin_page_query() riscriverebbe la query con quella: ogni
+		// pagina del portale mostrerebbe la dashboard. E' successo davvero, nel
+		// container di collaudo. Quando l'ID viaggia nella query string lo si
+		// legge da li', che e' anche il confronto piu' diretto possibile.
+		$request_args      = [];
+		$request_query     = (string) wp_parse_url( $request_uri, PHP_URL_QUERY );
+		if ( '' !== $request_query ) {
+			wp_parse_str( $request_query, $request_args );
+		}
+		$requested_page_id = isset( $request_args['page_id'] ) ? absint( $request_args['page_id'] ) : 0;
+
 		$options = [
 			'dealer_portal_dashboard_page_id',
 			'dealer_portal_search_page_id',
@@ -157,6 +171,12 @@ class Dealer_Access_Guard {
 			if ( ! $page_id || 'page' !== get_post_type( $page_id ) || 'publish' !== get_post_status( $page_id ) ) {
 				continue;
 			}
+			// Permalink semplici: l'identificazione e' esatta e non ambigua.
+			if ( $requested_page_id && $requested_page_id === $page_id ) {
+				$memo = $page_id;
+				return $memo;
+			}
+
 			$permalink = get_permalink( $page_id );
 			if ( ! $permalink ) {
 				continue;
@@ -167,6 +187,15 @@ class Dealer_Access_Guard {
 			if ( '' === $page_path ) {
 				$page_path = '/';
 			}
+
+			// Un permalink che si riduce alla radice non identifica niente: o il
+			// sito usa i permalink semplici (e allora vale il confronto sopra),
+			// o quella pagina e' la home. In entrambi i casi confrontarlo
+			// significherebbe far combaciare qualunque richiesta.
+			if ( '/' === $page_path ) {
+				continue;
+			}
+
 			if ( $request_path === $page_path ) {
 				$memo = $page_id;
 				return $memo;
@@ -186,15 +215,21 @@ class Dealer_Access_Guard {
 			return $posts;
 		}
 
-		$page_id = self::requested_plugin_page_id();
-		if ( ! $page_id ) {
+		// Si interviene SOLO quando la query non ha restituito niente, che e' la
+		// firma di "un filtro esterno ha rimosso la pagina". Se qualcosa c'e'
+		// gia', non e' compito nostro sostituirlo: la versione precedente lo
+		// faceva ogni volta che la nostra pagina non compariva fra i risultati,
+		// e su un sito con i permalink semplici — dove l'identificazione della
+		// pagina era ambigua — questo ha riscritto la query di ogni pagina del
+		// portale con la dashboard. Meglio non ripristinare un caso raro che
+		// rompere quello normale.
+		if ( ! empty( $posts ) ) {
 			return $posts;
 		}
 
-		foreach ( $posts as $post ) {
-			if ( $post instanceof \WP_Post && (int) $post->ID === $page_id ) {
-				return $posts;
-			}
+		$page_id = self::requested_plugin_page_id();
+		if ( ! $page_id ) {
+			return $posts;
 		}
 
 		$page = get_post( $page_id );
@@ -225,7 +260,16 @@ class Dealer_Access_Guard {
 		if ( is_admin() || ! $query->is_main_query() ) {
 			return $preempt;
 		}
-		return self::requested_plugin_page_id() ? true : $preempt;
+
+		// Solo se la pagina c'e' davvero. Restituire true a prescindere
+		// significherebbe impedire il 404 anche quando non c'e' niente da
+		// mostrare, e la richiesta finirebbe su una pagina vuota invece che su
+		// un errore onesto.
+		if ( empty( $query->posts ) || ! self::requested_plugin_page_id() ) {
+			return $preempt;
+		}
+
+		return true;
 	}
 
 	/**
