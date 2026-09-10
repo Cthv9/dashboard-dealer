@@ -5,7 +5,6 @@
  * Variabili fornite da Dealer_Access_Request::render_form_shortcode():
  * @var string $title
  * @var bool   $is_logged_in
- * @var array  $lines_by_brand
  * @var array  $prefill
  * @var array  $feedback
  * @var int    $form_time
@@ -24,7 +23,6 @@ $p_email   = isset( $prefill['email'] )   ? (string) $prefill['email']   : '';
 $p_phone   = isset( $prefill['phone'] )   ? (string) $prefill['phone']   : '';
 $p_vat     = isset( $prefill['vat'] )     ? (string) $prefill['vat']     : '';
 $p_notes   = isset( $prefill['notes'] )   ? (string) $prefill['notes']   : '';
-$p_lines   = ( isset( $prefill['lines'] ) && is_array( $prefill['lines'] ) ) ? $prefill['lines'] : [];
 $p_partner     = isset( $prefill['partner'] ) ? (string) $prefill['partner'] : '';
 $p_partner_ref = isset( $prefill['partner_ref'] ) ? (string) $prefill['partner_ref'] : '';
 
@@ -113,26 +111,6 @@ $submitted  = ( 'success' === $fb_status );
 			cursor: pointer; font-size: .93rem; line-height: 1.4; }
 		.dar-choice-opt:hover { border-color: var(--dar-blue); }
 		.dar-choice-opt input { margin-top: 2px; }
-		.dar-lines {
-			border: 1px solid var(--dar-border);
-			border-radius: 6px;
-			background: #fff;
-			max-height: 300px;
-			overflow-y: auto;
-			padding: 12px 14px;
-		}
-		.dar-brand { margin-bottom: 14px; }
-		.dar-brand:last-child { margin-bottom: 0; }
-		.dar-brand-name {
-			font-weight: 700;
-			font-size: .82rem;
-			text-transform: uppercase;
-			letter-spacing: .04em;
-			color: var(--dar-blue);
-			margin-bottom: 6px;
-		}
-		.dar-line-opts { display: flex; flex-wrap: wrap; gap: 6px 16px; }
-		.dar-line-opt { font-size: .9rem; font-weight: 400; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 		.dar-hp {
 			position: absolute !important;
 			left: -9999px !important;

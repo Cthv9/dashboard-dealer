@@ -111,9 +111,14 @@ $colspan      = $can_manage ? 9 : 8;
 
 			<select name="filter_role">
 				<option value="">Tutti i ruoli</option>
-				<option value="dealer"<?php selected( $filter_role, 'dealer' ); ?>>Dealer</option>
-				<option value="top_dealer"<?php selected( $filter_role, 'top_dealer' ); ?>>Top Dealer</option>
-				<option value="part_center"<?php selected( $filter_role, 'part_center' ); ?>>Parts Center</option>
+				<?php
+				// Dai ruoli configurati, come la colonna Ruoli piu' sotto: con
+				// l'elenco fisso un ruolo creato da "Ruoli e Linee" non era
+				// filtrabile.
+				foreach ( Dealer_Roles::labels() as $role_slug => $role_label ) :
+					?>
+					<option value="<?php echo esc_attr( $role_slug ); ?>"<?php selected( $filter_role, $role_slug ); ?>><?php echo esc_html( $role_label ); ?></option>
+				<?php endforeach; ?>
 			</select>
 
 			<select name="filter_status">

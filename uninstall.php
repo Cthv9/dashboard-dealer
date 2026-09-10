@@ -82,6 +82,8 @@ $cron_hooks = [
 	'dealer_portal_process_mail_queue',
 	'dealer_portal_dealer_expiry_digest',
 	'dealer_portal_admin_expiry_report',
+	// Passata quotidiana della bacheca (Dealer_Board::CRON_SWEEP).
+	'dealer_portal_board_sweep',
 ];
 foreach ( $cron_hooks as $hook ) {
 	if ( function_exists( 'wp_unschedule_hook' ) ) {
@@ -152,8 +154,6 @@ $options = [
 	'dealer_portal_schema_revision',
 	'dealer_portal_pages_revision',
 	'dealer_portal_media_revision',
-	'_transient_dealer_portal_pages_ok',
-	'_transient_timeout_dealer_portal_pages_ok',
 	'dealer_portal_board',
 	'dealer_portal_notifications',
 	// Configurazione di ruoli e catalogo, modificabile da "Ruoli e Linee".
@@ -163,6 +163,36 @@ $options = [
 ];
 foreach ( $options as $option ) {
 	delete_option( $option );
+}
+
+// ── Transient del plugin ──────────────────────────────────────────────────────
+// Quelli a nome fisso passano da delete_transient(), che pulisce anche una
+// cache degli oggetti esterna. Quelli con un suffisso variabile (ID utente,
+// hash dell'IP, token di feedback) non si possono elencare: si spazzano per
+// prefisso direttamente nella tabella delle opzioni. Scadrebbero comunque da
+// soli, ma un plugin disinstallato non deve lasciare righe sue in giro.
+foreach ( [ 'dealer_portal_pages_ok', 'dealer_portal_caps_repaired', 'dealer_team_page_url' ] as $transient ) {
+	delete_transient( $transient );
+}
+$transient_prefixes = [
+	'dealer_portal_',    // pages_ok, caps_repaired, pages_fixed_{user}
+	'dealer_board_',     // unread_{user}, notice_{user}, day_{user}_{data}
+	'dealer_zip_rl_',    // rate limit dello ZIP dei preferiti
+	'dealer_roles_lines_notice_',
+	'dealer_org_migration_report_',
+	'dar_rl_', 'dar_fb_', // richiesta di accesso: rate limit e feedback PRG
+	'am_fb_', 'am_inv_rl_', // area manager: feedback PRG e rate limit inviti
+	'dt_fb_', 'dt_inv_rl_', // titolare: idem
+	'df_fb_',             // preferiti: feedback PRG
+];
+foreach ( $transient_prefixes as $prefix ) {
+	foreach ( [ '_transient_', '_transient_timeout_' ] as $transient_base ) {
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
+		$wpdb->query( $wpdb->prepare(
+			"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",
+			$wpdb->esc_like( $transient_base . $prefix ) . '%'
+		) );
+	}
 }
 
 // ── Pulisce i meta utente introdotti dal plugin ───────────────────────────────
@@ -207,3 +237,11 @@ foreach ( $user_meta_keys as $meta_key ) {
 // senza il plugin non lo legge piu' nessuno e tornano visibili, che e' il
 // comportamento corretto una volta disinstallato.
 delete_metadata( 'post', 0, '_dealer_doc_attachment', '', true );
+
+// Stessa sorte per le guardie del modulo notifiche ("email gia' accodata per
+// questo documento"): sono contabilita' del plugin, non un dato del documento.
+// E per la marcatura delle immagini della bacheca, nel caso un allegato sia
+// rimasto orfano di un annuncio mai salvato.
+delete_metadata( 'post', 0, '_dealer_notified_new', '', true );
+delete_metadata( 'post', 0, '_dealer_notified_version', '', true );
+delete_metadata( 'post', 0, '_dealer_board_image', '', true );

@@ -27,6 +27,26 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 	<form class="dealer-search-form" id="dealer-search-form" method="get" action="<?php echo esc_url( $base_url ); ?>" role="search">
 
+		<?php
+		// Permalink "semplici" (?page_id=12): un form GET scarta la query string
+		// dell'action e l'invio finirebbe su /?s=… — la ricerca del tema, non
+		// questa pagina. I parametri del permalink viaggiano quindi come campi
+		// nascosti: parse_state() ignora ciò che non conosce, e restando nel form
+		// vengono ripresi anche dal JS quando riscrive l'URL con replaceState.
+		$base_query = (string) wp_parse_url( $base_url, PHP_URL_QUERY );
+		$base_args  = [];
+		if ( '' !== $base_query ) {
+			wp_parse_str( $base_query, $base_args );
+		}
+		$form_fields = array_merge( [ 's', 'orderby', 'pag' ], Dealer_Search::FACET_GROUPS );
+		foreach ( $base_args as $base_key => $base_value ) :
+			if ( ! is_scalar( $base_value ) || in_array( (string) $base_key, $form_fields, true ) ) {
+				continue;
+			}
+			?>
+			<input type="hidden" name="<?php echo esc_attr( (string) $base_key ); ?>" value="<?php echo esc_attr( (string) $base_value ); ?>">
+		<?php endforeach; ?>
+
 		<!-- Pagina corrente: aggiornata dal JS al click sulla paginazione, inviata anche senza JS -->
 		<input type="hidden" name="pag" id="dealer-paged" value="<?php echo esc_attr( $paged ); ?>">
 

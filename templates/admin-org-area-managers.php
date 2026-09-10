@@ -51,9 +51,9 @@ require DEALER_PORTAL_PATH . 'templates/admin-org-styles.php';
 			benissimo senza nessuna organizzazione assegnata.
 		</p>
 		<p style="margin:8px 0 0;">
-			Nota: il campo <em>Linee Prodotto Assegnate</em> che compare nel profilo WordPress dell'utente
-			<strong>non</strong> vale per gli area manager — è il campo del vecchio modello per i dealer.
-			Il perimetro di un area manager si imposta solo da questa schermata.
+			Nota: il profilo WordPress di un area manager mostra il suo perimetro in sola lettura e rimanda
+			qui; il campo <em>Linee Prodotto Assegnate</em> dei dealer per lui non compare, perché non
+			avrebbe alcun effetto. Il perimetro di un area manager si imposta solo da questa schermata.
 		</p>
 	</div>
 

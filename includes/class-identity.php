@@ -55,9 +55,6 @@ class Dealer_Identity {
 	/** Ruolo dell'area manager. */
 	const ROLE_AREA_MANAGER = 'area_manager';
 
-	/** Ruoli dealer, allineati a Dealer_Search. */
-	const DEALER_ROLES = [ 'dealer', 'top_dealer', 'part_center' ];
-
 	/** Titolo con cui avviene un accesso: finisce nel log dei download. */
 	const CONTEXT_ADMIN        = 'admin';
 	const CONTEXT_AREA_MANAGER = 'area_manager';

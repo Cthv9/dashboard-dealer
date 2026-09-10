@@ -272,6 +272,7 @@ class Dealer_Admin {
 			'Dealer_Dashboard', 'Dealer_SearchWP', 'Dealer_Notifications',
 			'Dealer_Access_Request', 'Dealer_Org_Admin', 'Dealer_Team',
 			'Dealer_Area_Manager', 'Dealer_Favorites', 'Dealer_Access_Guard',
+			'Dealer_Board', 'Dealer_Portal_Nav',
 		];
 
 		$caps = [ DEALER_PORTAL_CAP, DEALER_PORTAL_CAP_UPLOAD, DEALER_PORTAL_CAP_LOGS, DEALER_PORTAL_CAP_ORGS ];

@@ -30,17 +30,18 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  */
 class Dealer_Access_Guard {
 
-	/** Ruoli che non devono operare nel backend. */
-	const PORTAL_ROLES = [ 'dealer', 'top_dealer', 'part_center', 'area_manager' ];
+	// I ruoli che non devono operare nel backend sono Dealer_Roles::portal_slugs()
+	// (vedi is_portal_user()): un elenco scritto qui non conoscerebbe i ruoli
+	// creati dall'amministratore da "Ruoli e Linee".
 
 	/** Pagine di wp-admin comunque raggiungibili. */
 	const ALLOWED_SCREENS = [ 'profile.php' ];
 
 	/**
-	 * True quando la pagina corrente ha già un proprio link di logout in vista
-	 * (la dashboard, nell'header). Impostato da Dealer_Dashboard::render()
-	 * prima di includere il proprio template, per evitare due link identici
-	 * sulla stessa pagina.
+	 * True quando la pagina corrente ha già un proprio link di logout in vista.
+	 * Lo alza Dealer_Portal_Nav::prepend_nav() sulle pagine del portale, dove
+	 * la barra di navigazione contiene "Esci": senza, ci sarebbero due link
+	 * identici sulla stessa pagina.
 	 */
 	private static $logout_shown_elsewhere = false;
 
@@ -528,9 +529,10 @@ class Dealer_Access_Guard {
 	 * (ruolo sbagliato, perimetro non configurato, organizzazione sospesa),
 	 * invece di aggiungere il link a mano in ogni notice() e in ogni
 	 * template: la condizione è la stessa della barra nascosta, quindi vive
-	 * accanto ad essa. wp_footer gira dopo che lo shortcode ha già prodotto
-	 * il contenuto — Dealer_Dashboard::render() ha quindi già avuto modo di
-	 * chiamare suppress_floating_logout() se sta per mostrare il proprio link.
+	 * accanto ad essa. wp_footer gira dopo che the_content e' gia' stato
+	 * filtrato — Dealer_Portal_Nav ha quindi gia' avuto modo di chiamare
+	 * suppress_floating_logout() se ha stampato la barra con il proprio "Esci".
+	 * Resta quindi visibile solo fuori dalle pagine del portale.
 	 */
 	public function render_floating_logout(): void {
 		if ( is_admin() || self::$logout_shown_elsewhere || ! self::is_portal_user() ) {

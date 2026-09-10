@@ -116,10 +116,18 @@ $last_row  = min( $paged * $per_page, $total_logs );
 			<?php foreach ( $logs as $log ) : ?>
 			<tr>
 				<td>
-					<?php if ( $log->post_title ) : ?>
-						<a href="<?php echo esc_url( (string) get_edit_post_link( (int) $log->post_id ) ); ?>">
+					<?php
+					// L'area manager non ha le capability dell'editor nativo: per
+					// lui get_edit_post_link() e' vuoto e il link finiva su
+					// href="", cioe' sulla pagina stessa. Titolo senza link.
+					$log_edit_link = $log->post_title ? (string) get_edit_post_link( (int) $log->post_id ) : '';
+					?>
+					<?php if ( $log->post_title && $log_edit_link ) : ?>
+						<a href="<?php echo esc_url( $log_edit_link ); ?>">
 							<?php echo esc_html( $log->post_title ); ?>
 						</a>
+					<?php elseif ( $log->post_title ) : ?>
+						<?php echo esc_html( $log->post_title ); ?>
 					<?php else : ?>
 						<em style="color:#888;">Post eliminato (ID <?php echo esc_html( $log->post_id ); ?>)</em>
 					<?php endif; ?>

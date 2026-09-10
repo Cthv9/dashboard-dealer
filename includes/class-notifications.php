@@ -76,8 +76,9 @@ class Dealer_Notifications {
 	/** Tetto di sicurezza sui documenti raccolti per i digest. */
 	const MAX_DOCS = 300;
 
-	/** Ruoli dealer (allineati a Dealer_Search). */
-	const DEALER_ROLES = [ 'dealer', 'top_dealer', 'part_center' ];
+	// Nessun elenco di ruoli dealer qui: i destinatari si risolvono con
+	// Dealer_Roles::dealer_slugs() (vedi get_dealer_user_ids()), che include
+	// anche i ruoli creati dall'amministratore.
 
 	/** Testo alternativo dell'email in corso di invio (letto da phpmailer_init). */
 	private static string $alt_body = '';

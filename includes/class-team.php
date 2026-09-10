@@ -66,9 +66,6 @@ class Dealer_Team {
 	const NONCE_LINES      = 'dealer_team_lines';
 	const NONCE_DEACTIVATE = 'dealer_team_deactivate';
 
-	/** Ruoli dealer assegnabili a un invito. Mai nulla che venga dall'input. */
-	const ALLOWED_ROLES = [ 'dealer', 'top_dealer', 'part_center' ];
-
 	/** Tracciabilita' della delega: chi ha invitato e chi ha disattivato. */
 	const META_INVITED_BY     = '_dealer_invited_by';
 	const META_INVITED_AT     = '_dealer_invited_at';

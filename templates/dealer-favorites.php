@@ -134,6 +134,22 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 				<?php echo esc_html( '' !== $filter_tag ? sprintf( '%d documenti con questa etichetta', count( $flat_items ) ) : sprintf( '%d documenti nei preferiti', $total_count ) ); ?>
 			</p>
 			<form method="get" action="<?php echo esc_url( $base_url ); ?>" class="dealer-sort">
+				<?php
+				// Permalink "semplici" (?page_id=12): un form GET scarta la query
+				// string dell'action e "Applica" porterebbe alla home. I parametri
+				// del permalink viaggiano quindi come campi nascosti.
+				$base_query = (string) wp_parse_url( $base_url, PHP_URL_QUERY );
+				$base_args  = [];
+				if ( '' !== $base_query ) {
+					wp_parse_str( $base_query, $base_args );
+				}
+				foreach ( $base_args as $base_key => $base_value ) :
+					if ( ! is_scalar( $base_value ) || in_array( (string) $base_key, [ 'tag', 'orderby', 'df_ref' ], true ) ) {
+						continue;
+					}
+					?>
+					<input type="hidden" name="<?php echo esc_attr( (string) $base_key ); ?>" value="<?php echo esc_attr( (string) $base_value ); ?>">
+				<?php endforeach; ?>
 				<input type="hidden" name="tag" value="<?php echo esc_attr( $filter_tag ); ?>">
 				<label for="dealer-fav-orderby">Ordina per</label>
 				<select name="orderby" id="dealer-fav-orderby">
