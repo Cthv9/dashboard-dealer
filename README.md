@@ -503,6 +503,22 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 
 ## Changelog
 
+### 1.10.3
+
+Fix di un difetto visto solo in produzione: **le pagine dell'area riservata uscivano con i contenuti giusti e senza alcuna impaginazione**, mentre in locale erano corrette.
+
+L'indizio era nello screenshot: l'unica cosa impaginata bene era la barra di navigazione — ed è anche l'unica il cui CSS è stampato **in linea** insieme al proprio markup. Tutto il resto dipende da `dealer.css`, accodato con `wp_enqueue_style()`, e non arrivava alla pagina. Il file c'era ed era quello giusto: semplicemente non la raggiungeva.
+
+Le cause possibili sono molte e non distinguibili a distanza: un tema o un plugin di area riservata che stampa la pagina senza passare da `wp_head()`, un ottimizzatore che concatena e perde gli stili accodati tardi, una CDN che non serve l'URL del plugin, un percorso d'installazione che rende sbagliato `plugin_dir_url()`. Diagnosticarle significherebbe chiedere a chi amministra quel sito, e non è una strada percorribile.
+
+- **Il foglio di stile viene messo in linea quando non è arrivato nell'head.** Si legge il file dal disco — quindi funziona anche se l'URL è irraggiungibile — e si stampa solo quando serve: se il foglio è già stato emesso, non si fa nulla e non si duplica niente. È la stessa difesa che sul sito vero già funzionava per la barra di navigazione.
+- **Diagnostica**: nuova sezione *Foglio di stile* con presenza e dimensione del file su disco e l'URL pubblico da aprire per verificare se è raggiungibile.
+
+Recepite inoltre due correzioni dalla build in produzione del webmaster:
+
+- **Autoriparazione della capability `read`** sui ruoli del portale. Un ruolo creato da una versione precedente, o alterato da un altro plugin, può esistere senza `read`: in quel caso WordPress e diversi plugin di area riservata trattano l'account come privo di accesso al front-end — l'utente esiste, ha il ruolo giusto, e non entra da nessuna parte.
+- **Assegnazione massiva coerente con il modello dei permessi effettivi.** La versione precedente scriveva le linee solo nel meta storico e *saltava* chi aveva un'organizzazione o era area manager — cioè, in una rete organizzata, la maggioranza degli utenti. Ora: area manager → perimetro di pubblicazione; utente con organizzazione → limite personale dentro il perimetro aziendale; utente senza organizzazione → meta storico. Il ruolo commerciale di chi appartiene a un'organizzazione non viene toccato, perché lo eredita dall'azienda. Con modalità *set* e nessuna linea selezionata l'operazione si rifiuta invece di azzerare i diritti.
+
 ### 1.10.2
 
 Vista di pubblicazione della bacheca, secondo giro sulla grafica.

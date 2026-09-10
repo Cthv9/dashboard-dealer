@@ -50,6 +50,8 @@ class Dealer_Access_Guard {
 		add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_layout_helper' ] );
 		add_action( 'wp_footer', [ $this, 'render_floating_logout' ] );
 		add_filter( 'body_class', [ $this, 'add_body_class' ] );
+		// Rete di sicurezza sul foglio di stile: vedi inline_stylesheet_fallback().
+		add_filter( 'the_content', [ $this, 'inline_stylesheet_fallback' ], 4 );
 		add_action( 'template_redirect', [ $this, 'route_dashboard' ] );
 	}
 
@@ -132,6 +134,91 @@ class Dealer_Access_Guard {
 			$classes[] = 'dealer-portal-page';
 		}
 		return $classes;
+	}
+
+	/** True quando il foglio di stile e' gia' stato messo in linea. */
+	private static $css_inlined = false;
+
+	/**
+	 * Stampa dealer.css dentro il contenuto quando non e' arrivato nell'head.
+	 *
+	 * Su un'installazione reale e' emerso il caso peggiore possibile: la pagina
+	 * dell'area riservata usciva con il contenuto giusto e SENZA stile. La
+	 * barra di navigazione, unica cosa impaginata correttamente, e' anche
+	 * l'unica il cui CSS e' stampato in linea insieme al proprio markup; tutto
+	 * il resto dipende dal foglio accodato con wp_enqueue_style() e non
+	 * arrivava. Il file c'era ed era quello giusto: semplicemente non
+	 * raggiungeva la pagina.
+	 *
+	 * Le cause possibili sono molte e non si possono distinguere da qui: un
+	 * tema o un plugin di area riservata che stampa la pagina senza passare da
+	 * wp_head(), un ottimizzatore che concatena e perde gli stili accodati
+	 * tardi, una CDN che non serve l'URL del plugin, un percorso di
+	 * installazione che rende sbagliato plugin_dir_url(). Diagnosticarle a
+	 * distanza significherebbe chiedere a chi amministra quel sito, e non e'
+	 * una strada percorribile.
+	 *
+	 * La difesa che regge in tutti quei casi e' una sola, ed e' quella che sul
+	 * sito vero gia' funziona: mettere il CSS dentro il contenuto. Si legge il
+	 * file dal disco — quindi funziona anche quando l'URL non e' raggiungibile
+	 * — e lo si stampa solo quando serve davvero: se il foglio e' gia' stato
+	 * emesso nell'head, qui non si fa nulla e non si duplica niente.
+	 *
+	 * Priorita' 4: prima della barra di navigazione, che sta su 5.
+	 */
+	public function inline_stylesheet_fallback( $content ) {
+		if ( is_admin() || self::$css_inlined || is_feed() || doing_action( 'wp_head' ) ) {
+			return $content;
+		}
+		if ( ! is_page() ) {
+			return $content;
+		}
+
+		$page_id = (int) get_the_ID();
+		if ( ! $page_id || $page_id !== (int) get_queried_object_id() || ! self::is_plugin_page( $page_id ) ) {
+			return $content;
+		}
+
+		// Gia' emesso nell'head dal normale accodamento: e' il caso sano, e qui
+		// non c'e' niente da fare.
+		if ( wp_style_is( 'dealer-portal-dealer', 'done' ) ) {
+			self::$css_inlined = true;
+			return $content;
+		}
+
+		$css = self::stylesheet_contents();
+		if ( '' === $css ) {
+			return $content;
+		}
+
+		self::$css_inlined = true;
+
+		return '<style id="dealer-portal-inline-css">' . $css . '</style>' . $content;
+	}
+
+	/**
+	 * Contenuto di dealer.css, letto una volta sola per richiesta.
+	 *
+	 * Nessun escape sul CSS: e' un file del plugin, non un dato di nessuno.
+	 * Vengono tolti solo gli eventuali "</style>", che chiuderebbero il blocco
+	 * in anticipo — non possono esserci in un foglio di stile valido, ma il
+	 * costo del controllo e' nullo.
+	 */
+	private static function stylesheet_contents(): string {
+		static $css = null;
+
+		if ( null !== $css ) {
+			return $css;
+		}
+
+		$file = DEALER_PORTAL_PATH . 'assets/css/dealer.css';
+		$css  = is_readable( $file ) ? (string) file_get_contents( $file ) : ''; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+
+		if ( '' !== $css ) {
+			$css = str_ireplace( '</style', '', $css );
+		}
+
+		return $css;
 	}
 
 	/** Vedi $logout_shown_elsewhere. */

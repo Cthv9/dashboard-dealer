@@ -224,6 +224,17 @@ class Dealer_Roles {
 				continue;
 			}
 
+			// Un ruolo creato da una versione precedente, o alterato da un altro
+			// plugin, puo' esistere senza la capability base 'read'. In quel
+			// caso WordPress e diversi plugin di area riservata lo trattano
+			// come un account senza accesso al front-end: l'utente esiste, ha
+			// il ruolo giusto, e non entra da nessuna parte. La capability
+			// minima del portale viene quindi autoriparata. (Correzione
+			// arrivata dalla build in produzione.)
+			if ( ! $role->has_cap( 'read' ) ) {
+				$role->add_cap( 'read', true );
+			}
+
 			// add_role() e' idempotente e non aggiorna l'etichetta di un ruolo
 			// gia' esistente: va riparata esplicitamente.
 			$this->maybe_rename( $slug, $row['label'], $role );
@@ -231,8 +242,11 @@ class Dealer_Roles {
 
 		// Area manager: segue un perimetro di organizzazioni e pubblica sulle
 		// proprie linee. Non e' un dealer e non si configura da "Ruoli e Linee".
-		if ( ! get_role( self::AREA_MANAGER ) ) {
+		$area_role = get_role( self::AREA_MANAGER );
+		if ( ! $area_role ) {
 			add_role( self::AREA_MANAGER, 'Area Manager', [ 'read' => true ] );
+		} elseif ( ! $area_role->has_cap( 'read' ) ) {
+			$area_role->add_cap( 'read', true );
 		}
 	}
 

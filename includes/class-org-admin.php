@@ -213,12 +213,21 @@ class Dealer_Org_Admin {
 	}
 
 	/**
-	 * Assegnazione massiva: applica ruolo e/o linee a piu' utenti insieme.
+	 * NOTA: questa versione arriva dalla build in produzione del webmaster ed e'
+	 * stata recepita perche' migliore della precedente. Quella di prima
+	 * scriveva le linee solo nel meta storico e SALTAVA chi aveva
+	 * un'organizzazione o era area manager, senza applicare niente a chi in una
+	 * rete organizzata e' la maggioranza degli utenti.
 	 *
-	 * Le linee finiscono nel meta storico _dealer_lines, che vale per gli utenti
-	 * senza organizzazione. Per chi ne ha una i diritti li detiene l'azienda e
-	 * scriverli sull'utente non avrebbe effetto: quegli utenti vengono contati a
-	 * parte e segnalati, invece di far credere a un'assegnazione avvenuta.
+	 * Assegnazione massiva coerente con il modello permessi effettivo.
+	 *
+	 * - dealer senza organizzazione: le linee sono salvate nel meta legacy;
+	 * - dealer con organizzazione: le linee selezionate diventano un limite
+	 *   personale, sempre dentro il perimetro dell'organizzazione;
+	 * - area manager: le linee aggiornano il perimetro di pubblicazione _am_lines,
+	 *   lasciando invariate le organizzazioni gia' seguite;
+	 * - il ruolo commerciale di un utente con organizzazione appartiene
+	 *   all'organizzazione e non viene modificato da questa azione massiva.
 	 */
 	public function handle_bulk_assign(): void {
 		check_admin_referer( 'dealer_bulk_assign' );
@@ -231,13 +240,19 @@ class Dealer_Org_Admin {
 		// phpcs:enable WordPress.Security.NonceVerification.Missing
 		$lines    = self::posted_lines( 'bulk_lines' );
 
-		$allowed  = Dealer_Roles::dealer_slugs();
-		$changed  = 0;
-		$skipped  = 0;
-		$messages = [];
+		$allowed      = Dealer_Roles::dealer_slugs();
+		$changed      = 0;
+		$protected    = 0;
+		$role_skipped = 0;
+		$line_skipped = 0;
+		$messages     = [];
 
 		if ( empty( $user_ids ) ) {
 			$messages[] = 'Nessun utente selezionato.';
+		}
+		if ( 'set' === $mode && empty( $lines ) ) {
+			$messages[] = 'Nessuna linea selezionata: per sicurezza l’assegnazione delle linee non è stata eseguita.';
+			$mode = 'keep';
 		}
 
 		foreach ( $user_ids as $user_id ) {
@@ -246,36 +261,59 @@ class Dealer_Org_Admin {
 				continue;
 			}
 
-			// Mai su se stessi e mai su un amministratore: cambiare ruolo a un
-			// amministratore da una schermata di massa e' il modo piu' rapido per
-			// perdere l'accesso al sito.
 			if ( (int) $user_id === get_current_user_id() || user_can( $user, 'manage_options' ) ) {
-				$skipped++;
+				$protected++;
 				continue;
 			}
 
-			// Un utente si conta una volta sola, qualunque sia il numero di
-			// cose che gli sono cambiate: i due contatori finiscono in un
-			// messaggio che parla di "utenti", e sommare ruolo e linee dello
-			// stesso utente riportava piu' utenti aggiornati di quanti ne
-			// fossero stati selezionati.
 			$touched = false;
+			$is_am   = Dealer_Identity::is_area_manager( $user );
+			$org_id  = Dealer_Identity::get_org_id( $user );
 
+			// Il tier di un utente appartenente a un'organizzazione e' ereditato
+			// dall'organizzazione. Cambiare solo il ruolo WP sarebbe cosmetico e
+			// lascerebbe get_effective_tier() invariato.
 			if ( '' !== $role && in_array( $role, $allowed, true ) ) {
-				$user->set_role( $role );
-				$touched = true;
+				if ( $is_am || $org_id ) {
+					$role_skipped++;
+				} else {
+					$user->set_role( $role );
+					$touched = true;
+				}
 			}
 
 			if ( 'set' === $mode ) {
-				// Le linee di chi appartiene a un'organizzazione le detiene
-				// l'azienda: scriverle sull'utente non avrebbe effetto e
-				// lascerebbe un meta fuorviante.
-				if ( Dealer_Identity::has_org( $user ) ) {
-					$skipped++;
-					continue;
+				if ( $is_am ) {
+					$roots = (array) get_user_meta( $user_id, Dealer_Identity::META_AM_ORGS, true );
+					Dealer_Identity::set_am_scope( $user_id, $roots, $lines );
+					if ( Dealer_Identity::get_scope_lines( $user ) ) {
+						$touched = true;
+					} else {
+						$line_skipped++;
+					}
+				} elseif ( $org_id ) {
+					$org_lines = Dealer_Organization::get_effective_lines( $org_id );
+					$usable    = array_values( array_intersect( $lines, $org_lines ) );
+					if ( empty( $usable ) ) {
+						$line_skipped++;
+					} else {
+						// Nessun limite quando la selezione coincide con tutto il
+						// perimetro aziendale; altrimenti salva il sottoinsieme.
+						$org_cmp    = array_values( array_unique( $org_lines ) );
+						$usable_cmp = array_values( array_unique( $usable ) );
+						sort( $org_cmp );
+						sort( $usable_cmp );
+						if ( $org_cmp === $usable_cmp ) {
+							delete_user_meta( $user_id, Dealer_Identity::META_LINE_LIMIT );
+						} else {
+							Dealer_Identity::set_line_limit( $user_id, $usable );
+						}
+						$touched = true;
+					}
+				} else {
+					update_user_meta( $user_id, Dealer_Identity::META_LEGACY_LINES, $lines );
+					$touched = true;
 				}
-				update_user_meta( $user_id, Dealer_Identity::META_LEGACY_LINES, $lines );
-				$touched = true;
 			}
 
 			if ( $touched ) {
@@ -284,11 +322,14 @@ class Dealer_Org_Admin {
 		}
 
 		$messages[] = sprintf( '%d utenti aggiornati.', $changed );
-		if ( $skipped ) {
-			$messages[] = sprintf(
-				'%d saltati: amministratori, il tuo stesso account, oppure utenti con un\'organizzazione (per loro le linee le detiene l\'azienda, non l\'utente).',
-				$skipped
-			);
+		if ( $protected ) {
+			$messages[] = sprintf( '%d account protetti saltati (amministratori o il tuo stesso account).', $protected );
+		}
+		if ( $role_skipped ) {
+			$messages[] = sprintf( '%d cambi ruolo non applicati: Area Manager o utenti con organizzazione usano il proprio modello di permessi.', $role_skipped );
+		}
+		if ( $line_skipped ) {
+			$messages[] = sprintf( '%d assegnazioni linee non applicate perché nessuna linea selezionata rientrava nel perimetro disponibile.', $line_skipped );
 		}
 
 		set_transient( 'dealer_roles_lines_notice_' . get_current_user_id(), $messages, 60 );

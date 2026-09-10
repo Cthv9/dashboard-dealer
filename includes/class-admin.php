@@ -450,6 +450,31 @@ class Dealer_Admin {
 				</form>
 			<?php endif; ?>
 
+			<h2>Foglio di stile</h2>
+			<?php
+			$dp_css_file = DEALER_PORTAL_PATH . 'assets/css/dealer.css';
+			$dp_css_ok   = is_readable( $dp_css_file );
+			?>
+			<p class="description" style="max-width:760px;">
+				Se sul front-end le pagine escono senza impaginazione ma con i contenuti giusti, il foglio
+				non sta arrivando alla pagina. Dalla 1.10.3 il plugin se ne accorge e lo stampa dentro il
+				contenuto, quindi il sintomo non dovrebbe piu' presentarsi; questa tabella serve a capire
+				se il file c'e' e da dove viene servito.
+			</p>
+			<table class="widefat striped" style="max-width:760px;"><tbody>
+				<tr><td style="width:340px;">File su disco</td>
+					<td><?php echo $dp_css_ok
+						? '<span style="color:#00a32a;">leggibile</span>'
+						: '<strong style="color:#d63638;">assente o non leggibile</strong>'; ?>
+						— <code><?php echo esc_html( $dp_css_file ); ?></code></td></tr>
+				<tr><td>Dimensione</td>
+					<td><?php echo esc_html( $dp_css_ok ? size_format( (int) filesize( $dp_css_file ) ) : '—' ); ?></td></tr>
+				<tr><td>URL pubblico</td>
+					<td><a href="<?php echo esc_url( DEALER_PORTAL_URL . 'assets/css/dealer.css' ); ?>" target="_blank" rel="noopener">
+						<?php echo esc_html( DEALER_PORTAL_URL . 'assets/css/dealer.css' ); ?></a>
+						<br><small>Aprilo: se non si vede il CSS, l'URL non e' raggiungibile e il ripiego in linea e' l'unica via.</small></td></tr>
+			</tbody></table>
+
 			<h2>Permalink</h2>
 			<table class="widefat striped" style="max-width:760px;"><tbody>
 				<tr><td style="width:340px;">Struttura permalink</td>
