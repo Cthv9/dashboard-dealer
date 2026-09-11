@@ -14,6 +14,7 @@
 	--dp-radius:   8px;
 	--dp-text:     #1a2535;
 	--dp-muted:    #52616b;
+	--dp-font:     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 /* ── Wrapper globale ─────────────────────────────────────────────────────── */
@@ -68,7 +69,12 @@ body .dealer-board-wrap {
 	   del tema, non alla finestra): il tetto del contenuto si calcola su
 	   --dp-vw. max() garantisce comunque il margine minimo di 20px. */
 	padding: 40px max(20px, calc((var(--dp-vw, 100vw) - 1440px) / 2)) 60px !important;
-	font-family: inherit;
+	/* Stack esplicito, non inherit: un tema che non dichiara un font
+	   lascerebbe tutto il portale in Times New Roman. */
+	font-family: var(--dp-font);
+	font-size: 16px;
+	line-height: 1.5;
+	color: var(--dp-text);
 }
 
 /* Ripiego applicato da dealer-layout.js quando un contenitore del tema

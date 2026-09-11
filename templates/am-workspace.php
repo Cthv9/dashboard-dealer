@@ -36,7 +36,9 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 	.dealer-am-wrap{--am-navy:#0a1628;--am-blue:#1e6fa8;--am-blue-dk:#155c91;--am-gray:#f4f6f8;
 		--am-border:#dce5ea;--am-text:#1a2535;--am-muted:#52616b;--am-warn:#b8860b;--am-danger:#a63232;
 		--am-ok:#2e7d4f;--am-radius:8px;--am-shadow:0 4px 14px rgba(0,0,0,.07);
-		color:var(--am-text);box-sizing:border-box;}
+		color:var(--am-text);box-sizing:border-box;
+		/* Font esplicito: un tema senza font lascerebbe tutto in Times New Roman. */
+		font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;font-size:16px;line-height:1.5;}
 	/* Larghezza in una regola a parte, con "body" davanti e !important: vedi
 	   il blocco "Wrapper globale" in assets/css/dealer.css per il perché
 	   (spiegato lì per non ripeterlo in ogni template) — un tema a blocchi

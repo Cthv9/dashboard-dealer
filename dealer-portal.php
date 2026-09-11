@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Dealer Portal
  * Description:       Area riservata per la distribuzione controllata di documenti a reti di utenti esterni: permessi granulari per organizzazione, versionamento, ricerca a faccette. SearchWP supportato (opzionale).
- * Version:           1.13.0
+ * Version:           1.13.1
  * Author:            DF
  * Text Domain:       dealer-portal
  * Requires PHP:      7.4
@@ -11,7 +11,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'DEALER_PORTAL_VERSION', '1.13.0' );
+define( 'DEALER_PORTAL_VERSION', '1.13.1' );
 define( 'DEALER_PORTAL_PATH',    plugin_dir_path( __FILE__ ) );
 define( 'DEALER_PORTAL_URL',     plugin_dir_url( __FILE__ ) );
 // ─── Capability ──────────────────────────────────────────────────────────────
@@ -95,19 +95,18 @@ add_filter( 'login_redirect', function ( string $redirect_to, string $request, $
 		return $redirect_to;
 	}
 	// Chi ha cliccato "Accedi" dalla Bacheca o dai Preferiti torna dove
-	// stava: un redirect esplicito verso il front-end del sito si rispetta.
-	// Verso wp-admin (il predefinito di WordPress) no: i ruoli del portale
-	// non ci entrano e verrebbero comunque rimbalzati alla dashboard.
-	if ( '' !== $redirect_to
-		&& 0 === strpos( $redirect_to, home_url( '/' ) )
-		&& 0 !== strpos( $redirect_to, admin_url() )
-		&& false === strpos( $redirect_to, 'wp-login.php' ) ) {
+	// stava, ma SOLO se la destinazione e' una pagina di questo plugin. Un
+	// redirect_to qualsiasi non si rispetta: un plugin di membership (WP
+	// Customer Area, ad esempio) lo imposta sulla propria area privata, e
+	// l'utente del portale finirebbe li' invece che sulla dashboard.
+	$target = '' !== $redirect_to ? (int) url_to_postid( $redirect_to ) : 0;
+	if ( $target && Dealer_Access_Guard::is_plugin_page( $target ) ) {
 		return $redirect_to;
 	}
 	// Risolto dall'ID pagina reale, non da un percorso fisso: vedi
 	// Dealer_DB::dashboard_url() per il perché.
 	return Dealer_Access_Guard::home_url_for( $user );
-}, 10, 3 );
+}, PHP_INT_MAX, 3 ); // Ultimo: nessun altro plugin puo' riscrivere la destinazione dopo di noi.
 
 // ─── Boot ────────────────────────────────────────────────────────────────────
 // Dealer_CPT deve aggiungere il suo hook 'init' prima che 'init' scatti.

@@ -509,6 +509,13 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 
 ## Changelog
 
+### 1.13.1
+
+Due correzioni dalla messa in produzione della 1.13.0, entrambe sotto la mia responsabilità.
+
+- **Dopo il login l'utente finiva nell'area privata di WP Customer Area, non nella dashboard.** La 1.13.0 aveva iniziato a rispettare il `redirect_to` del login se puntava al front-end, per riportare alla Bacheca chi cliccava «Accedi» da lì. Ma un plugin di membership imposta quel valore sulla *propria* area privata, e così ogni utente del portale finiva lì. Ora il `redirect_to` viene rispettato **solo se è una pagina di questo plugin**; in ogni altro caso si va alla dashboard (o all'area di lavoro dell'area manager). Il filtro gira per ultimo (`PHP_INT_MAX`), così nessun altro plugin può riscrivere la destinazione dopo di noi.
+- **Modulo di richiesta accesso e pagine del portale in Times New Roman.** Tutti i contenitori usavano `font-family: inherit`: su un tema, o un template di pagina, che non dichiara un font il browser ripiega sul serif predefinito. Ora ogni contenitore del plugin (modulo pubblico, dashboard, ricerca, preferiti, bacheca, collaboratori, area manager) dichiara il proprio stack di sistema, con dimensione e interlinea, e non dipende più dal tema.
+
 ### 1.13.0
 
 Revisione completa prima della versione finale: cinque revisori indipendenti, uno per perimetro (pagine dealer, bacheca, delega titolare/area manager, back-office wp-admin, infrastruttura e accesso), con la consegna di enumerare ogni punto d'ingresso — shortcode, form, link, pulsante, AJAX, cron — e seguirlo fino all'handler. Verifica statica: nessun file è stato eseguito su un WordPress reale, quindi resta l'elenco delle prove da fare a mano nel sito. Corretto quello che è emerso.
