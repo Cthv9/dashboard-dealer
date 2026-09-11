@@ -204,6 +204,8 @@ class Dealer_Portal_Nav {
 			return '';
 		}
 
+		$title_id   = $current_page_id ?: (int) get_queried_object_id();
+		$page_title = $title_id ? (string) get_the_title( $title_id ) : '';
 		$user  = wp_get_current_user();
 		$items = self::items( $user );
 
@@ -257,7 +259,21 @@ class Dealer_Portal_Nav {
 			// in produzione non succede, e il titolo della pagina restava fuori
 			// squadra. Qui la si aggiunge dal punto in cui la barra esiste
 			// davvero. Senza JavaScript si perde solo la centratura del titolo.
-			. '<script>(function(){var b=document.body;if(b&&b.classList){b.classList.add("dealer-portal-page");}})();</script>';
+			. '<script>(function(){var b=document.body;if(!b||!b.classList){return;}'
+			. 'b.classList.add("dealer-portal-page");'
+			// Il titolo lo stampa il tema, con la classe e il tag che preferisce, e
+			// puo' stare ovunque. Non si indovinano i nomi e non si prende "il primo
+			// h1" (sarebbe il nome del sito): si cerca l'intestazione il cui testo e'
+			// esattamente il titolo di questa pagina, che il server conosce gia'.
+			. 'var t=' . wp_json_encode( $page_title ) . ';'
+			. 'if(!t||!document.querySelectorAll||!b.closest){return;}'
+			. 'var mine=".dealer-portal-nav,.dealer-dashboard-wrap,.dealer-search-wrap,'
+			. '.dealer-favorites-wrap,.dealer-board-wrap,.dealer-am-wrap,.dealer-team-wrap,.dar-wrap";'
+			. 'var hs=document.querySelectorAll("h1,h2");'
+			. 'for(var i=0;i<hs.length;i++){var h=hs[i];'
+			. 'if((h.textContent||"").replace(/\\s+/g," ").trim()===t&&!h.closest(mine)){'
+			. 'h.classList.add("dealer-portal-title");break;}}'
+			. '})();</script>';
 	}
 
 	/**
@@ -348,6 +364,12 @@ class Dealer_Portal_Nav {
 			// blocco nativo di WordPress) e quelli classici (.entry-title,
 			// .page-title). !important perche' un tema a blocchi puo' scrivere
 			// allineamento e dimensione come stile inline sul blocco stesso.
+			. '.dealer-portal-title{text-align:center !important;'
+			. 'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif !important;'
+			. 'font-size:clamp(1.6rem,3.2vw,2.4rem) !important;font-weight:700 !important;'
+			. 'background:none !important;border:0 !important;padding:0 !important;'
+			. 'margin:24px auto .4em !important;max-width:1440px !important;}'
+			. '.dealer-portal-title::before,.dealer-portal-title::after{content:none !important;background:none !important;}'
 			. 'body.dealer-portal-page .wp-block-post-title,'
 			. 'body.dealer-portal-page .entry-title,'
 			. 'body.dealer-portal-page .page-title{text-align:center !important;'

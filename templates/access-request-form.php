@@ -53,11 +53,13 @@ $submitted  = ( 'success' === $fb_status );
 		.dar-wrap *, .dar-wrap *::before, .dar-wrap *::after { box-sizing: border-box; }
 		.dar-wrap h2, .dar-wrap p, .dar-wrap label { font-family: inherit; }
 		.dar-inner { max-width: 780px; margin: 0 auto; }
-		/* Difesa dal tema: vedi dealer.css. */
-		.dar-wrap :is(h1,h2,h3,h4,h5,h6) { background: none !important; border: 0 !important;
+		/* Difesa dal tema: vedi dealer.css per il perche' dei due pesi. */
+		.dar-wrap.dar-wrap :is(h1,h2,h3,h4,h5,h6) { background: none !important; border: 0 !important;
 			box-shadow: none !important; padding: 0 !important;
 			text-transform: none !important; font-family: inherit !important; }
-		.dar-wrap :where(h1,h2,h3,h4,h5,h6) { color: inherit; text-align: left; line-height: 1.3; }
+		.dar-wrap.dar-wrap :is(h1,h2,h3,h4,h5,h6)::before, .dar-wrap.dar-wrap :is(h1,h2,h3,h4,h5,h6)::after {
+			content: none !important; background: none !important; }
+		:where(.dar-wrap) :where(h1,h2,h3,h4,h5,h6) { color: inherit; text-align: left; line-height: 1.3; }
 		.dar-head {
 			background: linear-gradient(135deg, var(--dar-navy) 0%, var(--dar-blue) 100%);
 			color: #fff;

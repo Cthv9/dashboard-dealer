@@ -438,10 +438,76 @@ class Dealer_Access_Guard {
 		$css  = is_readable( $file ) ? (string) file_get_contents( $file ) : ''; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
 
 		if ( '' !== $css ) {
-			$css = str_ireplace( '</style', '', $css );
+			$css = self::dashicons_subset() . str_ireplace( '</style', '', $css );
 		}
 
 		return $css;
+	}
+
+	/**
+	 * Le sole icone Dashicons che il front-end usa, pronte da stampare inline.
+	 *
+	 * Dashicons e' un foglio di WordPress che accodiamo regolarmente, ma in
+	 * produzione e' sparito insieme al nostro: i pulsanti "Vedi" e "Scarica"
+	 * sono rimasti pastiglie vuote. Molti siti lo tolgono anche di proposito,
+	 * per alleggerire il front-end. Invece di dipendere da lui si copiano qui
+	 * il @font-face (con l'indirizzo del font reso assoluto: inline, un
+	 * percorso relativo verrebbe risolto rispetto alla pagina e non al foglio)
+	 * e le regole delle sole icone che compaiono nei nostri template. Sono
+	 * poco piu' di un chilobyte. Se il file di WordPress non fosse leggibile
+	 * si torna al comportamento di prima, senza errori.
+	 *
+	 * L'elenco e' esplicito perche' sia visibile: aggiungendo una dashicons a
+	 * un template del front-end va aggiunta anche qui.
+	 */
+	private static function dashicons_subset(): string {
+		static $out = null;
+
+		if ( null !== $out ) {
+			return $out;
+		}
+
+		$out   = '';
+		$icons = [
+			'arrow-up-alt2', 'backup', 'calendar-alt', 'chart-bar', 'cloud-upload',
+			'download', 'email-alt', 'filter', 'groups', 'info', 'list-view',
+			'media-archive', 'media-document', 'media-spreadsheet', 'migrate',
+			'phone', 'portfolio', 'search', 'star-filled', 'tag', 'upload',
+			'visibility', 'warning', 'yes',
+		];
+
+		$file = ABSPATH . WPINC . '/css/dashicons.min.css';
+		if ( ! is_readable( $file ) ) {
+			$file = ABSPATH . WPINC . '/css/dashicons.css';
+		}
+		if ( ! is_readable( $file ) ) {
+			return $out;
+		}
+
+		$css = (string) @file_get_contents( $file ); // phpcs:ignore
+		if ( '' === $css ) {
+			return $out;
+		}
+
+		$parts = [];
+		if ( preg_match( '/@font-face\s*\{[^}]*\}/', $css, $m ) ) {
+			$parts[] = str_replace( '../fonts/', includes_url( 'fonts/' ), $m[0] );
+		}
+		if ( preg_match( '/\.dashicons\s*,\s*\.dashicons-before:before\s*\{[^}]*\}/', $css, $m ) ) {
+			$parts[] = $m[0];
+		}
+		foreach ( $icons as $icon ) {
+			if ( preg_match( '/\.dashicons-' . preg_quote( $icon, '/' ) . ':before\s*\{[^}]*\}/', $css, $m ) ) {
+				$parts[] = $m[0];
+			}
+		}
+
+		if ( count( $parts ) < 2 ) {
+			return $out; // Formato inatteso: meglio non stampare niente.
+		}
+
+		$out = implode( '', $parts );
+		return $out;
 	}
 
 	/** Vedi $logout_shown_elsewhere. */

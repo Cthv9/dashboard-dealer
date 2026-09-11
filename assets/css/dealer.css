@@ -22,15 +22,21 @@
    Un tema puo' dipingere i titoli con una barra di sfondo a tutta larghezza,
    imporre un serif o allineamenti propri: succede su saim-group.com, dove i
    nostri h2 diventavano bande blu. Dentro i nostri contenitori quelle
-   decorazioni non devono entrare. Le proprieta' che nessuna nostra regola usa
-   sui titoli (sfondo, bordo, ombra, padding) si azzerano con !important; il
-   colore e l'allineamento passano da :where(), che vale specificita' zero,
-   cosi' le regole nostre piu' avanti nel file — titolo blu, testo bianco
-   sull'intestazione scura — continuano a vincere. */
-body .dealer-dashboard-wrap :is(h1,h2,h3,h4,h5,h6),
-body .dealer-search-wrap :is(h1,h2,h3,h4,h5,h6),
-body .dealer-favorites-wrap :is(h1,h2,h3,h4,h5,h6),
-body .dealer-board-wrap :is(h1,h2,h3,h4,h5,h6) {
+   decorazioni non devono entrare.
+
+   Due regole con pesi opposti, di proposito:
+   1. la classe del contenitore e' ripetuta (0,2,1) e le proprieta' sono
+      !important, cosi' la neutralizzazione vince anche se il foglio del tema
+      viene iniettato DOPO il nostro — succede con gli ottimizzatori che
+      spostano il CSS a fondo pagina;
+   2. colore e allineamento passano invece da :where(), che azzera la
+      specificita': qualunque regola nostra piu' avanti nel file (il nome
+      bianco sull'intestazione scura, un titolo blu) vince senza dover
+      rilanciare con !important. */
+body .dealer-dashboard-wrap.dealer-dashboard-wrap :is(h1,h2,h3,h4,h5,h6),
+body .dealer-search-wrap.dealer-search-wrap :is(h1,h2,h3,h4,h5,h6),
+body .dealer-favorites-wrap.dealer-favorites-wrap :is(h1,h2,h3,h4,h5,h6),
+body .dealer-board-wrap.dealer-board-wrap :is(h1,h2,h3,h4,h5,h6) {
 	background: none !important;
 	border: 0 !important;
 	box-shadow: none !important;
@@ -38,10 +44,20 @@ body .dealer-board-wrap :is(h1,h2,h3,h4,h5,h6) {
 	text-transform: none !important;
 	font-family: var(--dp-font) !important;
 }
-body .dealer-dashboard-wrap :where(h1,h2,h3,h4,h5,h6),
-body .dealer-search-wrap :where(h1,h2,h3,h4,h5,h6),
-body .dealer-favorites-wrap :where(h1,h2,h3,h4,h5,h6),
-body .dealer-board-wrap :where(h1,h2,h3,h4,h5,h6) {
+/* Alcuni temi disegnano la banda con uno pseudo-elemento del titolo. */
+body .dealer-dashboard-wrap.dealer-dashboard-wrap :is(h1,h2,h3,h4,h5,h6)::before,
+body .dealer-dashboard-wrap.dealer-dashboard-wrap :is(h1,h2,h3,h4,h5,h6)::after,
+body .dealer-search-wrap.dealer-search-wrap :is(h1,h2,h3,h4,h5,h6)::before,
+body .dealer-search-wrap.dealer-search-wrap :is(h1,h2,h3,h4,h5,h6)::after,
+body .dealer-favorites-wrap.dealer-favorites-wrap :is(h1,h2,h3,h4,h5,h6)::before,
+body .dealer-favorites-wrap.dealer-favorites-wrap :is(h1,h2,h3,h4,h5,h6)::after,
+body .dealer-board-wrap.dealer-board-wrap :is(h1,h2,h3,h4,h5,h6)::before,
+body .dealer-board-wrap.dealer-board-wrap :is(h1,h2,h3,h4,h5,h6)::after {
+	content: none !important;
+	background: none !important;
+	box-shadow: none !important;
+}
+:where(body .dealer-dashboard-wrap, body .dealer-search-wrap, body .dealer-favorites-wrap, body .dealer-board-wrap) :where(h1,h2,h3,h4,h5,h6) {
 	color: var(--dp-text);
 	text-align: left;
 	line-height: 1.3;

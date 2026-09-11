@@ -509,6 +509,14 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 
 ## Changelog
 
+### 1.13.3
+
+Terzo giro sul confronto container/produzione. Il CSS inline della 1.13.2 ha fatto il suo lavoro — la dashboard adesso è quella giusta — ma restavano tre cose, e una era un danno che avevo fatto io.
+
+- **Il nome nell'intestazione scura era diventato illeggibile.** Il reset introdotto nella 1.13.2 per spegnere le bande blu del tema pesava più della regola che rende bianco il nome: dal blu su blu non si leggeva niente. Ora le due regole hanno pesi opposti di proposito — la neutralizzazione (sfondo, bordo, padding) ripete la classe del contenitore e usa `!important`, così vince anche se il foglio del tema viene iniettato dopo il nostro; colore e allineamento passano da `:where()`, a specificità zero, così qualunque regola nostra vince senza rilanciare. Aggiunta anche la neutralizzazione degli pseudo-elementi dei titoli, che è il modo in cui alcuni temi disegnano quelle bande.
+- **I pulsanti «Vedi» e «Scarica» erano pastiglie vuote.** Le icone vengono da Dashicons, un foglio di WordPress che accodiamo regolarmente ma che in produzione è sparito insieme al nostro — e che molti siti tolgono di proposito per alleggerire il front-end. Ora le sole 24 icone che il portale usa viaggiano inline con il resto del CSS, con l'indirizzo del font reso assoluto. Poco più di un chilobyte, e nessuna dipendenza da come è configurato il sito.
+- **Il titolo della pagina restava fuori squadra.** La regola che lo centra dipendeva da una classe sul `<body>` che il tema non mette. Adesso non si indovinano più i nomi delle classi del tema e non si prende «il primo h1» (sarebbe il nome del sito): si cerca l'intestazione il cui testo è esattamente il titolo di questa pagina, che il server conosce già, e si applica lo stile a quella.
+
 ### 1.13.2
 
 Dal confronto fra il container e il sito in produzione: le pagine funzionano ma arrivano senza stile, e i titoli diventano bande blu del tema.
