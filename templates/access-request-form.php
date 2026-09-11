@@ -43,9 +43,15 @@ $submitted  = ( 'success' === $fb_status );
 			--dar-radius: 8px;
 			background: var(--dar-gray);
 			padding: 40px 20px 56px;
-			font-family: inherit;
+			/* Stack esplicito, non inherit: su un tema (o un template di pagina)
+			   che non dichiara un font il modulo finirebbe in Times New Roman. */
+			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+			font-size: 16px;
+			line-height: 1.5;
 			color: var(--dar-text);
 		}
+		.dar-wrap *, .dar-wrap *::before, .dar-wrap *::after { box-sizing: border-box; }
+		.dar-wrap h2, .dar-wrap p, .dar-wrap label { font-family: inherit; }
 		.dar-inner { max-width: 780px; margin: 0 auto; }
 		.dar-head {
 			background: linear-gradient(135deg, var(--dar-navy) 0%, var(--dar-blue) 100%);
