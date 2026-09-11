@@ -509,6 +509,15 @@ Gli eventi sono auto-riparanti (ripianificati su `init` se mancanti) e vengono r
 
 ## Changelog
 
+### 1.13.2
+
+Dal confronto fra il container e il sito in produzione: le pagine funzionano ma arrivano senza stile, e i titoli diventano bande blu del tema.
+
+- **Il CSS del front-end ora viaggia dentro la pagina, non come file collegato.** In produzione il `dealer.css` era raggiungibile, eppure la pagina arrivava in Times New Roman: fra ottimizzatori che accorpano i fogli, CDN e temi che stampano `wp_head()` a modo loro, il collegamento esterno è l'anello debole. Il blocco `<style>` dentro la pagina, invece, ha sempre funzionato in ogni ambiente visto finora — ed è anche l'ultimo a comparire, quindi a parità di specificità vince sulle regole del tema. Il foglio esterno viene tolto dalla coda sulle nostre pagine, così non viaggia due volte; se il file fosse illeggibile si torna al collegamento. Come ultima rete, se il contenuto non passasse dal filtro `the_content` (page builder, template che stampa l'articolo a mano) il CSS esce comunque a fondo pagina.
+- **I titoli non prendono più le decorazioni del tema.** Su saim-group.com ogni `h2` del portale diventava una banda blu a tutta larghezza, e nell'area manager il testo dei titoli spariva (scuro su scuro). Dentro i nostri contenitori sfondo, bordo, ombra e padding dei titoli sono azzerati; colore e allineamento passano da `:where()`, a specificità zero, così i titoli bianchi sulle intestazioni scure restano bianchi.
+- **La classe `dealer-portal-page` sul `<body>`** la metteva solo il filtro `body_class`, che però vale se il tema chiama `body_class()` — in produzione non succede, e il titolo della pagina restava disallineato. Ora la aggiunge anche la barra di navigazione, dal punto in cui esiste davvero.
+- **L'email di richiesta respinta non invita più a rispondere.** Il mittente è un `noreply`: la risposta finiva in un buco nero. Ora rimanda al referente commerciale e ai recapiti del sito.
+
 ### 1.13.1
 
 Due correzioni dalla messa in produzione della 1.13.0, entrambe sotto la mia responsabilità.

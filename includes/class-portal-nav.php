@@ -251,7 +251,13 @@ class Dealer_Portal_Nav {
 			. '<a class="dealer-nav-logout" href="' . esc_url( wp_logout_url( home_url( '/' ) ) ) . '">Esci</a>'
 			. '</div>'
 			. '</div>'
-			. '</nav>';
+			. '</nav>'
+			// La classe sul <body> la mette normalmente il filtro body_class di
+			// Dealer_Access_Guard, ma vale solo se il tema chiama body_class():
+			// in produzione non succede, e il titolo della pagina restava fuori
+			// squadra. Qui la si aggiunge dal punto in cui la barra esiste
+			// davvero. Senza JavaScript si perde solo la centratura del titolo.
+			. '<script>(function(){var b=document.body;if(b&&b.classList){b.classList.add("dealer-portal-page");}})();</script>';
 	}
 
 	/**

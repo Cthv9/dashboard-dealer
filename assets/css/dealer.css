@@ -18,6 +18,35 @@
 	--dp-font:     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
+/* ── Difesa dai fogli di stile del tema ──────────────────────────────────────
+   Un tema puo' dipingere i titoli con una barra di sfondo a tutta larghezza,
+   imporre un serif o allineamenti propri: succede su saim-group.com, dove i
+   nostri h2 diventavano bande blu. Dentro i nostri contenitori quelle
+   decorazioni non devono entrare. Le proprieta' che nessuna nostra regola usa
+   sui titoli (sfondo, bordo, ombra, padding) si azzerano con !important; il
+   colore e l'allineamento passano da :where(), che vale specificita' zero,
+   cosi' le regole nostre piu' avanti nel file — titolo blu, testo bianco
+   sull'intestazione scura — continuano a vincere. */
+body .dealer-dashboard-wrap :is(h1,h2,h3,h4,h5,h6),
+body .dealer-search-wrap :is(h1,h2,h3,h4,h5,h6),
+body .dealer-favorites-wrap :is(h1,h2,h3,h4,h5,h6),
+body .dealer-board-wrap :is(h1,h2,h3,h4,h5,h6) {
+	background: none !important;
+	border: 0 !important;
+	box-shadow: none !important;
+	padding: 0 !important;
+	text-transform: none !important;
+	font-family: var(--dp-font) !important;
+}
+body .dealer-dashboard-wrap :where(h1,h2,h3,h4,h5,h6),
+body .dealer-search-wrap :where(h1,h2,h3,h4,h5,h6),
+body .dealer-favorites-wrap :where(h1,h2,h3,h4,h5,h6),
+body .dealer-board-wrap :where(h1,h2,h3,h4,h5,h6) {
+	color: var(--dp-text);
+	text-align: left;
+	line-height: 1.3;
+}
+
 /* ── Wrapper globale ─────────────────────────────────────────────────────── */
 /* Larghezza: l'area riservata è un'applicazione, non un articolo del sito.
    Il contenitore del tema è tarato sulla lunghezza di riga leggibile di un

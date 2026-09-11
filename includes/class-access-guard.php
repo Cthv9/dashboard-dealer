@@ -62,8 +62,15 @@ class Dealer_Access_Guard {
 		// sul sito ufficiale, non lo stato delle pagine.)
 		add_filter( 'the_posts',      [ $this, 'restore_plugin_page_query' ], PHP_INT_MAX, 2 );
 		add_filter( 'pre_handle_404', [ $this, 'prevent_plugin_page_404' ],   PHP_INT_MAX, 2 );
-		// Rete di sicurezza sul foglio di stile: vedi inline_stylesheet_fallback().
+		// Il foglio di stile del front-end viaggia INLINE dentro la pagina, non
+		// come file collegato: vedi inline_stylesheet_fallback(). Qui si toglie
+		// di mezzo l'accodamento normale, cosi' non viaggia due volte.
+		add_action( 'wp_enqueue_scripts', [ $this, 'prefer_inline_stylesheet' ], 999 );
 		add_filter( 'the_content', [ $this, 'inline_stylesheet_fallback' ], 4 );
+		// Ultima spiaggia: se per qualche motivo the_content non e' passato da
+		// qui (contenuto sostituito da un page builder, template che stampa
+		// l'articolo a mano), il CSS esce comunque prima della chiusura.
+		add_action( 'wp_footer', [ $this, 'inline_stylesheet_footer' ], 1 );
 		add_action( 'template_redirect', [ $this, 'route_dashboard' ] );
 	}
 
@@ -357,13 +364,6 @@ class Dealer_Access_Guard {
 			return $content;
 		}
 
-		// Gia' emesso nell'head dal normale accodamento: e' il caso sano, e qui
-		// non c'e' niente da fare.
-		if ( wp_style_is( 'dealer-portal-dealer', 'done' ) ) {
-			self::$css_inlined = true;
-			return $content;
-		}
-
 		$css = self::stylesheet_contents();
 		if ( '' === $css ) {
 			return $content;
@@ -372,6 +372,51 @@ class Dealer_Access_Guard {
 		self::$css_inlined = true;
 
 		return '<style id="dealer-portal-inline-css">' . $css . '</style>' . $content;
+	}
+
+	/**
+	 * Toglie dalla coda il foglio di stile del front-end sulle nostre pagine.
+	 *
+	 * Il CSS collegato e' l'anello debole: in produzione (saim-group.com) le
+	 * pagine sono arrivate senza stile pur essendo il file raggiungibile —
+	 * ottimizzatori che accorpano i fogli, CDN, temi che non stampano
+	 * wp_head() nel modo previsto. Il blocco <style> dentro la pagina invece
+	 * ha sempre funzionato, in ogni ambiente visto finora, e ha un vantaggio
+	 * in piu': essendo l'ultimo a comparire, a parita' di specificita' vince
+	 * sulle regole del tema. Costa una copia del CSS a ogni caricamento di
+	 * pagina, ma queste pagine le vede solo chi ha fatto accesso: e' un prezzo
+	 * onesto per non dipendere da come e' configurato un sito che non
+	 * controlliamo.
+	 */
+	public function prefer_inline_stylesheet(): void {
+		if ( is_admin() ) {
+			return;
+		}
+		$page_id = (int) get_queried_object_id();
+		if ( ! $page_id || ! self::is_plugin_page( $page_id ) ) {
+			return;
+		}
+		if ( '' === self::stylesheet_contents() ) {
+			return; // File illeggibile: meglio il collegamento che niente.
+		}
+		wp_dequeue_style( 'dealer-portal-dealer' );
+	}
+
+	/** Vedi inline_stylesheet_fallback(): stesso CSS, ultima occasione utile. */
+	public function inline_stylesheet_footer(): void {
+		if ( self::$css_inlined || is_admin() || is_feed() ) {
+			return;
+		}
+		$page_id = (int) get_queried_object_id();
+		if ( ! $page_id || ! self::is_plugin_page( $page_id ) ) {
+			return;
+		}
+		$css = self::stylesheet_contents();
+		if ( '' === $css ) {
+			return;
+		}
+		self::$css_inlined = true;
+		echo '<style id="dealer-portal-inline-css">' . $css . '</style>'; // phpcs:ignore WordPress.Security.EscapeOutput
 	}
 
 	/**
