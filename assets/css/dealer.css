@@ -1,6 +1,7 @@
 /* ─── Dealer Portal — Front-end CSS ─────────────────────────────────────── */
 /* Palette: --dp-navy #0a1628 | --dp-blue #1e6fa8 | --dp-gray #f4f6f8      */
-/* Nessun Google Font — usa font di sistema ereditato dal tema               */
+/* Nessun Google Font — stack di sistema dichiarato qui (--dp-font), non     */
+/* ereditato dal tema: un tema senza font lascerebbe tutto in Times New Roman */
 
 :root {
 	--dp-navy:     #0a1628;
