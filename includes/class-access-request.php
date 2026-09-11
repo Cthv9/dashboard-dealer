@@ -880,7 +880,11 @@ class Dealer_Access_Request {
 				if ( '' !== $reason ) {
 					$body .= "\nNota dallo staff:\n" . $reason . "\n";
 				}
-				$body .= "\nPer qualsiasi chiarimento puoi rispondere a questa email.\n";
+				// Il mittente configurato e' quasi sempre un noreply: invitare a
+				// rispondere manderebbe la risposta in un buco nero.
+				$body .= "\nQuesto messaggio arriva da un indirizzo che non riceve risposte.\n";
+				$body .= "Per qualsiasi chiarimento contatta il tuo referente commerciale,\n";
+				$body .= "oppure scrivici o chiamaci ai recapiti che trovi su " . home_url( '/' ) . "\n";
 				Dealer_Notifications::send_plain( (string) $email, $subject, $body );
 			}
 		}

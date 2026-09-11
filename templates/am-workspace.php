@@ -39,6 +39,13 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 		color:var(--am-text);box-sizing:border-box;
 		/* Font esplicito: un tema senza font lascerebbe tutto in Times New Roman. */
 		font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;font-size:16px;line-height:1.5;}
+	/* Difesa dal tema: niente barre di sfondo, bordi o serif sui titoli.
+	   Sfondo/bordo/padding con !important (nessuna nostra regola li usa
+	   sui titoli); colore e allineamento con :where(), specificita' zero,
+	   cosi' i titoli bianchi sull'intestazione scura restano bianchi. */
+	.dealer-am-wrap :is(h1,h2,h3,h4,h5,h6){background:none!important;border:0!important;box-shadow:none!important;
+		padding:0!important;text-transform:none!important;font-family:inherit!important;}
+	.dealer-am-wrap :where(h1,h2,h3,h4,h5,h6){color:inherit;text-align:left;line-height:1.3;}
 	/* Larghezza in una regola a parte, con "body" davanti e !important: vedi
 	   il blocco "Wrapper globale" in assets/css/dealer.css per il perché
 	   (spiegato lì per non ripeterlo in ogni template) — un tema a blocchi
